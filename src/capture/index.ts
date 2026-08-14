@@ -1,4 +1,6 @@
 export { attachHttpMonitor } from "./attachHttp";
+export { captureEncrypted } from "./captureEncrypted";
+export type { EncryptedPayload } from "./captureEncrypted";
 export { createReduxMonitorMiddleware } from "./reduxCapture";
 export type { MiddlewareLike, MiddlewareApiLike, ReduxCaptureOptions } from "./reduxCapture";
 export { tapQueryClient } from "./queryCapture";

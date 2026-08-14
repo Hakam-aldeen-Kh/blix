@@ -12,6 +12,10 @@
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { endOf, startOf } from "../helpers/waterfall";
 
+// HAR requires `creator.version`, and there is no build-time define for the
+// package version — bump this alongside package.json when it matters.
+const CREATOR_VERSION = "0.3.0";
+
 interface HarHeader {
   name: string;
   value: string;
@@ -111,7 +115,7 @@ export function toHar(entries: MonitorEntry[]) {
   return {
     log: {
       version: "1.2",
-      creator: { name: "customer-support-web dev tools", version: "2.0" },
+      creator: { name: "blix", version: CREATOR_VERSION },
       pages: [],
       entries: http
         .slice()

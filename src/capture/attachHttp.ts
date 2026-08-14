@@ -13,6 +13,7 @@ import type { AxiosError, AxiosInstance, AxiosResponse, InternalAxiosRequestConf
 import { configureDbName } from "./monitorConfig";
 import { MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
+import { stampMonitorId } from "./monitorStamp";
 import type { InitiatorFrame } from "./monitorTypes";
 import {
   estimateBytes,
@@ -48,6 +49,11 @@ export function attachHttpMonitor(
       const id = networkMonitor.nextId();
       const monitored = config as MonitoredConfig;
       monitored.__monitorId = id;
+      // Second, invisible stamp for `captureEncrypted`. Kept separate from
+      // `__monitorId` rather than replacing it: this one has to survive being
+      // read by the host's own interceptors without ever showing up in a
+      // spread, a log line, or anything serialized towards the wire.
+      stampMonitorId(config, id);
 
       const hadFormData =
         typeof FormData !== "undefined" && config.data instanceof FormData;

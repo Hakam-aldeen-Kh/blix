@@ -62,6 +62,7 @@ it.
 | `createReduxMonitorMiddleware` | in `configureStore`'s `middleware` callback | module scope |
 | `tapRealtimeAdapter` | where the adapter singleton is constructed | module scope |
 | `tapQueryClient` | a `useEffect` in your query provider | see below |
+| `captureEncrypted` | inside your own encrypt/decrypt interceptors | per request — optional, see below |
 
 ### HTTP — `attachHttpMonitor(instance, options?)`
 
@@ -83,6 +84,70 @@ apiClient.interceptors.request.use(encryptBody);
 // Last, at module scope — NOT in a hook, NOT in a component.
 attachHttpMonitor(apiClient);
 ```
+
+#### Encrypted payloads — `captureEncrypted(config, payload)`
+
+**Entirely optional.** An app that never calls it behaves exactly as it did
+before this API existed, and its panel shows no Encrypted tab at all — the tab
+appears only on entries that actually carry ciphertext.
+
+Blix cannot capture the encrypted forms by itself. It has no knowledge of your
+encryption scheme, and — by the design above — its interceptor deliberately
+sits on the *plaintext* side, so at the moment Blix captures, the ciphertext
+does not exist yet. `captureEncrypted` is the hand-off: you call it from inside
+your own interceptors, where the ciphertext does exist, and pass back the same
+config object Blix already saw.
+
+Two calls, one on the way out and one on the way back:
+
+```ts
+// src/network/axios.ts
+import { attachHttpMonitor, captureEncrypted } from "@hakam-aldeen-kh/blix/capture";
+
+apiClient.interceptors.request.use((config) => {
+  const encrypted = encryptBody(config.data);
+  captureEncrypted(config, { request: encrypted });
+  return { ...config, data: encrypted };
+});
+
+apiClient.interceptors.response.use((response) => {
+  captureEncrypted(response.config, { response: response.data });
+  return { ...response, data: decryptBody(response.data) };
+});
+
+// Still last, still at module scope.
+attachHttpMonitor(apiClient);
+```
+
+Requests and responses are correlated by the **identity of the config object**,
+never by URL or timing, so two concurrent calls to the same endpoint stay
+correctly apart. Blix stamps the config with a non-enumerable `Symbol`, which
+keeps the stamp out of `Object.keys`, `JSON.stringify`, your logs and the wire.
+Pass the object axios handed you; a `{ ...config }` copy made by your own
+interceptor resolves too.
+
+The two calls are independent and order-free: the request-side ciphertext is
+produced early and the response-side arrives late, possibly after Blix has
+already finalized the entry. Either way it merges into the existing entry —
+never creating one of its own — and the panel updates.
+
+It is a **silent no-op** — never a throw, never a console warning — outside
+development, when `attachHttpMonitor` was never called, when the config carries
+no stamp (a retry that built a fresh config, say), and when the entry has
+already been evicted from the buffer. In production it is eliminated entirely,
+along with the rest of capture.
+
+Values may be a string, a plain object, or an `ArrayBuffer`/typed array (kept
+as a bounded hex preview plus byte length). They go through the same
+serialization and truncation rules as the plaintext bodies, both in the panel
+and in IndexedDB, so a multi-megabyte ciphertext cannot blow out the log.
+
+> **Redaction.** Blix masks sensitive *headers* (`authorization`, `cookie`, …).
+> It does **not**, and cannot, redact anything inside the values you pass here
+> — they are bodies, and Blix has no way to tell ciphertext from plaintext. If
+> you pass an already-decrypted body as `response`, whatever secrets it
+> contains are shown in the panel verbatim and written to IndexedDB when
+> preserve-log is on. Pass the wire form, not the decrypted one.
 
 `withInitiatorCapture(instance)` is optional and wraps the instance so each
 request records the stack of its own call site, which the panel shows as the

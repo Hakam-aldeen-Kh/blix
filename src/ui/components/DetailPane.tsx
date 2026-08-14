@@ -31,8 +31,26 @@ const HTTP_TABS: { id: Tab; label: string }[] = [
   { id: "timing", label: "Timing" },
   { id: "response", label: "Response" },
   { id: "initiator", label: "Initiator" },
+];
+
+/**
+ * The Encrypted tab is conditional, not part of the fixed set.
+ *
+ * Blix cannot produce ciphertext on its own — it only ever holds what a host
+ * pushed in via `captureEncrypted`. For every app that never calls it (which
+ * is every app by default) the tab had nothing to show, so it is not offered
+ * at all rather than offered empty. Both variants are module constants so the
+ * choice costs no allocation per render.
+ */
+const HTTP_TABS_ENCRYPTED: { id: Tab; label: string }[] = [
+  ...HTTP_TABS,
   { id: "raw", label: "Encrypted" },
 ];
+
+/** Whether this entry actually carries a host-pushed ciphertext. */
+function hasEncrypted(entry: MonitorEntry): boolean {
+  return entry.encryptedRequest != null || entry.encryptedResponse != null;
+}
 
 /** A realtime connection has no payload, headers or encryption envelope of its
  * own — only its frames and how long it has been open. */
@@ -245,9 +263,19 @@ export function DetailPane({
   const isHttp = kind === "http";
   const isRedux = kind === "redux";
   const isQuery = kind === "query";
-  const tabs = isWs ? WS_TABS : isRedux ? REDUX_TABS : isQuery ? QUERY_TABS : HTTP_TABS;
+  const tabs = isWs
+    ? WS_TABS
+    : isRedux
+      ? REDUX_TABS
+      : isQuery
+        ? QUERY_TABS
+        : hasEncrypted(entry)
+          ? HTTP_TABS_ENCRYPTED
+          : HTTP_TABS;
   // Derived rather than reset in an effect: selecting a WebSocket while the
-  // Payload tab is open would otherwise render a tab that doesn't exist.
+  // Payload tab is open would otherwise render a tab that doesn't exist. The
+  // same fallback covers moving from an entry that has an Encrypted tab to one
+  // that doesn't.
   const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
 
   return (

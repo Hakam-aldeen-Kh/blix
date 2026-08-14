@@ -232,18 +232,38 @@ function toPersisted(id: string): PersistedEntry | null {
     PERSIST_MAX_ENTRY_BYTES,
   );
   const error = truncateForPersist(entry.error, PERSIST_MAX_ENTRY_BYTES / 4);
+  // The encrypted wire forms used to be dropped outright — a size guard, since
+  // ciphertext is among the largest things an entry can hold. They are now kept
+  // under the same per-entry cap as the plaintext bodies (and already bounded a
+  // second time, at capture, by `captureEncrypted`), so the guard survives
+  // without the tab coming back empty after a reload. Only entries a host
+  // explicitly pushed ciphertext for pay anything for this.
+  // Skipped entirely when absent, so an app that never calls `captureEncrypted`
+  // writes byte-for-byte what 0.2.1 wrote, budget accounting included.
+  const encRequest =
+    entry.encryptedRequest === undefined
+      ? null
+      : truncateForPersist(entry.encryptedRequest, PERSIST_MAX_ENTRY_BYTES);
+  const encResponse =
+    entry.encryptedResponse === undefined
+      ? null
+      : truncateForPersist(entry.encryptedResponse, PERSIST_MAX_ENTRY_BYTES);
 
   return {
     ...entry,
-    // The encrypted wire forms are the least useful thing to keep across a
-    // reload and among the largest, so they are dropped rather than truncated.
-    encryptedRequest: undefined,
-    encryptedResponse: undefined,
     requestPayload: request.value,
     responsePayload: response.value,
+    encryptedRequest: encRequest?.value,
+    encryptedResponse: encResponse?.value,
     error: error.value,
     schema: NM_SCHEMA_VERSION,
-    bytes: request.bytes + response.bytes + error.bytes + 512,
+    bytes:
+      request.bytes +
+      response.bytes +
+      (encRequest?.bytes ?? 0) +
+      (encResponse?.bytes ?? 0) +
+      error.bytes +
+      512,
   };
 }
 
