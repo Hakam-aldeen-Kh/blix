@@ -1,6 +1,6 @@
 {
   "name": "@hakam-aldeen-kh/blix",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Dev-tools panel for React apps — HTTP, Redux, Query and Realtime monitoring.",
   "type": "module",
   "sideEffects": false,
@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "peerDependencies": {
     "react": "^19.0.0",
