@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       '@reduxjs/toolkit':
-        specifier: '*'
+        specifier: ^2.0.0
         version: 2.12.0(react@19.2.8)
       '@tanstack/react-query':
-        specifier: '*'
+        specifier: ^5.0.0
         version: 5.101.4(react@19.2.8)
       axios:
-        specifier: '*'
+        specifier: ^1.0.0
         version: 1.19.0
     devDependencies:
       '@types/node':
