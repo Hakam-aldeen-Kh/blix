@@ -323,6 +323,10 @@ export function tapQueryClient(client: QueryClientLike): () => void {
   return () => {
     unsubQuery();
     unsubMutation();
+    // Unmark the client, or the idempotency guard above turns a
+    // dispose-then-reinstall — which is exactly what Strict Mode does to an
+    // effect that returns this disposer — into a silent permanent no-op.
+    tapped.delete(client);
     if (activeClient === client) activeClient = null;
   };
 }

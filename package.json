@@ -1,9 +1,56 @@
 {
   "name": "@hakam-aldeen-kh/blix",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Dev-tools panel for React apps — HTTP, Redux, Query and Realtime monitoring.",
+  "keywords": [
+    "devtools",
+    "dev-tools",
+    "debug",
+    "debugging",
+    "debug-panel",
+    "devtools-panel",
+    "inspector",
+    "monitoring",
+    "observability",
+    "logging",
+    "network-inspector",
+    "http",
+    "http-logger",
+    "request-logger",
+    "api-monitor",
+    "axios",
+    "axios-interceptor",
+    "redux",
+    "redux-devtools",
+    "redux-toolkit",
+    "state-inspector",
+    "react-query",
+    "tanstack-query",
+    "query-devtools",
+    "websocket",
+    "realtime",
+    "socket",
+    "react",
+    "react-devtools",
+    "nextjs",
+    "typescript",
+    "frontend",
+    "dx",
+    "in-app-devtools"
+  ],
+  "license": "MIT",
+  "author": "Hakam aldeen Alkhadraa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hakam-aldeen-Kh/blix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hakam-aldeen-Kh/blix/issues"
+  },
+  "homepage": "https://github.com/Hakam-aldeen-Kh/blix#readme",
   "type": "module",
   "sideEffects": false,
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,11 +59,15 @@
     "./capture": {
       "types": "./dist/capture/index.d.ts",
       "import": "./dist/capture/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -25,9 +76,9 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "axios": "*",
-    "@reduxjs/toolkit": "*",
-    "@tanstack/react-query": "*"
+    "axios": "^1.0.0",
+    "@reduxjs/toolkit": "^2.0.0",
+    "@tanstack/react-query": "^5.0.0"
   },
   "peerDependenciesMeta": {
     "axios": {
@@ -50,11 +101,7 @@
     "typescript": "^5.0.0"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Hakam-aldeen-Kh/blix.git"
-  },
-  "license": "UNLICENSED"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  }
 }

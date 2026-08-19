@@ -11,66 +11,23 @@ The entire panel is eliminated from production builds — see
 
 ## Install
 
-The package is published to **GitHub Packages**, not the public npm registry,
-so consumers need a registry mapping for the `@hakam-aldeen-kh` scope.
-
-Add to your project's `.npmrc`:
-
-```ini
-@hakam-aldeen-kh:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-**Commit this file.** It is registry configuration, not a secret — the
-`${GITHUB_TOKEN}` reference is expanded by npm/pnpm from the environment at
-install time, so the token itself never enters the file or your git history.
-An `.npmrc` in `.gitignore` breaks every environment that is not your laptop.
-
-The variable name is yours to choose; it just has to match what you export.
-If your CI already sets `NPM_TOKEN`, write `${NPM_TOKEN}` here instead. A
-mismatch surfaces as a `401` at install time with no hint about the cause.
-
-```bash
-export GITHUB_TOKEN=ghp_yourtokenhere
-```
-
-The token must be a personal access token with the `read:packages` scope.
-
-Then:
-
 ```bash
 pnpm add -D @hakam-aldeen-kh/blix
 ```
 
-### CI and containers
+Or with npm:
 
-Every environment that runs an install needs the token, not just your machine.
-Blix is a `devDependency`, so any install stage that does **not** set
-`NODE_ENV=production` will try to fetch it. With a lockfile the resolution is
-pinned to a `https://npm.pkg.github.com/download/…` tarball, so a missing token
-is a hard failure — there is no fallback to the public registry.
-
-In a multi-stage Dockerfile the trap is that the dependency stage usually
-copies only the manifest files, and `.npmrc` is not one of them:
-
-```dockerfile
-FROM node:22-alpine AS deps
-WORKDIR /app
-# .npmrc must be copied HERE, not only in the later `COPY . .` of the build stage
-COPY package.json pnpm-lock.yaml .npmrc ./
-RUN --mount=type=secret,id=github_token \
-    GITHUB_TOKEN="$(cat /run/secrets/github_token)" \
-    pnpm install --frozen-lockfile
+```bash
+npm install -D @hakam-aldeen-kh/blix
 ```
 
-Build with `docker build --secret id=github_token,env=GITHUB_TOKEN .`. Using a
-build secret rather than `ARG` keeps the token out of the image layers.
-
-If you add `.npmrc` to `.dockerignore`, you must arrange for it to reach the
-install stage some other way. If you would rather not give CI a token at all,
-run that stage with `NODE_ENV=production` (or `pnpm install --prod`) so
-devDependencies are skipped — but note the lockfile still records the
-resolution, so any stage that does install dev deps will need the token.
+It installs as a `devDependency`, but the mount component that renders
+`<Blix />` imports it from your application code — so any build that drops
+devDependencies *before* the build step (`npm ci --omit=dev`,
+`pnpm install --prod`, the usual shape of a multi-stage Docker image) fails
+while resolving that import. devDependencies have to be present at build time.
+Dropping them from the final runtime image is fine: nothing from Blix reaches
+the production output anyway.
 
 ### Peer dependencies
 
@@ -523,13 +480,7 @@ import { useEffect, useState } from "react";
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient());
 
-  // Do NOT return the disposer. Under Strict Mode the first run subscribes,
-  // the cleanup unsubscribes, and the second run short-circuits on the tap's
-  // internal idempotency guard without resubscribing — leaving the Query tab
-  // empty for the whole session, with no error and no warning.
-  useEffect(() => {
-    tapQueryClient(client);
-  }, [client]);
+  useEffect(() => tapQueryClient(client), [client]);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
@@ -541,13 +492,16 @@ Installing from an effect is correct — because parent effects run after child
 effects, the tap backfills from `getQueryCache().getAll()` on install rather
 than starting blind, so no early events are lost.
 
-Why not the disposer: the tap is idempotent, and it releases nothing on
-dispose. Those two properties are safe apart and destructive together —
-`useEffect(() => tapQueryClient(client), [client])` subscribes, unsubscribes,
-and then declines to resubscribe. `tapQueryClient` does return a disposer, for
-callers that genuinely own the client's lifetime (a module-scope client, a
-test). In a React provider under Strict Mode, discard it: the tap should live
-as long as the client, which is this provider's lifetime anyway.
+Returning the disposer is fine: it unsubscribes from both caches and unmarks
+the client, so the Strict Mode cycle — subscribe, dispose, subscribe again —
+reinstalls cleanly and the second install backfills the same way the first did.
+
+> **Fixed in 0.3.2.** In 0.3.1 and earlier the disposer unsubscribed but left
+> the client marked as tapped, so the reinstall short-circuited on the tap's
+> internal idempotency guard without resubscribing — leaving the Query tab
+> empty for the whole session, with no error and no warning. On those versions
+> the workaround is to call `tapQueryClient(client)` from the effect without
+> returning its result.
 
 If you construct the `QueryClient` at module scope rather than in a component,
 you can tap it at module scope too — the rule is "tap the client that actually
@@ -763,4 +717,4 @@ The `/capture` entry exports `attachHttpMonitor`, `captureEncrypted`,
 
 ## License
 
-Proprietary — all rights reserved. See [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE).
