@@ -21,12 +21,16 @@ export type Tab =
  * a property of *which field* you were reading rather than of *how* you wanted
  * to read it, and showed the same data under two tabs.
  */
-export type DataFormat = "tree" | "table" | "json" | "yaml" | "text";
+export type DataFormat = "tree" | "table" | "json" | "yaml" | "text" | "diff";
 
+/** The five formats every payload pane offers. `"diff"` is not here: it is a
+ * *view-supplied* format, valid only where a pane contributes one (the Redux
+ * Diff tab), and it falls back to the tree everywhere else. */
 export const DATA_FORMATS: DataFormat[] = ["tree", "table", "json", "yaml", "text"];
 
 /** Prefs store this as a plain string; anything unrecognized falls back. */
 export function normalizeDataFormat(value: unknown): DataFormat {
+  if (value === "diff") return "diff";
   return DATA_FORMATS.includes(value as DataFormat) ? (value as DataFormat) : "tree";
 }
 

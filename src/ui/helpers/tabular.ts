@@ -20,9 +20,19 @@ const MAX_COLUMNS = 40;
  * objects perfectly well and with less ceremony. */
 const MIN_ROWS = 2;
 
-/** Share of rows a key must appear in for its column to be kept. Below this
- * the column is mostly blank and costs more width than it returns. */
+/**
+ * Share of rows a key must appear in for its column to be kept — but only once
+ * there are more than `DENSE_LIMIT` of them.
+ *
+ * The filter exists to stop wide ragged data producing a grid that is mostly
+ * holes. Applied unconditionally it does damage instead: a Redux diff is
+ * `{path, op, before?, after?}`, and a diff that is mostly additions carries
+ * `before` on only a couple of rows — so the one column showing what the state
+ * *was* got dropped from exactly the diffs where it mattered. Below the limit
+ * every key is worth a column; a handful of blanks costs nothing.
+ */
 const COLUMN_COVERAGE = 0.25;
+const DENSE_LIMIT = 8;
 
 /**
  * Rows sampled when working out the column set.
@@ -77,9 +87,12 @@ function columnsOf(rows: Record<string, unknown>[]): {
   }
 
   const threshold = Math.max(1, sample.length * COLUMN_COVERAGE);
-  const dense = [...seen.entries()]
-    .filter(([, count]) => count >= threshold)
-    .map(([key]) => key);
+  const dense =
+    seen.size <= DENSE_LIMIT
+      ? [...seen.keys()]
+      : [...seen.entries()]
+          .filter(([, count]) => count >= threshold)
+          .map(([key]) => key);
   const columns = dense.slice(0, MAX_COLUMNS);
 
   // Counts both reasons a column can be missing — sparseness and the cap — so

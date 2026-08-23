@@ -507,6 +507,30 @@ const VIEWERS = `
    one that is simply dim, and its tooltip explains why. */
 .nm-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+/* Redux slice picker, hosted inside the payload toolbar. Scrolls rather than
+   wrapping: the toolbar is one row tall by design, and a store with twenty
+   reducers must not push the format switch off the top of the pane. */
+.nm-slices {
+  display: flex; align-items: center; gap: 3px; min-width: 0;
+  overflow-x: auto; overflow-y: hidden; padding: 1px 0; flex: 1 1 auto;
+  scrollbar-width: none;
+}
+.nm-slices::-webkit-scrollbar { height: 0; }
+.nm-slice {
+  flex-shrink: 0; font-size: 10.5px; font-weight: 600; font-family: var(--nm-mono);
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--nm-line);
+  background: var(--nm-elev); color: var(--nm-muted); cursor: pointer;
+  transition: color .14s ease, background .14s ease, border-color .14s ease;
+}
+.nm-slice:hover { color: var(--nm-txt); border-color: var(--nm-line-strong); }
+.nm-slice.active { color: var(--nm-c-redux); background: var(--nm-c-redux-soft); border-color: var(--nm-c-redux); }
+/* A slice this action actually wrote to. Marked with a leading dot rather
+   than a colour swap, so it reads as "changed" independently of "selected". */
+.nm-slice-hit::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 5px;
+  border-radius: 999px; background: var(--nm-warning); vertical-align: 1px;
+}
+
 /* Grid view of a tabular payload. */
 .nm-tv { flex: 1; min-height: 0; overflow: auto; background: var(--nm-bg); }
 .nm-tv-grid { display: grid; min-width: min-content; }

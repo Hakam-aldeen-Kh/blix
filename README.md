@@ -604,6 +604,18 @@ it once rather than per request.
 
 **Copy gives you what you're looking at**: Table copies CSV, YAML copies YAML.
 
+The switch is on every payload pane — request and response bodies, realtime
+frames, the encrypted envelope, Redux actions, and both Redux state views:
+
+- **State** shows the live store, scoped by a **slice picker**. Slices the
+  selected action wrote to are marked with a dot, so "what does `cart` look
+  like now" is one click rather than a hunt through a collapsed root object.
+- **Diff** keeps its `+ / − / ±` rows as the default view and adds the other
+  five alongside. **Table** is the natural one — a diff *is* `path | op |
+  before | after` — and Tree lets you open up a `before` that was an object,
+  which the one-line rows could only ever summarise. Copying the rows view
+  gives you a plain-text diff for a ticket, not JSON.
+
 Right-click any request for **Copy as cURL** or **Copy as fetch** — the latter
 pastes straight into the browser console, with the body as an editable object
 literal rather than a pre-serialized string.

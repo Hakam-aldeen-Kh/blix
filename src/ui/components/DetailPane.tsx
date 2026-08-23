@@ -108,16 +108,34 @@ function HeadersTable({
  * carries a bounded diff, never a snapshot, so this is the one place a
  * developer can see the *current* full state, not just what one action
  * changed. Subscribes directly, so it updates while the tab stays open. */
+/**
+ * The live Redux store, scoped to one slice at a time.
+ *
+ * Reads the store rather than anything captured — the entry only carries a
+ * bounded diff, never a snapshot, so this is the one place a developer sees
+ * the *current* full state and not just what one action changed. Subscribes
+ * directly, so it stays live while the tab is open.
+ *
+ * The slice picker matters more than it looks. A real store's root object is
+ * a dozen reducers deep and tens of thousands of nodes wide; rendering it
+ * whole meant every visit started by collapsing things. Scoping to a slice
+ * makes "show me `cart`" one click, and the slices this action actually
+ * touched are marked, so the tab answers "what does the state look like *now*,
+ * where this action hit" rather than making you hunt for it.
+ */
 function ReduxStateTab({
+  entry,
   query,
   format,
   onFormat,
 }: {
+  entry: MonitorEntry;
   query: string;
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
 }) {
   const { store } = useContext(BlixContext);
+  const [slice, setSlice] = useState<string | null>(null);
   const noop = () => () => {};
   const nullSnapshot = () => null;
   const state = useSyncExternalStore(
@@ -125,15 +143,63 @@ function ReduxStateTab({
     store?.getState ?? nullSnapshot,
     store?.getState ?? nullSnapshot,
   );
+
   if (!store) return <div className="nm-empty">— Redux store not provided —</div>;
+
+  const isRootObject =
+    typeof state === "object" && state !== null && !Array.isArray(state);
+  const slices = isRootObject ? Object.keys(state as object) : [];
+  // A slice that has since been removed from the store falls back to the root
+  // rather than rendering an empty pane.
+  const active = slice && slices.includes(slice) ? slice : null;
+  const touched = new Set(entry.redux?.diff?.slices ?? []);
+
+  const value = active ? (state as Record<string, unknown>)[active] : state;
+
   return (
     <DataView
-      value={state}
+      value={value}
       query={query}
-      entryId="redux:live-state"
+      // Keyed by slice so expanding `cart` doesn't restore its expansion state
+      // onto `auth` when you switch.
+      entryId={`redux:live-state:${active ?? "$root"}`}
       format={format}
       onFormat={onFormat}
-    />
+    >
+      {/* Deliberately not `nm-scroll`: that class styles a visible themed
+          scrollbar, and this strip hides its own. */}
+      {slices.length > 1 && (
+        <div className="nm-slices" role="tablist" aria-label="State slice">
+          <button
+            role="tab"
+            aria-selected={active === null}
+            className={`nm-slice${active === null ? " active" : ""}`}
+            onClick={() => setSlice(null)}
+            title="The whole store"
+          >
+            root
+          </button>
+          {slices.map((name) => (
+            <button
+              key={name}
+              role="tab"
+              aria-selected={active === name}
+              className={`nm-slice${active === name ? " active" : ""}${
+                touched.has(name) ? " nm-slice-hit" : ""
+              }`}
+              onClick={() => setSlice(name)}
+              title={
+                touched.has(name)
+                  ? `${name} — changed by this action`
+                  : name
+              }
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+    </DataView>
   );
 }
 
@@ -421,9 +487,16 @@ export function DetailPane({
             onFormat={onFormat}
           />
         )}
-        {activeTab === "diff" && <DiffTab entry={entry} />}
+        {activeTab === "diff" && (
+          <DiffTab entry={entry} query={query} format={format} onFormat={onFormat} />
+        )}
         {activeTab === "reduxState" && (
-          <ReduxStateTab query={query} format={format} onFormat={onFormat} />
+          <ReduxStateTab
+            entry={entry}
+            query={query}
+            format={format}
+            onFormat={onFormat}
+          />
         )}
         {activeTab === "queryState" && (
           <QueryStateTab entry={entry} onSelectEntry={onSelectEntry} />

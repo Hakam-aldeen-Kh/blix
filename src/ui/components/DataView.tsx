@@ -44,6 +44,24 @@ const FORMATS: { id: DataFormat; label: string; title: string }[] = [
   { id: "text", label: "Text", title: "The body as plain text" },
 ];
 
+/**
+ * A rendering only one pane can offer, added to the front of the switch.
+ *
+ * The Redux Diff tab is the case this exists for: its +/− rows are the best
+ * way to read a diff and no generic format can reproduce them, but the same
+ * data is *also* worth seeing as a table of paths or as YAML you can copy. A
+ * pane contributes its speciality here instead of that view living in a
+ * separate control beside the generic ones.
+ */
+export interface ExtraFormat {
+  id: DataFormat;
+  label: string;
+  title: string;
+  render: () => React.ReactNode;
+  /** What Copy produces while this view is showing. */
+  copy: () => string;
+}
+
 /** Formats whose output is a flat block of text, and so can wrap. */
 const TEXTUAL: DataFormat[] = ["json", "yaml", "text"];
 
@@ -92,8 +110,10 @@ export function DataView({
   value,
   query,
   entryId,
-  format,
+  format: requested,
   onFormat,
+  extraFormat,
+  children,
 }: {
   value: unknown;
   /** Active search term, highlighted by the tree and the table. */
@@ -102,9 +122,21 @@ export function DataView({
   entryId: string;
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
+  extraFormat?: ExtraFormat;
+  /** Pane-specific controls, rendered into the shared toolbar so a tab does
+   * not need a second bar of its own (the Redux State tab's slice picker). */
+  children?: React.ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   const [wrap, setWrap] = useState(true);
+
+  // The stored format may name a view this pane does not offer — "diff" is
+  // remembered globally but only the Diff tab can render it. Fall back rather
+  // than showing an empty pane.
+  const format: DataFormat =
+    requested === extraFormat?.id || FORMATS.some((f) => f.id === requested)
+      ? requested
+      : "tree";
 
   // Computed for every payload regardless of the active format, because the
   // Table button's enabled state depends on it. Bounded by `tabular.ts`'s scan
@@ -135,6 +167,7 @@ export function DataView({
 
   /** What Copy puts on the clipboard: whatever is on screen. */
   const copyPayload = (): string => {
+    if (format === extraFormat?.id) return extraFormat.copy();
     switch (format) {
       case "yaml":
         return yaml?.text ?? toYaml(value).text;
@@ -163,7 +196,9 @@ export function DataView({
     <div className="nm-json-wrap">
       <div className="nm-json-toolbar">
         <div className="nm-fmt" role="tablist" aria-label="Display format">
-          {FORMATS.map((f) => {
+          {/* The pane's own view leads: it is the one this tab was designed
+              around, and the generic formats are the alternatives to it. */}
+          {(extraFormat ? [extraFormat, ...FORMATS] : FORMATS).map((f) => {
             const disabled = f.id === "table" && !tabular;
             return (
               <button
@@ -184,6 +219,8 @@ export function DataView({
             );
           })}
         </div>
+
+        {children}
 
         <span className="nm-json-size">
           {body != null &&
@@ -206,12 +243,19 @@ export function DataView({
         <button
           className="nm-copy"
           onClick={copy}
-          title={`Copy as ${format === "table" ? "CSV" : format.toUpperCase()}`}
+          title={`Copy as ${
+            format === extraFormat?.id
+              ? extraFormat.label
+              : format === "table"
+                ? "CSV"
+                : format.toUpperCase()
+          }`}
         >
           {copied ? "✓ Copied" : "Copy"}
         </button>
       </div>
 
+      {format === extraFormat?.id && extraFormat.render()}
       {format === "tree" && (
         <JsonTree value={value} query={query} entryId={entryId} />
       )}
