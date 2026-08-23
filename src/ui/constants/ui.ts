@@ -1,7 +1,12 @@
-/** Dev Tools — layout constants and palette. */
-
-import type { MonitorState } from "../../capture/networkMonitor";
-import type { PanelTheme } from "../hooks/useAppTheme";
+/** Dev Tools — layout constants and the semantic colour *roles*.
+ *
+ * No colour values live here any more. A component names the role a piece of
+ * UI plays — `data-state="error"`, `data-accent="post"` — and the stylesheet
+ * resolves it through the active theme's tokens (`themes/themes.ts`). That is
+ * what lets a theme restate every colour in the panel instead of only the ones
+ * CSS happened to own: the previous split, with a light palette in CSS and a
+ * duplicate dark one in JS, could not be themed and drifted between the two.
+ */
 
 /**
  * Row heights per density setting.
@@ -41,81 +46,47 @@ export const MIN_DOCK_H = 220;
 export const MIN_DOCK_W = 380;
 export const DOCK_EDGE_GAP = 80;
 
-export const STATE_COLORS: Record<MonitorState, string> = {
-  pending: "#fbbf24",
-  success: "#34d399",
-  error: "#f87171",
-  // Restored from a previous page load and still pending — it can never
-  // complete, so it gets its own muted colour rather than spinning forever.
-  aborted: "#94a3b8",
-};
-
-export const NEUTRAL = "#cbd5e1";
-
-export function methodColor(method: string): string {
-  switch (method) {
-    case "GET":
-      return "#60a5fa";
-    case "POST":
-      return "#34d399";
-    case "PUT":
-    case "PATCH":
-      return "#fbbf24";
-    case "DELETE":
-      return "#f87171";
-    default:
-      return "#c084fc";
-  }
-}
-
 /**
- * Per-section identity colours — Redux and Query each get a colour close to
- * their own devtool's brand (violet, orange) so the accent itself hints at
- * which world a row belongs to, the same instinct a React dev already has
- * for the standalone Redux/Query devtools. Realtime gets a cyan distinct
- * from both the HTTP method palette and the semantic success/error/warning
- * colours it sits next to on a WS row.
+ * The accent a method/kind badge paints in, as a `data-accent` value.
  *
- * Plain hex, not CSS custom properties: call sites splice an alpha suffix
- * onto the string (`` `${color}1c` ``) for the tinted background, which only
- * works on a literal hex value. Keep in sync with `--nm-c-*` in
- * `styles/monitorStyles.ts` — dark values here must match the `:root` block
- * there, light values must match the `.nm-light` block, since `kindAccent`
- * is a plain JS function with no way to read the CSS custom property that
- * section tabs/rows use for the same colour.
+ * HTTP rows are coloured by verb; everything else takes its section's identity
+ * colour instead. That second half matters: colouring purely by verb gave WS,
+ * Redux and Query rows one indistinguishable fallback, when the section colour
+ * is exactly the signal the reader wants — Redux and Query lean toward their
+ * own standalone devtools' brands (violet, orange), which a React developer
+ * already has an association for.
  */
-export const KIND_ACCENT = {
-  realtime: "#22d3ee",
-  redux: "#a78bfa",
-  query: "#fb923c",
-} as const;
+export type AccentKey =
+  | "get"
+  | "post"
+  | "put"
+  | "delete"
+  | "other"
+  | "realtime"
+  | "redux"
+  | "query";
 
-const KIND_ACCENT_LIGHT = {
-  realtime: "#0891a8",
-  redux: "#7c3aed",
-  query: "#ea7317",
-} as const;
-
-/** `methodColor` for HTTP, a fixed per-section colour for everything else —
- * replaces `methodColor`'s generic purple fallback, which gave WS, Redux and
- * Query rows the same indistinguishable colour. `theme` picks the palette
- * that matches `--nm-c-*`'s light/dark split so a method badge never mismatches
- * the section tab/row colour it sits next to. */
-export function kindAccent(
-  kind: string | undefined,
-  method: string,
-  theme: PanelTheme = "dark",
-): string {
-  const palette = theme === "light" ? KIND_ACCENT_LIGHT : KIND_ACCENT;
+export function accentKey(kind: string | undefined, method: string): AccentKey {
   switch (kind) {
     case "ws":
-      return palette.realtime;
+      return "realtime";
     case "redux":
-      return palette.redux;
+      return "redux";
     case "query":
-      return palette.query;
+      return "query";
+  }
+  switch (method) {
+    case "GET":
+      return "get";
+    case "POST":
+      return "post";
+    case "PUT":
+    case "PATCH":
+      return "put";
+    case "DELETE":
+      return "delete";
     default:
-      return methodColor(method);
+      return "other";
   }
 }
 

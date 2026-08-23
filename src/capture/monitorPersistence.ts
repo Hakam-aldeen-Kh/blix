@@ -58,6 +58,9 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   followLatest: false,
   captureInitiator: true,
   selectedId: null,
+  // Follow the host app, which is what the panel did before it had themes of
+  // its own — a developer who never opens the picker sees no change.
+  theme: "auto",
   section: "network",
   density: "normal",
   columnWidths: {},

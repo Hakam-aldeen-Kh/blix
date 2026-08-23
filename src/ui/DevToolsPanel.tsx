@@ -29,7 +29,7 @@ import {
   savePrefs,
   setPreserveLog,
 } from "../capture/monitorPersistence";
-import type { Corner } from "../capture/monitorTypes";
+import type { Corner, MonitorState } from "../capture/monitorTypes";
 import { networkMonitor, type MonitorEntry } from "../capture/networkMonitor";
 import {
   useCallback,
@@ -50,7 +50,10 @@ import { MonitorToolbar } from "./components/MonitorToolbar";
 import { RequestTable, columnsFor } from "./components/RequestTable";
 import { ShortcutsSheet } from "./components/ShortcutsSheet";
 import { StatusBar } from "./components/StatusBar";
-import { DENSITY_ROW_H, NEUTRAL, STATE_COLORS, type Density } from "./constants/ui";
+import { DENSITY_ROW_H, type Density } from "./constants/ui";
+import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
+import { ThemeMenu } from "./components/ThemeMenu";
+import { normalizeThemePref, resolveTheme, type ThemePref } from "./themes/themes";
 
 const DENSITY_ORDER: Density[] = ["compact", "normal", "comfy"];
 
@@ -99,7 +102,7 @@ const EMPTY_COPY: Record<Section, { icon: IconName; title: string; sub: string }
 };
 import { copyText, formatBytes } from "./helpers/format";
 import { computeTimelines } from "./helpers/waterfall";
-import { useAppTheme } from "./hooks/useAppTheme";
+import { useHostTheme } from "./hooks/useHostTheme";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useDockGeometry } from "./hooks/useDockGeometry";
 import { useFabDrag } from "./hooks/useFabDrag";
@@ -133,7 +136,12 @@ export default function DevTools() {
     prefsStore.getSnapshot,
     prefsStore.getServerSnapshot,
   );
-  const theme = useAppTheme();
+  // Theme is two values, not one: what the developer *chose* (which may be
+  // "follow the app") and what that currently resolves to. The picker needs
+  // the first, the root element needs the second.
+  const host = useHostTheme();
+  const themePref = normalizeThemePref(prefs.theme);
+  const theme = resolveTheme(themePref, host);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -152,26 +160,30 @@ export default function DevTools() {
   const [sort, setSort] = useState<Sort>({ key: "time", dir: "desc" });
   const [paused, setPaused] = useState(() => networkMonitor.isPaused);
   const [purgeArmed, setPurgeArmed] = useState(false);
-  type Anchor = { top: number; right: number };
-  // A single piece of state rather than two independent `useState`s: the
-  // export and "more" toggle buttons each only clear *their own* anchor when
-  // opening (see MonitorToolbar's `onExportMenu(exportOpen ? null : ...)`),
-  // so two separate booleans let both menus end up open at once — open
-  // export, then click "more", and export never closes. Only one of the two
-  // can ever be visible, so model it as one nullable union and keep the rest
-  // of this file's `exportAnchor`/`moreAnchor`/`setExportAnchor`/
-  // `setMoreAnchor` call sites unchanged via the derived values below.
+  // A single piece of state rather than one `useState` per menu: each toggle
+  // button only clears *its own* anchor when opening (see MonitorToolbar's
+  // `onExportMenu(exportOpen ? null : ...)`), so independent booleans let two
+  // menus end up open at once — open export, then click "more", and export
+  // never closes. Only one can ever be visible, so model it as one nullable
+  // union and keep this file's per-menu call sites unchanged via the derived
+  // values below.
+  type Which = "export" | "more" | "theme";
   const [menuState, setMenuState] = useState<
-    { which: "export" | "more"; anchor: Anchor } | null
+    { which: Which; anchor: MenuAnchor } | null
   >(null);
-  const exportAnchor = menuState?.which === "export" ? menuState.anchor : null;
-  const moreAnchor = menuState?.which === "more" ? menuState.anchor : null;
-  const setExportAnchor = useCallback((a: Anchor | null) => {
-    setMenuState(a ? { which: "export", anchor: a } : null);
-  }, []);
-  const setMoreAnchor = useCallback((a: Anchor | null) => {
-    setMenuState(a ? { which: "more", anchor: a } : null);
-  }, []);
+  const anchorFor = (which: Which) =>
+    menuState?.which === which ? menuState.anchor : null;
+  const exportAnchor = anchorFor("export");
+  const moreAnchor = anchorFor("more");
+  const themeAnchor = anchorFor("theme");
+  const openMenu = useCallback(
+    (which: Which) => (a: MenuAnchor | null) =>
+      setMenuState(a ? { which, anchor: a } : null),
+    [],
+  );
+  const setExportAnchor = useMemo(() => openMenu("export"), [openMenu]);
+  const setMoreAnchor = useMemo(() => openMenu("more"), [openMenu]);
+  const setThemeAnchor = useMemo(() => openMenu("theme"), [openMenu]);
 
   // Refs live here rather than inside the hooks: a hook that returns a ref
   // makes every property of its result count as a ref access during render
@@ -266,14 +278,16 @@ export default function DevTools() {
     setDensity(next);
     savePrefs({ density: next });
   }, []);
+  const onTheme = useCallback((next: ThemePref) => {
+    savePrefs({ theme: next });
+    // Left open on purpose: picking a theme is a comparison, and closing the
+    // menu after every pick would mean reopening it to try the next one.
+  }, []);
 
   // Changing the dock moves the toolbar, which invalidates the export menu's
   // measured anchor — dismiss it as part of the interaction rather than
   // reacting to the change afterwards.
-  const closeMenus = useCallback(() => {
-    setExportAnchor(null);
-    setMoreAnchor(null);
-  }, []);
+  const closeMenus = useCallback(() => setMenuState(null), []);
 
   const onMode = useCallback(
     (next: Parameters<typeof dock.setMode>[0]) => {
@@ -362,10 +376,8 @@ export default function DevTools() {
         // underneath the menu the developer was still using.
         if (showShortcuts) setShowShortcuts(false);
         else if (kb.current.menuOpen) menu.close();
-        else if (exportAnchor || moreAnchor) {
-          setExportAnchor(null);
-          setMoreAnchor(null);
-        } else setOpen(false);
+        else if (menuState) closeMenus();
+        else setOpen(false);
         return;
       }
 
@@ -460,19 +472,15 @@ export default function DevTools() {
     // render) would defeat the point of this effect: attach the listener
     // once, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, exportAnchor, moreAnchor, onSection, showShortcuts, togglePause, togglePin, menu.close]);
+  }, [dock, menuState, closeMenus, onSection, showShortcuts, togglePause, togglePin, menu.close]);
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
   useEffect(() => {
-    if (!exportAnchor && !moreAnchor) return;
-    const dismiss = () => {
-      setExportAnchor(null);
-      setMoreAnchor(null);
-    };
-    window.addEventListener("resize", dismiss);
-    return () => window.removeEventListener("resize", dismiss);
-  }, [exportAnchor, moreAnchor]);
+    if (!menuState) return;
+    window.addEventListener("resize", closeMenus);
+    return () => window.removeEventListener("resize", closeMenus);
+  }, [menuState, closeMenus]);
 
   // Click outside closes. Captured on `pointerdown` so it fires even while a
   // Radix modal dialog has the rest of the page pointer-locked. The badge opens
@@ -488,13 +496,12 @@ export default function DevTools() {
       if (root && !root.contains(e.target as Node)) {
         setOpen(false);
         menu.close();
-        setExportAnchor(null);
-        setMoreAnchor(null);
+        closeMenus();
       }
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     return () => window.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open, menu]);
+  }, [open, menu, closeMenus]);
 
   // Keep the selected row in view. Arithmetic rather than `scrollIntoView`,
   // because a virtualized row may not be mounted at all.
@@ -535,24 +542,28 @@ export default function DevTools() {
   if (!networkMonitor.enabled) return null;
 
   const persisted = getPersistedStats();
-  const dotColor = list.counts.error
-    ? STATE_COLORS.error
+  // Worst state wins: the badge and the header logo are a health light, so an
+  // error has to outrank an in-flight request outranking "all quiet".
+  const dotState: MonitorState = list.counts.error
+    ? "error"
     : list.counts.pending
-      ? STATE_COLORS.pending
-      : STATE_COLORS.success;
+      ? "pending"
+      : "success";
 
   const pendingLabel =
     section === "realtime" ? "Open" : section === "query" ? "Fetching" : "Pending";
-  const segments: [StateFilter, string, number, string][] = [
-    ["all", "All", list.counts.all, NEUTRAL],
-    ["success", "OK", list.counts.success, STATE_COLORS.success],
-    ["error", "Errors", list.counts.error, STATE_COLORS.error],
-    ["pending", pendingLabel, list.counts.pending, STATE_COLORS.pending],
+  // Each filter key doubles as its own `data-state`, so the dot beside a
+  // segment is coloured by the theme rather than by a colour passed in here.
+  const segments: [StateFilter, string, number][] = [
+    ["all", "All", list.counts.all],
+    ["success", "OK", list.counts.success],
+    ["error", "Errors", list.counts.error],
+    ["pending", pendingLabel, list.counts.pending],
   ];
   // "Aborted" earns a segment only once there is something in it — it exists
   // solely for requests restored mid-flight from a previous page load.
   if (list.counts.aborted > 0) {
-    segments.push(["aborted", "Aborted", list.counts.aborted, STATE_COLORS.aborted]);
+    segments.push(["aborted", "Aborted", list.counts.aborted]);
   }
 
   const selectedEntry = selection.resolved.entry;
@@ -596,7 +607,7 @@ export default function DevTools() {
   const ui = (
     <div
       ref={rootRef}
-      className={`nm-root${theme === "light" ? " nm-light" : ""}`}
+      className={`nm-root nm-theme-${theme.id} nm-${theme.base}`}
       style={
         {
           ...CORNER_STYLE[dock.corner],
@@ -609,7 +620,7 @@ export default function DevTools() {
 
       {!open && !fab.dragPos && (
         <MonitorFab
-          dotColor={dotColor}
+          dotState={dotState}
           total={entries.length}
           errors={list.counts.error}
           pending={list.counts.pending}
@@ -619,7 +630,7 @@ export default function DevTools() {
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} dotColor={dotColor} total={entries.length} />
+        <FabDragPreview pos={fab.dragPos} dotState={dotState} total={entries.length} />
       )}
 
       {open && (
@@ -647,7 +658,7 @@ export default function DevTools() {
           )}
 
           <MonitorToolbar
-            dotColor={dotColor}
+            dotState={dotState}
             section={section}
             onSection={onSection}
             counts={sectionCounts}
@@ -668,6 +679,8 @@ export default function DevTools() {
             onExportMenu={setExportAnchor}
             exportOpen={exportAnchor !== null}
             exportDisabled={entries.length === 0}
+            onThemeMenu={setThemeAnchor}
+            themeOpen={themeAnchor !== null}
             compact={panel.compactToolbar}
             tiny={panel.tinyToolbar}
             onMoreMenu={setMoreAnchor}
@@ -719,7 +732,7 @@ export default function DevTools() {
 
           <div className="nm-filters">
             <div className="nm-seg" role="tablist">
-              {segments.map(([key, label, n, color]) => (
+              {segments.map(([key, label, n]) => (
                 <button
                   key={key}
                   role="tab"
@@ -727,7 +740,7 @@ export default function DevTools() {
                   className={`nm-seg-btn${stateFilter === key ? " active" : ""}`}
                   onClick={() => setStateFilter(key)}
                 >
-                  <span className="nm-seg-dot" style={{ background: color }} />
+                  <span className="nm-seg-dot" data-state={key} />
                   <span className="nm-seg-label">{label}</span>
                   <span className="nm-seg-n">{n}</span>
                 </button>
@@ -798,7 +811,6 @@ export default function DevTools() {
                 onContextMenu={menu.open}
                 virtual={virtual}
                 scrollerRef={scrollerRef}
-                theme={theme}
                 empty={
                   <div className="nm-empty nm-empty-list">
                     <span className={`nm-empty-ico nm-empty-ico-${section}`}>
@@ -833,7 +845,6 @@ export default function DevTools() {
               onTogglePin={togglePin}
               onSelectEntry={selection.pin}
               query={list.normalizedQuery}
-              theme={theme}
             />
           </div>
 
@@ -874,138 +885,140 @@ export default function DevTools() {
       )}
 
       {exportAnchor && (
-        <div
-          className="nm-menu"
-          style={{ top: exportAnchor.top, right: exportAnchor.right, width: 236 }}
-        >
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+        <Menu anchor={exportAnchor} width={236} label="Export">
+          <MenuItem
+            icon={<Icon name="download" size={13} />}
+            onSelect={() => {
               exportHar(entries);
-              setExportAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="download" size={13} />
             Export as HAR
-          </button>
+          </MenuItem>
           <div className="nm-menu-note">
             Opens in Chrome DevTools, Charles or Insomnia — with the decrypted
             bodies.
           </div>
           <div className="nm-menu-sep" />
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          <MenuItem
+            icon={<Icon name="download" size={13} />}
+            onSelect={() => {
               exportLog(entries);
-              setExportAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="download" size={13} />
             Export raw JSON
-          </button>
+          </MenuItem>
           <div className="nm-menu-note">
             Everything this panel captured, including frames and timings.
           </div>
-        </div>
+        </Menu>
+      )}
+
+      {themeAnchor && (
+        <ThemeMenu
+          anchor={themeAnchor}
+          pref={themePref}
+          host={host}
+          onPick={onTheme}
+        />
       )}
 
       {moreAnchor && (
-        <div
-          className="nm-menu"
-          style={{ top: moreAnchor.top, right: moreAnchor.right, width: 232 }}
-        >
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+        <Menu anchor={moreAnchor} width={232} label="More actions">
+          <MenuItem
+            icon={<Icon name="preserve" size={13} />}
+            hint={prefs.preserveLog ? "on" : undefined}
+            onSelect={() => {
               setPreserveLog(!prefs.preserveLog);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="preserve" size={13} />
             Preserve log
-            {prefs.preserveLog && <span className="nm-menu-hint">on</span>}
-          </button>
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          </MenuItem>
+          <MenuItem
+            icon={<Icon name="follow" size={13} />}
+            hint={selection.isFollowing ? "on" : undefined}
+            onSelect={() => {
               selection.toggleFollow();
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="follow" size={13} />
             Follow newest
-            {selection.isFollowing && <span className="nm-menu-hint">on</span>}
-          </button>
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          </MenuItem>
+          {/* Stays open: density is a setting you cycle until it looks right,
+              and closing after each step would mean reopening to compare. */}
+          <MenuItem
+            icon={<Icon name="density" size={13} />}
+            hint={density}
+            onSelect={() =>
               onDensity(
                 DENSITY_ORDER[
                   (DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length
                 ],
-              );
-            }}
+              )
+            }
           >
-            <Icon name="density" size={13} />
             Density
-            <span className="nm-menu-hint">{density}</span>
-          </button>
+          </MenuItem>
 
           <div className="nm-menu-sep" />
 
-          <button
-            className="nm-menu-item"
+          <MenuItem
+            icon={<Icon name="download" size={13} />}
             disabled={entries.length === 0}
-            onClick={() => {
+            onSelect={() => {
               exportHar(entries);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="download" size={13} />
             Export as HAR
-          </button>
-          <button
-            className="nm-menu-item"
+          </MenuItem>
+          <MenuItem
+            icon={<Icon name="download" size={13} />}
             disabled={entries.length === 0}
-            onClick={() => {
+            onSelect={() => {
               exportLog(entries);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="download" size={13} />
             Export raw JSON
-          </button>
+          </MenuItem>
 
           {panel.tinyToolbar && (
             <>
               <div className="nm-menu-sep" />
-              <button
-                className="nm-menu-item"
-                onClick={() => {
-                  onMode(dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom");
-                  setMoreAnchor(null);
+              <MenuItem
+                icon={<Icon name="dock-bottom" size={13} />}
+                hint={dock.mode}
+                onSelect={() => {
+                  onMode(
+                    dock.mode === "bottom"
+                      ? "right"
+                      : dock.mode === "right"
+                        ? "float"
+                        : "bottom",
+                  );
+                  closeMenus();
                 }}
               >
-                <Icon name="dock-bottom" size={13} />
                 Dock position
-                <span className="nm-menu-hint">{dock.mode}</span>
-              </button>
+              </MenuItem>
             </>
           )}
 
           <div className="nm-menu-sep" />
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          <MenuItem
+            icon={<Icon name="keyboard" size={13} />}
+            hint="?"
+            onSelect={() => {
               setShowShortcuts(true);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="keyboard" size={13} />
             Keyboard shortcuts
-            <span className="nm-menu-hint">?</span>
-          </button>
-        </div>
+          </MenuItem>
+        </Menu>
       )}
 
       {menu.menu && (

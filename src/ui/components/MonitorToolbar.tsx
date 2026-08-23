@@ -3,11 +3,12 @@
 /** Dev Tools — header bar: section tabs, search, capture controls, dock
  * switcher, window controls. Doubles as the drag handle in float mode. */
 
-import type { DockMode } from "../../capture/monitorTypes";
+import type { DockMode, MonitorState } from "../../capture/monitorTypes";
 import { useRef } from "react";
 import type { Density } from "../constants/ui";
 import type { Section } from "../types/monitorUi";
 import { Icon, type IconName } from "./Icon";
+import type { MenuAnchor } from "./Menu";
 
 /** Top-level sections, in display/hotkey order. Each gets its own icon and
  * (via the `nm-section-{id}` class) its own accent colour — see `--nm-c-*` in
@@ -27,7 +28,8 @@ export const SECTION_DEFS: {
 ];
 
 export interface ToolbarProps {
-  dotColor: string;
+  /** Worst state currently in the buffer — colours the brand dot. */
+  dotState: MonitorState;
   section: Section;
   onSection: (section: Section) => void;
   /** Row count per section, for the tab badges. */
@@ -52,14 +54,17 @@ export interface ToolbarProps {
    * The menu itself is rendered by the panel root — a `position: fixed` menu
    * nested in the toolbar would resolve its offsets against the viewport, not
    * the button, and fly to the corner of the screen. */
-  onExportMenu: (anchor: { top: number; right: number } | null) => void;
+  onExportMenu: (anchor: MenuAnchor | null) => void;
   exportOpen: boolean;
   exportDisabled: boolean;
+  /** Same anchoring contract as the export menu. */
+  onThemeMenu: (anchor: MenuAnchor | null) => void;
+  themeOpen: boolean;
   /** Secondary actions move into an overflow menu when the panel is narrow. */
   compact: boolean;
   /** Even the dock switcher moves there. */
   tiny: boolean;
-  onMoreMenu: (anchor: { top: number; right: number } | null) => void;
+  onMoreMenu: (anchor: MenuAnchor | null) => void;
   moreOpen: boolean;
   onClear: () => void;
   density: Density;
@@ -86,7 +91,7 @@ const DENSITIES: Density[] = ["compact", "normal", "comfy"];
 
 export function MonitorToolbar(props: ToolbarProps) {
   const {
-    dotColor,
+    dotState,
     section,
     onSection,
     counts,
@@ -107,6 +112,8 @@ export function MonitorToolbar(props: ToolbarProps) {
     onExportMenu,
     exportOpen,
     exportDisabled,
+    onThemeMenu,
+    themeOpen,
     compact,
     tiny,
     onMoreMenu,
@@ -124,6 +131,7 @@ export function MonitorToolbar(props: ToolbarProps) {
 
   const exportBtnRef = useRef<HTMLButtonElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
+  const themeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   /** Menus are rendered by the panel root from a measured viewport rect — a
    * `position: fixed` menu nested here would resolve against the viewport. */
@@ -145,11 +153,15 @@ export function MonitorToolbar(props: ToolbarProps) {
         </span>
       )}
 
+      {/* The wordmark earns its space by making the dot legible: on its own the
+          dot is an unexplained coloured square, next to the name it reads as
+          the tool's status light. Both are the first thing dropped when the
+          panel gets narrow. */}
       <span className="nm-brand">
-        <span
-          className="nm-logo"
-          style={{ background: dotColor, boxShadow: `0 0 12px ${dotColor}99` }}
-        />
+        <span className="nm-logo" data-state={dotState} />
+        <span className="nm-titles">
+          <span className="nm-title">BLIX</span>
+        </span>
       </span>
 
       {/* Top-level sections — each kind of traffic is a separate view, not
@@ -194,6 +206,8 @@ export function MonitorToolbar(props: ToolbarProps) {
         <button
           className={`nm-search-deep${deepSearch ? " active" : ""}`}
           onClick={() => onDeepSearch(!deepSearch)}
+          aria-label="Deep search — also scan request and response bodies"
+          aria-pressed={deepSearch}
           title="Deep search — also scan request/response bodies"
         >
           {".*"}
@@ -202,6 +216,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           <button
             className="nm-search-clear"
             onClick={() => onQuery("")}
+            aria-label="Clear filter"
             title="Clear filter"
           >
             <Icon name="close" size={12} />
@@ -213,6 +228,8 @@ export function MonitorToolbar(props: ToolbarProps) {
         <button
           className={`nm-iconbtn nm-iconbtn-sq${paused ? " nm-iconbtn-on" : ""}`}
           onClick={onTogglePause}
+          aria-label={paused ? "Resume capturing" : "Pause capturing"}
+          aria-pressed={paused}
           title={paused ? "Resume capturing (Space)" : "Pause capturing (Space)"}
         >
           <Icon name={paused ? "play" : "pause"} size={14} />
@@ -222,6 +239,8 @@ export function MonitorToolbar(props: ToolbarProps) {
             <button
               className={`nm-iconbtn nm-iconbtn-sq${preserveLog ? " nm-iconbtn-on" : ""}`}
               onClick={onTogglePreserve}
+              aria-label="Preserve log across reloads"
+              aria-pressed={preserveLog}
               title={
                 preserveLog
                   ? "Preserve log is on — captured traffic survives a reload (Shift+L)"
@@ -233,6 +252,8 @@ export function MonitorToolbar(props: ToolbarProps) {
             <button
               className={`nm-iconbtn nm-iconbtn-sq${following ? " nm-iconbtn-on" : ""}`}
               onClick={onToggleFollow}
+              aria-label="Follow the newest request"
+              aria-pressed={following}
               title={
                 following
                   ? "Following the newest request — click to pin the current one"
@@ -254,6 +275,9 @@ export function MonitorToolbar(props: ToolbarProps) {
               onExportMenu(exportOpen ? null : anchorOf(exportBtnRef.current))
             }
             disabled={exportDisabled}
+            aria-label="Export the captured log"
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
             title="Export the captured log"
           >
             <Icon name="download" size={14} />
@@ -263,6 +287,7 @@ export function MonitorToolbar(props: ToolbarProps) {
         <button
           className="nm-iconbtn nm-iconbtn-sq"
           onClick={onClear}
+          aria-label="Clear the log"
           title="Clear — pinned entries are kept (Shift+C)"
         >
           <Icon name="clear" size={14} />
@@ -273,6 +298,9 @@ export function MonitorToolbar(props: ToolbarProps) {
             ref={moreBtnRef}
             className={`nm-iconbtn nm-iconbtn-sq${moreOpen ? " nm-iconbtn-on" : ""}`}
             onClick={() => onMoreMenu(moreOpen ? null : anchorOf(moreBtnRef.current))}
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
             title="More actions"
           >
             <Icon name="more" size={14} />
@@ -280,6 +308,22 @@ export function MonitorToolbar(props: ToolbarProps) {
         )}
 
         {!compact && <span className="nm-actions-sep" />}
+
+        {/* Theme survives into the compact toolbar where density does not: it
+            is the one appearance control there is no other way to reach, and
+            it is also the one a developer is most likely to want on a small
+            docked panel that is fighting the app's own colours. */}
+        <button
+          ref={themeBtnRef}
+          className={`nm-iconbtn nm-iconbtn-sq${themeOpen ? " nm-iconbtn-on" : ""}`}
+          onClick={() => onThemeMenu(themeOpen ? null : anchorOf(themeBtnRef.current))}
+          aria-label="Theme"
+          aria-haspopup="menu"
+          aria-expanded={themeOpen}
+          title="Theme"
+        >
+          <Icon name="theme" size={14} />
+        </button>
 
         {!compact && (
           <button
@@ -289,6 +333,7 @@ export function MonitorToolbar(props: ToolbarProps) {
                 DENSITIES[(DENSITIES.indexOf(density) + 1) % DENSITIES.length],
               )
             }
+            aria-label={`Row density: ${density}`}
             title={`Row density: ${density} — click to cycle`}
           >
             <Icon name="density" size={14} />
@@ -302,6 +347,8 @@ export function MonitorToolbar(props: ToolbarProps) {
                 key={d.mode}
                 className={`nm-dockbtn${mode === d.mode ? " active" : ""}`}
                 onClick={() => onMode(d.mode)}
+                aria-label={d.title}
+                aria-pressed={mode === d.mode}
                 title={d.title}
               >
                 <Icon name={d.icon} size={13} />
@@ -314,6 +361,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           <button
             className="nm-iconbtn nm-iconbtn-sq"
             onClick={onToggleMaximize}
+            aria-label={maximized ? "Restore" : "Maximize"}
             title={maximized ? "Restore" : "Maximize"}
           >
             <Icon name={maximized ? "restore" : "maximize"} size={14} />
@@ -322,6 +370,7 @@ export function MonitorToolbar(props: ToolbarProps) {
         <button
           className="nm-iconbtn nm-iconbtn-sq nm-iconbtn-close"
           onClick={onClose}
+          aria-label="Close the panel"
           title="Close (Esc)"
         >
           <Icon name="close" size={14} />

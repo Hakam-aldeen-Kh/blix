@@ -6,7 +6,7 @@ import { summarizeInitiator } from "../../capture/monitorInitiator";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { useContext, useState, useSyncExternalStore } from "react";
 import { BlixContext } from "../BlixContext";
-import { STATE_COLORS, kindAccent } from "../constants/ui";
+import { accentKey } from "../constants/ui";
 import {
   clock,
   copyText,
@@ -14,7 +14,6 @@ import {
   formatDuration,
   statusText,
 } from "../helpers/format";
-import type { PanelTheme } from "../hooks/useAppTheme";
 import { toCurl } from "../services/curl";
 import type { Resolved, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
@@ -206,7 +205,6 @@ export function DetailPane({
   onTogglePin,
   onSelectEntry,
   query,
-  theme,
 }: {
   resolved: Resolved;
   hidingLabel: string;
@@ -217,7 +215,6 @@ export function DetailPane({
    * ("Caused by", "Requests caused"). */
   onSelectEntry: (id: string) => void;
   query: string;
-  theme: PanelTheme;
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
@@ -298,20 +295,11 @@ export function DetailPane({
       <div className="nm-detail-head">
         <span
           className="nm-method nm-method-lg"
-          style={{
-            color: kindAccent(entry.kind, entry.method, theme),
-            background: `${kindAccent(entry.kind, entry.method, theme)}1c`,
-          }}
+          data-accent={accentKey(entry.kind, entry.method)}
         >
           {entry.transport ?? entry.method}
         </span>
-        <span
-          className="nm-status"
-          style={{
-            color: STATE_COLORS[entry.state],
-            background: `${STATE_COLORS[entry.state]}1f`,
-          }}
-        >
+        <span className="nm-status" data-state={entry.state}>
           {entry.status ?? (entry.state === "aborted" ? "⊘" : "—")}
         </span>
         {statusText(entry.status) && (

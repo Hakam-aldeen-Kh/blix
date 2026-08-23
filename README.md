@@ -589,6 +589,35 @@ structural typing means you just pass your store and client.)
 Passing neither still gives you a fully working capture log; you only lose the
 two features that need a live handle on the app.
 
+### Themes
+
+The panel ships six themes and picks one for you. The palette button in the
+toolbar (◐) opens the picker:
+
+| | Theme | |
+| --- | --- | --- |
+| Dark | **Midnight** | Deep blue-black — the default |
+| | **Carbon** | True black, high contrast; for OLED displays |
+| | **Nord** | Muted arctic blues |
+| | **Dracula** | Vivid purples and pinks |
+| Light | **Daylight** | Clean white — the light default |
+| | **Solar** | Warm paper, low blue light |
+
+The default is **System**: the panel reads the light/dark class off `<html>`
+and paints Midnight or Daylight to match, re-checking whenever your app's theme
+changes. Picking a specific theme overrides that. The choice is stored with the
+panel's other preferences and survives a reload.
+
+The panel never inherits your app's styling — it portals outside every stacking
+context and ships its own palette, so nothing you do to your own theme can
+distort it. Themes are complete rather than partial: every colour the panel
+paints, down to the JSON syntax highlighting and the waterfall bars, comes from
+the active theme. Each palette is checked against WCAG contrast targets — 4.5:1
+for anything read as text, 3:1 for badges and quiet chrome.
+
+There is no API for adding your own; a theme is ~20 colours in
+`src/ui/themes/themes.ts` if you are working from source.
+
 ### `dbName` — when you need it
 
 The panel persists its log to IndexedDB so it survives a reload. IndexedDB is

@@ -3,7 +3,7 @@
 /** Dev Tools — the docked badge, plus its drag ghost and corner drop
  * zones. Lifted from the original panel unchanged in behaviour. */
 
-import type { Corner, Pos } from "../../capture/monitorTypes";
+import type { Corner, MonitorState, Pos } from "../../capture/monitorTypes";
 import { MARGIN } from "../constants/ui";
 import { nearestCorner } from "../hooks/useFabDrag";
 
@@ -17,15 +17,21 @@ export const CORNER_STYLE: Record<Corner, React.CSSProperties> = {
 
 const CORNERS: Corner[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
+/** One constant for both the badge and its drag ghost — they are the same
+ * object to the user, and had drifted apart into two different words. */
+const BADGE_LABEL = "Blix";
+
 export function MonitorFab({
-  dotColor,
+  dotState,
   total,
   errors,
   pending,
   docking,
   onPointerDown,
 }: {
-  dotColor: string;
+  /** Worst state in the buffer — the badge's one-glance health signal. The
+   * colour itself comes from the active theme, via `data-state`. */
+  dotState: MonitorState;
   total: number;
   errors: number;
   pending: number;
@@ -38,10 +44,10 @@ export function MonitorFab({
       onPointerDown={onPointerDown}
       title="Dev Tools — click to open, drag to a corner"
     >
-      <span className="nm-fab-dot" style={{ background: dotColor }}>
-        {pending > 0 && <span className="nm-fab-ping" style={{ background: dotColor }} />}
+      <span className="nm-fab-dot" data-state={dotState}>
+        {pending > 0 && <span className="nm-fab-ping" />}
       </span>
-      <span className="nm-fab-label">Dev</span>
+      <span className="nm-fab-label">{BADGE_LABEL}</span>
       <span className="nm-fab-count">{total}</span>
       {errors > 0 && <span className="nm-fab-err">{errors}</span>}
     </button>
@@ -50,11 +56,11 @@ export function MonitorFab({
 
 export function FabDragPreview({
   pos,
-  dotColor,
+  dotState,
   total,
 }: {
   pos: Pos;
-  dotColor: string;
+  dotState: MonitorState;
   total: number;
 }) {
   const target = nearestCorner(pos.x, pos.y);
@@ -69,8 +75,8 @@ export function FabDragPreview({
         />
       ))}
       <span className="nm-fab nm-fab-ghost" style={{ left: pos.x, top: pos.y }}>
-        <span className="nm-fab-dot" style={{ background: dotColor }} />
-        <span className="nm-fab-label">Dev</span>
+        <span className="nm-fab-dot" data-state={dotState} />
+        <span className="nm-fab-label">{BADGE_LABEL}</span>
         <span className="nm-fab-count">{total}</span>
       </span>
     </>

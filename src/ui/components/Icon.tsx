@@ -31,7 +31,9 @@ export type IconName =
   | "density"
   | "more"
   | "network"
-  | "database";
+  | "database"
+  | "theme"
+  | "check";
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   return (
@@ -190,6 +192,15 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M13 10.7H4.2M6.4 13.3l-2.6-2.6 2.6-2.6" />
         </>
       )}
+      {/* Half-filled circle — the universal "appearance" mark, and readable at
+          13px where a paint-roller or palette silhouette is not. */}
+      {name === "theme" && (
+        <>
+          <circle cx="8" cy="8" r="5.6" />
+          <path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none" />
+        </>
+      )}
+      {name === "check" && <path d="M3.2 8.4 6.4 11.6 12.8 4.8" />}
       {name === "database" && (
         <>
           <ellipse cx="8" cy="4.1" rx="5.1" ry="2" />

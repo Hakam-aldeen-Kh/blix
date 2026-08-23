@@ -75,14 +75,15 @@ export function StatusBar({
 
       {persistedLabel && (
         <button
-          className="nm-statusbar-btn nm-status-persisted"
+          className={`nm-statusbar-btn nm-status-persisted${
+            purgeArmed ? " nm-statusbar-armed" : ""
+          }`}
           onClick={onPurge}
           title={
             purgeArmed
               ? "Click again to delete the saved log"
               : "Saved to IndexedDB — click twice to purge"
           }
-          style={purgeArmed ? { color: "#fca5a5", fontWeight: 700 } : undefined}
         >
           {purgeArmed ? "Purge saved log?" : persistedLabel}
         </button>

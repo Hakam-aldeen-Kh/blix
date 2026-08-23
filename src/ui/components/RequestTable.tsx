@@ -13,10 +13,9 @@
 import { summarizeInitiator } from "../../capture/monitorInitiator";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { memo, useMemo, useRef } from "react";
-import { STATE_COLORS, kindAccent } from "../constants/ui";
+import { accentKey } from "../constants/ui";
 import { clock, formatBytes, requestName, statusText } from "../helpers/format";
 import { barGeometry } from "../helpers/waterfall";
-import type { PanelTheme } from "../hooks/useAppTheme";
 import { useMeasuredSize } from "../hooks/useMeasuredSize";
 import type { UseVirtualRows } from "../hooks/useVirtualRows";
 import type {
@@ -186,10 +185,7 @@ function StatusCell({ entry }: { entry: MonitorEntry }) {
   return (
     <span
       className={`nm-status${entry.state === "pending" && !isWs ? " nm-pulse" : ""}`}
-      style={{
-        color: STATE_COLORS[entry.state],
-        background: `${STATE_COLORS[entry.state]}1f`,
-      }}
+      data-state={entry.state}
       title={statusText(entry.status)}
     >
       {label}
@@ -204,7 +200,6 @@ interface RowProps {
   selected: boolean;
   timeline: Timeline | undefined;
   nowAbs: number;
-  theme: PanelTheme;
   onSelect: (id: string) => void;
   onTogglePin: (id: string) => void;
   onContextMenu: (e: React.MouseEvent, entry: MonitorEntry) => void;
@@ -222,7 +217,6 @@ const RequestRow = memo(function RequestRow({
   selected,
   timeline,
   nowAbs,
-  theme,
   onSelect,
   onTogglePin,
   onContextMenu,
@@ -280,7 +274,7 @@ const RequestRow = memo(function RequestRow({
           <span
             className="nm-col-method"
             key={column.id}
-            style={{ color: kindAccent(entry.kind, entry.method, theme) }}
+            data-accent={accentKey(entry.kind, entry.method)}
           >
             {entry.transport ?? entry.method}
           </span>
@@ -329,11 +323,8 @@ const RequestRow = memo(function RequestRow({
             <span className="nm-wf-track" aria-hidden>
               <span
                 className={`nm-wf-bar${bar.live ? " nm-wf-live" : ""}`}
-                style={{
-                  left: `${bar.left}%`,
-                  width: `${bar.width}%`,
-                  background: STATE_COLORS[entry.state],
-                }}
+                data-state={entry.state}
+                style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
               />
               {bar.overflowed && <span className="nm-wf-inf">∞</span>}
             </span>
@@ -373,7 +364,6 @@ export function RequestTable({
   virtual,
   scrollerRef,
   empty,
-  theme,
 }: {
   rows: ListRow[];
   columns: ColumnDef[];
@@ -390,7 +380,6 @@ export function RequestTable({
   virtual: UseVirtualRows;
   scrollerRef: React.RefObject<HTMLDivElement | null>;
   empty: React.ReactNode;
-  theme: PanelTheme;
 }) {
   const slice = rows.slice(virtual.window.start, virtual.window.end);
 
@@ -489,7 +478,6 @@ export function RequestTable({
                     selected={activeRowId === row.entry.id}
                     timeline={timelines.get(row.entry.loadId)}
                     nowAbs={nowAbs}
-                    theme={theme}
                     onSelect={onSelect}
                     onTogglePin={onTogglePin}
                     onContextMenu={onContextMenu}
