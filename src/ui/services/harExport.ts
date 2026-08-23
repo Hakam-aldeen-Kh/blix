@@ -11,6 +11,7 @@
 
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { endOf, startOf } from "../helpers/waterfall";
+import { downloadText, fileStamp } from "./download";
 
 // HAR requires `creator.version`, and there is no build-time define for the
 // package version — bump this alongside package.json when it matters.
@@ -126,20 +127,9 @@ export function toHar(entries: MonitorEntry[]) {
 }
 
 export function exportHar(entries: MonitorEntry[]): void {
-  try {
-    const blob = new Blob([JSON.stringify(toHar(entries), null, 2)], {
-      type: "application/json",
-    });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = `network-${new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/:/g, "-")}.har`;
-    a.click();
-    URL.revokeObjectURL(href);
-  } catch {
-    /* download blocked — ignore */
-  }
+  downloadText(
+    `blix-${fileStamp()}.har`,
+    "application/json",
+    JSON.stringify(toHar(entries), null, 2),
+  );
 }

@@ -490,6 +490,44 @@ const VIEWERS = `
 .nm-json-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .nm-json-toolbar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 6px 12px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
 .nm-json-size { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint); margin-right: auto; }
+
+/* Display-format switch. Sits at the head of the payload toolbar because it
+   changes what the pane below it *is*, unlike Wrap and Copy which act on
+   whatever is already there. */
+.nm-fmt { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
+.nm-fmt-btn {
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.nm-fmt-btn:hover:not(:disabled) { color: var(--nm-txt); }
+.nm-fmt-btn.active { background: var(--nm-surface-2); color: var(--nm-accent); box-shadow: var(--nm-shadow-seg); }
+/* Table stays visible while unavailable rather than disappearing — a control
+   that comes and goes as you click between requests is harder to learn than
+   one that is simply dim, and its tooltip explains why. */
+.nm-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Grid view of a tabular payload. */
+.nm-tv { flex: 1; min-height: 0; overflow: auto; background: var(--nm-bg); }
+.nm-tv-grid { display: grid; min-width: min-content; }
+.nm-tv-head, .nm-tv-row { display: contents; }
+.nm-tv-head > span {
+  position: sticky; top: 0; z-index: 1;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--nm-faint); background: var(--nm-surface-2);
+  padding: 5px 10px; border-bottom: 1px solid var(--nm-line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nm-td {
+  padding: 3px 10px; font-family: var(--nm-mono); font-size: 11px;
+  border-bottom: 1px solid var(--nm-line-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Hovering a row highlights the whole row even though the cells are grid
+   children with no row element of their own to hang :hover on. */
+.nm-tv-row:hover > .nm-td { background: var(--nm-elev); }
+.nm-tv-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
+.nm-tv-note { font-size: 10.5px; color: var(--nm-faint); }
 .nm-copy {
   font-size: 11px; font-weight: 600; padding: 4px 11px; border-radius: 7px; border: 1px solid var(--nm-line);
   background: var(--nm-elev); color: var(--nm-txt); cursor: pointer;
@@ -578,6 +616,19 @@ const MENU = `
   font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
   color: var(--nm-faint); padding: 7px 9px 3px;
 }
+/* Export scope. A segmented control rather than two menu items, because it is
+   a property *of* the formats below it, not a seventh thing you can pick. */
+.nm-menu-scope { display: flex; gap: 2px; padding: 3px; margin: 2px 0 4px; border-radius: 8px; background: var(--nm-sunken); }
+.nm-scope-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 4px 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.nm-scope-btn:hover { color: var(--nm-txt); }
+.nm-scope-btn.active { background: var(--nm-surface-2); color: var(--nm-accent); box-shadow: var(--nm-shadow-seg); }
+.nm-scope-btn b { font-variant-numeric: tabular-nums; font-weight: 800; }
+
 /* The chosen item, marked rather than highlighted: a menu of themes is a set
    of radio buttons, and a hover highlight already means something else here. */
 .nm-menu-item.nm-menu-on { color: var(--nm-accent); }

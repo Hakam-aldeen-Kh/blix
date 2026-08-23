@@ -90,6 +90,19 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
             button in the toolbar — hover one to try it on before choosing.
           </div>
 
+          <div className="nm-sheet-group">Formats</div>
+          <div className="nm-sheet-desc nm-sheet-wide">
+            Payloads render as <b>Tree</b>, <b>Table</b>, <b>JSON</b>,{" "}
+            <b>YAML</b> or <b>Text</b> — switch at the top of the pane, and{" "}
+            <b>Copy</b> gives you whichever one you are looking at. Export the
+            log as HAR, JSON, NDJSON, CSV, a Markdown table or a cURL script
+            from the{" "}
+            <span className="nm-inline-ico">
+              <Icon name="download" size={11} />
+            </span>{" "}
+            button.
+          </div>
+
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title} style={{ display: "contents" }}>
               <div className="nm-sheet-group">{group.title}</div>

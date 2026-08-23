@@ -589,6 +589,44 @@ structural typing means you just pass your store and client.)
 Passing neither still gives you a fully working capture log; you only lose the
 two features that need a live handle on the app.
 
+### Viewing payloads
+
+Every payload pane has a format switch. The choice is remembered, so you pick
+it once rather than per request.
+
+| Format | Answers |
+| --- | --- |
+| **Tree** | *What's in here?* Collapsible and searchable; a collapsed subtree costs one row, so it stays fast on multi-megabyte responses. |
+| **Table** | *How do these records compare?* A grid, offered when the payload is a list of records or a keyed map. Sparse and surplus columns are hidden with a count. |
+| **JSON** | *What exactly came back?* Raw, syntax-coloured. |
+| **YAML** | *What shape is this?* Indentation instead of punctuation, and multi-line strings — stack traces, SQL — shown as text rather than escapes. |
+| **Text** | *It isn't JSON.* An HTML error page, a CSV body, a proxy's plain-text response. |
+
+**Copy gives you what you're looking at**: Table copies CSV, YAML copies YAML.
+
+Right-click any request for **Copy as cURL** or **Copy as fetch** — the latter
+pastes straight into the browser console, with the body as an editable object
+literal rather than a pre-serialized string.
+
+### Exporting the log
+
+The ◐ toolbar's neighbour, the download button, offers six formats and a scope
+toggle — **Shown** (what the current section and filters leave visible) or
+**All**. It defaults to Shown, with both counts on the control, so an export
+says what it will contain before you pick a format.
+
+| | Format | For |
+| --- | --- | --- |
+| Tool | **HAR** | Chrome DevTools, Charles, Insomnia, Postman — with the decrypted bodies. HTTP entries only. |
+| | **JSON** | Everything captured: frames, Redux diffs, timings. |
+| | **NDJSON** | One entry per line — pipe it into `jq`. |
+| Person | **Markdown** | A table plus failure bodies, copied to the clipboard for an issue, a PR or Slack. |
+| | **CSV** | One row per entry, no bodies — sort and count in a spreadsheet. Opens as UTF-8 in Excel. |
+| Shell | **cURL script** | Every request in order, runnable against another environment. |
+
+Captured `Authorization` headers are masked, so cURL and fetch output carries a
+placeholder rather than a working token — use **Replay** for a real re-run.
+
 ### Themes
 
 Twelve themes, under the ◐ button in the toolbar:

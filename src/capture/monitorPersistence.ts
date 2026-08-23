@@ -61,6 +61,9 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   // Follow the host app, which is what the panel did before it had themes of
   // its own — a developer who never opens the picker sees no change.
   theme: "auto",
+  // The tree is what the panel always opened with, and it is the right default
+  // for "what is in here?" — the other formats answer narrower questions.
+  dataFormat: "tree",
   section: "network",
   density: "normal",
   columnWidths: {},

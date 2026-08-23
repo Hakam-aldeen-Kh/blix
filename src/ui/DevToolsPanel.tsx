@@ -52,6 +52,7 @@ import { ShortcutsSheet } from "./components/ShortcutsSheet";
 import { StatusBar } from "./components/StatusBar";
 import { DENSITY_ROW_H, type Density } from "./constants/ui";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
+import { ExportMenu, type ExportScope } from "./components/ExportMenu";
 import { ThemeMenu } from "./components/ThemeMenu";
 import {
   normalizeThemePref,
@@ -116,14 +117,14 @@ import { hidingReasons, useMonitorList } from "./hooks/useMonitorList";
 import { useMonitorSelection } from "./hooks/useMonitorSelection";
 import { usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
-import { exportLog } from "./services/exportLog";
 import { describeTokens, parseFilter, tokenToRaw } from "./services/filterQuery";
-import { exportHar } from "./services/harExport";
 import { canReplay, replayEntry } from "./services/replayRequest";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
 import {
+  normalizeDataFormat,
   SECTION_NOUNS,
   type ColumnId,
+  type DataFormat,
   type Section,
   type Sort,
   type SortKey,
@@ -149,6 +150,7 @@ export default function DevTools() {
   // the panel without ever changing what is stored.
   const host = useHostTheme();
   const [previewPref, setPreviewPref] = useState<ThemePref | null>(null);
+  const dataFormat = normalizeDataFormat(prefs.dataFormat);
   const themePref = normalizeThemePref(prefs.theme);
   const theme = resolveTheme(previewPref ?? themePref, host);
   // Written to the root's `style` rather than shipped as one CSS block per
@@ -173,6 +175,11 @@ export default function DevTools() {
   const [sort, setSort] = useState<Sort>({ key: "time", dir: "desc" });
   const [paused, setPaused] = useState(() => networkMonitor.isPaused);
   const [purgeArmed, setPurgeArmed] = useState(false);
+  // Which entries an export covers. Session state rather than a stored pref:
+  // it belongs to the export you are about to do, and defaulting to "shown"
+  // every time is the safer of the two — a too-small export is obvious, a
+  // too-large one is not.
+  const [exportScope, setExportScope] = useState<ExportScope>("shown");
   // A single piece of state rather than one `useState` per menu: each toggle
   // button only clears *its own* anchor when opening (see MonitorToolbar's
   // `onExportMenu(exportOpen ? null : ...)`), so independent booleans let two
@@ -290,6 +297,9 @@ export default function DevTools() {
   const onDensity = useCallback((next: Density) => {
     setDensity(next);
     savePrefs({ density: next });
+  }, []);
+  const onDataFormat = useCallback((next: DataFormat) => {
+    savePrefs({ dataFormat: next });
   }, []);
   const onTheme = useCallback((next: ThemePref) => {
     savePrefs({ theme: next });
@@ -876,6 +886,8 @@ export default function DevTools() {
               onSelectEntry={selection.pin}
               query={list.normalizedQuery}
               nouns={nouns}
+              format={dataFormat}
+              onFormat={onDataFormat}
             />
           </div>
 
@@ -917,34 +929,14 @@ export default function DevTools() {
       )}
 
       {exportAnchor && (
-        <Menu anchor={exportAnchor} width={236} label="Export">
-          <MenuItem
-            icon={<Icon name="download" size={13} />}
-            onSelect={() => {
-              exportHar(entries);
-              closeMenus();
-            }}
-          >
-            Export as HAR
-          </MenuItem>
-          <div className="nm-menu-note">
-            Opens in Chrome DevTools, Charles or Insomnia — with the decrypted
-            bodies.
-          </div>
-          <div className="nm-menu-sep" />
-          <MenuItem
-            icon={<Icon name="download" size={13} />}
-            onSelect={() => {
-              exportLog(entries);
-              closeMenus();
-            }}
-          >
-            Export raw JSON
-          </MenuItem>
-          <div className="nm-menu-note">
-            Everything this panel captured, including frames and timings.
-          </div>
-        </Menu>
+        <ExportMenu
+          anchor={exportAnchor}
+          scope={exportScope}
+          onScope={setExportScope}
+          shown={list.filtered}
+          all={entries}
+          onDone={closeMenus}
+        />
       )}
 
       {themeAnchor && (
@@ -997,25 +989,16 @@ export default function DevTools() {
 
           <div className="nm-menu-sep" />
 
+          {/* Hands off to the export menu rather than duplicating two of its
+              six formats — this menu only exists because the panel is too
+              narrow to show the export button. Reuses the same anchor, so the
+              menu opens exactly where this one was. */}
           <MenuItem
             icon={<Icon name="download" size={13} />}
             disabled={entries.length === 0}
-            onSelect={() => {
-              exportHar(entries);
-              closeMenus();
-            }}
+            onSelect={() => moreAnchor && setExportAnchor(moreAnchor)}
           >
-            Export as HAR
-          </MenuItem>
-          <MenuItem
-            icon={<Icon name="download" size={13} />}
-            disabled={entries.length === 0}
-            onSelect={() => {
-              exportLog(entries);
-              closeMenus();
-            }}
-          >
-            Export raw JSON
+            Export…
           </MenuItem>
 
           {panel.tinyToolbar && (

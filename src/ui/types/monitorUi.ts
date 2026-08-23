@@ -9,12 +9,26 @@ export type Tab =
   | "headers"
   | "timing"
   | "messages"
-  | "response"
   | "initiator"
   | "raw"
   | "diff"
   | "reduxState"
   | "queryState";
+
+/**
+ * How a payload is rendered. Chosen per developer, not per tab — the old
+ * split, where "Preview" meant tree and "Response" meant raw text, made format
+ * a property of *which field* you were reading rather than of *how* you wanted
+ * to read it, and showed the same data under two tabs.
+ */
+export type DataFormat = "tree" | "table" | "json" | "yaml" | "text";
+
+export const DATA_FORMATS: DataFormat[] = ["tree", "table", "json", "yaml", "text"];
+
+/** Prefs store this as a plain string; anything unrecognized falls back. */
+export function normalizeDataFormat(value: unknown): DataFormat {
+  return DATA_FORMATS.includes(value as DataFormat) ? (value as DataFormat) : "tree";
+}
 
 /** Top-level section. Each kind of traffic has different columns and
  * different notions of a row, so they are separate views rather than one

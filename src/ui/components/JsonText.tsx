@@ -1,7 +1,12 @@
 "use client";
 
 /**
- * Dev Tools — raw JSON text viewer with syntax colouring.
+ * Dev Tools — the flat-text pane, with optional JSON syntax colouring.
+ *
+ * A pure renderer: it takes text that some other format already produced (raw
+ * JSON, YAML, or a body that was a string to begin with) and paints it. The
+ * size readout, wrap toggle and Copy live one level up in `DataView`, so they
+ * sit in the same place whichever format is showing.
  *
  * The tokenizer emits React nodes rather than an HTML string; the previous
  * implementation built markup and passed it through `dangerouslySetInnerHTML`,
@@ -9,8 +14,7 @@
  * class of risk entirely.
  */
 
-import { useMemo, useState } from "react";
-import { copyText, formatBytes } from "../helpers/format";
+import { useMemo } from "react";
 
 const TOKEN_RE =
   /("(?:\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
@@ -44,69 +48,35 @@ function tokenize(json: string): Token[] {
  * of raw JSON by eye anyway. */
 const HIGHLIGHT_LIMIT = 512 * 1024;
 
-export function JsonText({ value }: { value: unknown }) {
-  const [copied, setCopied] = useState(false);
-  const [wrap, setWrap] = useState(true);
-
-  const text = useMemo(() => {
-    if (value === undefined) return null;
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
-    }
-  }, [value]);
-
+export function JsonText({
+  text,
+  wrap = true,
+  /** Off for YAML and for plain-text bodies: the tokenizer's rules are JSON's,
+   * and running them over YAML mis-colours keys and unquoted scalars. */
+  highlight = true,
+}: {
+  text: string;
+  wrap?: boolean;
+  highlight?: boolean;
+}) {
   const tokens = useMemo(
-    () => (text && text.length <= HIGHLIGHT_LIMIT ? tokenize(text) : null),
-    [text],
+    () => (highlight && text.length <= HIGHLIGHT_LIMIT ? tokenize(text) : null),
+    [text, highlight],
   );
 
-  if (text === null) {
-    return <div className="nm-empty">— not captured —</div>;
-  }
-
-  const lines = text.split("\n").length;
-
-  const copy = () => {
-    void copyText(text).then((ok) => {
-      if (!ok) return;
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    });
-  };
-
   return (
-    <div className="nm-json-wrap">
-      <div className="nm-json-toolbar">
-        <span className="nm-json-size">
-          {formatBytes(text.length)} · {lines} {lines === 1 ? "line" : "lines"}
-          {tokens === null && " · highlighting off (large)"}
-        </span>
-        <button
-          className={`nm-copy nm-toggle${wrap ? " active" : ""}`}
-          onClick={() => setWrap((w) => !w)}
-          title="Toggle line wrapping"
-        >
-          Wrap
-        </button>
-        <button className="nm-copy" onClick={copy}>
-          {copied ? "✓ Copied" : "Copy"}
-        </button>
-      </div>
-      <pre className={`nm-json nm-scroll${wrap ? "" : " nm-nowrap"}`}>
-        {tokens
-          ? tokens.map((token, i) =>
-              token.cls ? (
-                <span key={i} className={token.cls}>
-                  {token.text}
-                </span>
-              ) : (
-                <span key={i}>{token.text}</span>
-              ),
-            )
-          : text}
-      </pre>
-    </div>
+    <pre className={`nm-json nm-scroll${wrap ? "" : " nm-nowrap"}`}>
+      {tokens
+        ? tokens.map((token, i) =>
+            token.cls ? (
+              <span key={i} className={token.cls}>
+                {token.text}
+              </span>
+            ) : (
+              <span key={i}>{token.text}</span>
+            ),
+          )
+        : text}
+    </pre>
   );
 }

@@ -337,8 +337,8 @@ export function JsonTree({
       />
       {overflowed && (
         <div className="nm-tree-cap">
-          Output truncated at {MAX_RENDERED_NODES} nodes — use the Response tab
-          for the raw text.
+          Output truncated at {MAX_RENDERED_NODES} nodes — switch to the JSON or
+          Text format for everything.
         </div>
       )}
     </div>

@@ -14,21 +14,24 @@ import {
   formatDuration,
   statusText,
 } from "../helpers/format";
-import { toCurl } from "../services/curl";
-import type { Resolved, SectionNouns, Tab } from "../types/monitorUi";
+import { toCurl } from "../services/snippets";
+import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
+import { DataView } from "./DataView";
 import { Icon } from "./Icon";
-import { JsonText } from "./JsonText";
-import { JsonTree } from "./JsonTree";
 import { MessagesTab } from "./tabs/MessagesTab";
 import { TimingTab } from "./tabs/TimingTab";
 
+/**
+ * "Preview" and "Response" used to be separate tabs over the same field — one
+ * rendering it as a tree, the other as raw JSON. Now that the viewer carries a
+ * format switch, they are one tab and the reader picks the rendering.
+ */
 const HTTP_TABS: { id: Tab; label: string }[] = [
-  { id: "preview", label: "Preview" },
+  { id: "preview", label: "Response" },
   { id: "payload", label: "Payload" },
   { id: "headers", label: "Headers" },
   { id: "timing", label: "Timing" },
-  { id: "response", label: "Response" },
   { id: "initiator", label: "Initiator" },
 ];
 
@@ -105,7 +108,15 @@ function HeadersTable({
  * carries a bounded diff, never a snapshot, so this is the one place a
  * developer can see the *current* full state, not just what one action
  * changed. Subscribes directly, so it updates while the tab stays open. */
-function ReduxStateTab({ query }: { query: string }) {
+function ReduxStateTab({
+  query,
+  format,
+  onFormat,
+}: {
+  query: string;
+  format: DataFormat;
+  onFormat: (format: DataFormat) => void;
+}) {
   const { store } = useContext(BlixContext);
   const noop = () => () => {};
   const nullSnapshot = () => null;
@@ -115,7 +126,15 @@ function ReduxStateTab({ query }: { query: string }) {
     store?.getState ?? nullSnapshot,
   );
   if (!store) return <div className="nm-empty">— Redux store not provided —</div>;
-  return <JsonTree value={state} query={query} entryId="redux:live-state" />;
+  return (
+    <DataView
+      value={state}
+      query={query}
+      entryId="redux:live-state"
+      format={format}
+      onFormat={onFormat}
+    />
+  );
 }
 
 function QueryStateTab({
@@ -206,6 +225,8 @@ export function DetailPane({
   onSelectEntry,
   query,
   nouns,
+  format,
+  onFormat,
 }: {
   resolved: Resolved;
   hidingLabel: string;
@@ -220,6 +241,11 @@ export function DetailPane({
    * this pane has to speak before it has an entry to infer the kind from —
    * they used to say "request" over a table of Redux actions. */
   nouns: SectionNouns;
+  /** How payloads render. Lifted to the panel so it persists across entries
+   * and sections — a developer who works in YAML should not have to re-pick it
+   * for every request they click. */
+  format: DataFormat;
+  onFormat: (format: DataFormat) => void;
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
@@ -387,35 +413,49 @@ export function DetailPane({
 
       <div className="nm-tab-body">
         {activeTab === "timing" && <TimingTab entry={entry} />}
-        {activeTab === "messages" && <MessagesTab entry={entry} query={query} />}
+        {activeTab === "messages" && (
+          <MessagesTab
+            entry={entry}
+            query={query}
+            format={format}
+            onFormat={onFormat}
+          />
+        )}
         {activeTab === "diff" && <DiffTab entry={entry} />}
-        {activeTab === "reduxState" && <ReduxStateTab query={query} />}
+        {activeTab === "reduxState" && (
+          <ReduxStateTab query={query} format={format} onFormat={onFormat} />
+        )}
         {activeTab === "queryState" && (
           <QueryStateTab entry={entry} onSelectEntry={onSelectEntry} />
         )}
         {activeTab === "preview" && (
-          <JsonTree
+          <DataView
             value={entry.responsePayload ?? entry.error}
             query={query}
             entryId={`${entry.id}:preview`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
         {activeTab === "payload" && (
-          <JsonTree
+          <DataView
             value={entry.requestPayload}
             query={query}
             entryId={`${entry.id}:payload`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
-        {activeTab === "response" && (
-          <JsonText value={entry.responsePayload ?? entry.error} />
-        )}
         {activeTab === "raw" && (
-          <JsonText
+          <DataView
             value={{
               encryptedRequest: entry.encryptedRequest,
               encryptedResponse: entry.encryptedResponse,
             }}
+            query={query}
+            entryId={`${entry.id}:raw`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
         {activeTab === "headers" && (
