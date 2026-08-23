@@ -53,7 +53,12 @@ import { StatusBar } from "./components/StatusBar";
 import { DENSITY_ROW_H, type Density } from "./constants/ui";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ThemeMenu } from "./components/ThemeMenu";
-import { normalizeThemePref, resolveTheme, type ThemePref } from "./themes/themes";
+import {
+  normalizeThemePref,
+  resolveTheme,
+  themeTokens,
+  type ThemePref,
+} from "./themes/themes";
 
 const DENSITY_ORDER: Density[] = ["compact", "normal", "comfy"];
 
@@ -116,12 +121,13 @@ import { describeTokens, parseFilter, tokenToRaw } from "./services/filterQuery"
 import { exportHar } from "./services/harExport";
 import { canReplay, replayEntry } from "./services/replayRequest";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
-import type {
-  ColumnId,
-  Section,
-  Sort,
-  SortKey,
-  StateFilter,
+import {
+  SECTION_NOUNS,
+  type ColumnId,
+  type Section,
+  type Sort,
+  type SortKey,
+  type StateFilter,
 } from "./types/monitorUi";
 
 export default function DevTools() {
@@ -136,12 +142,19 @@ export default function DevTools() {
     prefsStore.getSnapshot,
     prefsStore.getServerSnapshot,
   );
-  // Theme is two values, not one: what the developer *chose* (which may be
-  // "follow the app") and what that currently resolves to. The picker needs
-  // the first, the root element needs the second.
+  // Theme is three values, not one: what the developer *chose* (which may be
+  // "follow the app"), what they are currently hovering in the picker, and
+  // what that resolves to. The picker's check mark tracks the choice; the root
+  // element paints the preview when there is one, so hovering a row repaints
+  // the panel without ever changing what is stored.
   const host = useHostTheme();
+  const [previewPref, setPreviewPref] = useState<ThemePref | null>(null);
   const themePref = normalizeThemePref(prefs.theme);
-  const theme = resolveTheme(themePref, host);
+  const theme = resolveTheme(previewPref ?? themePref, host);
+  // Written to the root's `style` rather than shipped as one CSS block per
+  // theme — see `BASE_THEME_CSS`. Memoized on the resolved theme so hovering
+  // down the picker doesn't rebuild ~80 properties per pointer event.
+  const themeStyle = useMemo(() => themeTokens(theme.palette), [theme]);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -282,6 +295,8 @@ export default function DevTools() {
     savePrefs({ theme: next });
     // Left open on purpose: picking a theme is a comparison, and closing the
     // menu after every pick would mean reopening it to try the next one.
+    // The hover preview is left alone too — the pointer is still on the row
+    // that was just picked, and clearing it would flash.
   }, []);
 
   // Changing the dock moves the toolbar, which invalidates the export menu's
@@ -482,6 +497,15 @@ export default function DevTools() {
     return () => window.removeEventListener("resize", closeMenus);
   }, [menuState, closeMenus]);
 
+  // A hover preview must not outlive the picker. Keyed off the menu closing
+  // rather than cleared at each of the four call sites that can close it
+  // (Escape, outside click, the toolbar button, opening another menu) — one of
+  // them would eventually be missed and leave the panel stuck in a theme the
+  // developer never chose.
+  useEffect(() => {
+    if (!themeAnchor) setPreviewPref(null);
+  }, [themeAnchor]);
+
   // Click outside closes. Captured on `pointerdown` so it fires even while a
   // Radix modal dialog has the rest of the page pointer-locked. The badge opens
   // via a click, so the opening interaction never reaches here.
@@ -550,6 +574,7 @@ export default function DevTools() {
       ? "pending"
       : "success";
 
+  const nouns = SECTION_NOUNS[section];
   const pendingLabel =
     section === "realtime" ? "Open" : section === "query" ? "Fetching" : "Pending";
   // Each filter key doubles as its own `data-state`, so the dot beside a
@@ -611,6 +636,11 @@ export default function DevTools() {
       style={
         {
           ...CORNER_STYLE[dock.corner],
+          ...themeStyle,
+          // Tells the browser which way round this subtree is, so its own
+          // chrome — native scrollbars, form controls, the caret — matches
+          // instead of defaulting to the host page's scheme.
+          colorScheme: theme.base,
           "--nm-row-h": `${rowHeight}px`,
         } as React.CSSProperties
       }
@@ -845,12 +875,14 @@ export default function DevTools() {
               onTogglePin={togglePin}
               onSelectEntry={selection.pin}
               query={list.normalizedQuery}
+              nouns={nouns}
             />
           </div>
 
           <StatusBar
             counts={list.counts}
             shown={list.filtered.length}
+            noun={nouns.many}
             totalBytes={list.totalBytes}
             slowestMs={slowestMs}
             pinnedCount={pinnedCount}
@@ -921,6 +953,7 @@ export default function DevTools() {
           pref={themePref}
           host={host}
           onPick={onTheme}
+          onPreview={setPreviewPref}
         />
       )}
 

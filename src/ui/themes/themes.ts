@@ -27,8 +27,14 @@ export type ThemeId =
   | "midnight"
   | "carbon"
   | "nord"
+  | "tokyo"
+  | "one-dark"
+  | "mocha"
   | "dracula"
+  | "gruvbox"
   | "daylight"
+  | "github"
+  | "latte"
   | "solar";
 
 /** What the user picked: a specific theme, or "follow the host app". */
@@ -322,6 +328,215 @@ const SOLAR: Palette = {
   scrim: "7,54,66",
 };
 
+/** Tokyo Night — deep indigo, the most-installed editor theme of its
+ * generation. Its own blue/purple/cyan set maps onto the four sections almost
+ * one-for-one. */
+const TOKYO: Palette = {
+  base: "dark",
+  bg: "#16161e",
+  surface: "#1a1b26",
+  surface2: "#20212e",
+  surface3: "#292e42",
+  txt: "#c0caf5",
+  muted: "#9aa5ce",
+  faint: "#787c99",
+  accent: "#7aa2f7",
+  network: "#7aa2f7",
+  realtime: "#2ac3de",
+  redux: "#bb9af7",
+  query: "#ff9e64",
+  success: "#9ece6a",
+  error: "#f7768e",
+  warning: "#e0af68",
+  neutral: "#787c99",
+  syntax: {
+    text: "#a9b1d6",
+    key: "#7dcfff",
+    str: "#9ece6a",
+    num: "#ff9e64",
+    bool: "#bb9af7",
+    nul: "#787c99",
+    blob: "#f7768e",
+  },
+  overlay: "192,202,245",
+  shadow: "0,0,0",
+  scrim: "13,13,18",
+};
+
+/** Gruvbox Dark — warm retro browns and ambers. The only theme here that is
+ * not cool-toned, and the reason it earns a slot: nothing else in the list
+ * looks remotely like it. */
+const GRUVBOX: Palette = {
+  base: "dark",
+  bg: "#1d2021",
+  surface: "#282828",
+  surface2: "#32302f",
+  surface3: "#3c3836",
+  txt: "#fbf1c7",
+  muted: "#d5c4a1",
+  faint: "#a89984",
+  accent: "#83a598",
+  network: "#83a598",
+  realtime: "#8ec07c",
+  redux: "#d3869b",
+  query: "#fe8019",
+  success: "#b8bb26",
+  error: "#fb4934",
+  warning: "#fabd2f",
+  neutral: "#a89984",
+  syntax: {
+    text: "#ebdbb2",
+    key: "#8ec07c",
+    str: "#b8bb26",
+    num: "#d3869b",
+    bool: "#fabd2f",
+    nul: "#a89984",
+    blob: "#fe8019",
+  },
+  overlay: "251,241,199",
+  shadow: "0,0,0",
+  scrim: "16,16,16",
+};
+
+/** Catppuccin Mocha — soft pastels on a warm charcoal. Lower contrast by
+ * design than Carbon, and the gentlest of the darks over a long session. */
+const MOCHA: Palette = {
+  base: "dark",
+  bg: "#181825",
+  surface: "#1e1e2e",
+  surface2: "#262637",
+  surface3: "#313244",
+  txt: "#cdd6f4",
+  muted: "#a6adc8",
+  faint: "#7f849c",
+  accent: "#cba6f7",
+  network: "#89b4fa",
+  realtime: "#94e2d5",
+  redux: "#cba6f7",
+  query: "#fab387",
+  success: "#a6e3a1",
+  error: "#f38ba8",
+  warning: "#f9e2af",
+  neutral: "#7f849c",
+  syntax: {
+    text: "#bac2de",
+    key: "#89dceb",
+    str: "#a6e3a1",
+    num: "#fab387",
+    bool: "#cba6f7",
+    nul: "#7f849c",
+    blob: "#f5c2e7",
+  },
+  overlay: "205,214,244",
+  shadow: "0,0,0",
+  scrim: "17,17,27",
+};
+
+/** One Dark — Atom's palette, and the one most developers have seen in a
+ * screenshot even if they have never installed it. */
+const ONE_DARK: Palette = {
+  base: "dark",
+  bg: "#21252b",
+  surface: "#282c34",
+  surface2: "#2f343d",
+  surface3: "#3b4048",
+  txt: "#dcdfe4",
+  muted: "#a6adba",
+  faint: "#7f8796",
+  accent: "#61afef",
+  network: "#61afef",
+  realtime: "#56b6c2",
+  redux: "#c678dd",
+  query: "#d19a66",
+  success: "#98c379",
+  error: "#e06c75",
+  warning: "#e5c07b",
+  neutral: "#7f8796",
+  syntax: {
+    text: "#c8ccd4",
+    key: "#61afef",
+    str: "#98c379",
+    num: "#d19a66",
+    bool: "#c678dd",
+    nul: "#7f8796",
+    blob: "#e06c75",
+  },
+  overlay: "220,223,228",
+  shadow: "0,0,0",
+  scrim: "16,18,22",
+};
+
+/** Catppuccin Latte — the pastel light. Softer than Daylight's clinical white
+ * without going as warm as Solar. */
+const LATTE: Palette = {
+  base: "light",
+  bg: "#e6e9ef",
+  surface: "#eff1f5",
+  surface2: "#e0e3ea",
+  surface3: "#d3d7e0",
+  txt: "#4c4f69",
+  muted: "#5c5f77",
+  faint: "#7c7f93",
+  accent: "#1e66f5",
+  network: "#1e66f5",
+  realtime: "#179299",
+  redux: "#8839ef",
+  query: "#c26a12",
+  success: "#3f8b3f",
+  error: "#d20f39",
+  warning: "#a6791a",
+  neutral: "#7c7f93",
+  // Latte's own accents are tuned for prose on its lightest surface; read as
+  // dense monospace on the table ground they land around 3.5–4:1, so the
+  // syntax set is a shade deeper than the identity colours above it.
+  syntax: {
+    text: "#4c4f69",
+    key: "#0b59f3",
+    str: "#357535",
+    num: "#99570d",
+    bool: "#8535ef",
+    nul: "#7c7f93",
+    blob: "#c4148c",
+  },
+  overlay: "76,79,105",
+  shadow: "76,79,105",
+  scrim: "76,79,105",
+};
+
+/** GitHub Light — the light theme most developers already spend their day in,
+ * so the panel stops looking like a visitor when docked next to it. */
+const GITHUB: Palette = {
+  base: "light",
+  bg: "#f6f8fa",
+  surface: "#ffffff",
+  surface2: "#f0f3f6",
+  surface3: "#e4e8ed",
+  txt: "#1f2328",
+  muted: "#59636e",
+  faint: "#7b8894",
+  accent: "#0969da",
+  network: "#0969da",
+  realtime: "#137e73",
+  redux: "#8250df",
+  query: "#bc4c00",
+  success: "#1a7f37",
+  error: "#cf222e",
+  warning: "#9a6700",
+  neutral: "#7b8894",
+  syntax: {
+    text: "#1f2328",
+    key: "#0550ae",
+    str: "#0a3069",
+    num: "#0550ae",
+    bool: "#8250df",
+    nul: "#7b8894",
+    blob: "#a40e26",
+  },
+  overlay: "31,35,40",
+  shadow: "31,35,40",
+  scrim: "31,35,40",
+};
+
 /** Display order in the picker: darks first, then lights. */
 export const THEMES: ThemeDef[] = [
   {
@@ -340,6 +555,27 @@ export const THEMES: ThemeDef[] = [
   },
   { id: "nord", label: "Nord", hint: "Muted arctic blues", base: "dark", palette: NORD },
   {
+    id: "tokyo",
+    label: "Tokyo Night",
+    hint: "Deep indigo, soft neon",
+    base: "dark",
+    palette: TOKYO,
+  },
+  {
+    id: "one-dark",
+    label: "One Dark",
+    hint: "Atom's classic slate",
+    base: "dark",
+    palette: ONE_DARK,
+  },
+  {
+    id: "mocha",
+    label: "Mocha",
+    hint: "Catppuccin — gentle pastels",
+    base: "dark",
+    palette: MOCHA,
+  },
+  {
     id: "dracula",
     label: "Dracula",
     hint: "Vivid purples and pinks",
@@ -347,11 +583,32 @@ export const THEMES: ThemeDef[] = [
     palette: DRACULA,
   },
   {
+    id: "gruvbox",
+    label: "Gruvbox",
+    hint: "Warm retro browns and amber",
+    base: "dark",
+    palette: GRUVBOX,
+  },
+  {
     id: "daylight",
     label: "Daylight",
     hint: "Clean white — the light default",
     base: "light",
     palette: DAYLIGHT,
+  },
+  {
+    id: "github",
+    label: "GitHub",
+    hint: "The light theme you already read all day",
+    base: "light",
+    palette: GITHUB,
+  },
+  {
+    id: "latte",
+    label: "Latte",
+    hint: "Catppuccin — soft pastel light",
+    base: "light",
+    palette: LATTE,
   },
   {
     id: "solar",
@@ -420,7 +677,7 @@ function alpha(hex: string, a: number): string {
  * and a *weaker* shadow for the same perceived elevation, which is why these
  * are not one shared number.
  */
-function tokensFor(p: Palette): Record<string, string> {
+export function themeTokens(p: Palette): Record<string, string> {
   const dark = p.base === "dark";
   /** Elevation wash / hairlines. */
   const ov = (a: number) => `rgba(${p.overlay}, ${a})`;
@@ -567,26 +824,22 @@ function tokensFor(p: Palette): Record<string, string> {
   return t;
 }
 
-function block(selector: string, tokens: Record<string, string>): string {
-  const body = Object.entries(tokens)
-    .map(([k, v]) => `  ${k}: ${v};`)
-    .join("\n");
-  return `${selector} {\n${body}\n}`;
-}
-
 /**
- * Every theme's tokens, emitted once at module scope.
+ * The default theme's tokens, baked into the stylesheet on bare `.nm-root`.
  *
- * All of them ship in the stylesheet rather than being swapped at runtime, so
- * changing theme is a single class change on the root — no stylesheet rewrite,
- * no re-render of the tree, and no flash. The whole block is a few kB of text
- * that gzips to almost nothing, and it never reaches a production bundle.
+ * Only this one theme ships as CSS. The *active* theme's tokens are written to
+ * the root element's `style` attribute instead (see `DevToolsPanel`), which is
+ * why adding a theme costs nothing here: one inline style block of ~80
+ * properties, regardless of whether the panel ships six themes or sixty.
+ * Emitting every theme as its own selector — the obvious first approach — grew
+ * the stylesheet by ~10 kB per theme for tokens that all but one theme would
+ * never read.
  *
- * The bare `.nm-root` copy of the default is a safety net: if the theme class
- * were ever missing, the panel still paints Midnight instead of an unstyled
- * box. Theme blocks are `.nm-root.nm-theme-*`, one specificity step above it.
+ * This block still earns its place as the floor: inline styles override it, so
+ * it is what paints if the style attribute is ever missing (a server render, a
+ * theme id that no longer resolves), and the panel degrades to Midnight rather
+ * than to an unstyled box.
  */
-export const THEME_CSS = [
-  block(".nm-root", tokensFor(MIDNIGHT)),
-  ...THEMES.map((t) => block(`.nm-root.nm-theme-${t.id}`, tokensFor(t.palette))),
-].join("\n");
+export const BASE_THEME_CSS = `.nm-root {\n${Object.entries(themeTokens(MIDNIGHT))
+  .map(([k, v]) => `  ${k}: ${v};`)
+  .join("\n")}\n}`;

@@ -134,11 +134,17 @@ export function MonitorToolbar(props: ToolbarProps) {
   const themeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   /** Menus are rendered by the panel root from a measured viewport rect — a
-   * `position: fixed` menu nested here would resolve against the viewport. */
-  const anchorOf = (el: HTMLElement | null) => {
+   * `position: fixed` menu nested here would resolve against the viewport.
+   * Both vertical edges are reported so a tall menu can flip above the button
+   * when there is more room there; see `MenuAnchor`. */
+  const anchorOf = (el: HTMLElement | null): MenuAnchor | null => {
     const rect = el?.getBoundingClientRect();
     return rect
-      ? { top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) }
+      ? {
+          top: rect.bottom + 6,
+          bottom: window.innerHeight - rect.top + 6,
+          right: Math.max(8, window.innerWidth - rect.right),
+        }
       : null;
   };
 

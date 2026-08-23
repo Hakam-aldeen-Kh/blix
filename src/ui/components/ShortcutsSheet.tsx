@@ -48,6 +48,15 @@ export const SHORTCUT_GROUPS: {
       { keys: ["Shift", "C"], desc: "Clear the log" },
     ],
   },
+  {
+    title: "Menus",
+    items: [
+      { keys: ["↑", "↓"], desc: "Move through the open menu" },
+      { keys: ["Home", "End"], desc: "First / last item" },
+      { keys: ["Enter"], desc: "Choose the focused item" },
+      { keys: ["Esc"], desc: "Close the menu, back to its button" },
+    ],
+  },
 ];
 
 export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
@@ -69,6 +78,18 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
         </button>
         <h3>Keyboard shortcuts</h3>
         <div className="nm-sheet-grid">
+          {/* Not a shortcut, but this sheet is where a developer looks for
+              "what else can this thing do", and the theme picker is otherwise
+              only discoverable by trying the toolbar icons. */}
+          <div className="nm-sheet-group">Appearance</div>
+          <div className="nm-sheet-desc nm-sheet-wide">
+            Twelve themes live under the{" "}
+            <span className="nm-inline-ico">
+              <Icon name="theme" size={11} />
+            </span>{" "}
+            button in the toolbar — hover one to try it on before choosing.
+          </div>
+
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title} style={{ display: "contents" }}>
               <div className="nm-sheet-group">{group.title}</div>

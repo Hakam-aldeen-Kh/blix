@@ -21,6 +21,29 @@ export type Tab =
  * mixed table with half the columns empty. */
 export type Section = "network" | "realtime" | "redux" | "query";
 
+/**
+ * What a row *is*, per section — so shared chrome can name it instead of
+ * calling everything a "request". The status bar under a table of Redux
+ * actions read "12 of 40 requests", and the detail pane's empty state said
+ * "Select a request" whichever section you were in.
+ *
+ * The plural is stored rather than derived (there is no rule that turns
+ * "query" into "queries" without a dictionary) and so is the article, which
+ * only "action" needs.
+ */
+export interface SectionNouns {
+  one: string;
+  many: string;
+  article: "a" | "an";
+}
+
+export const SECTION_NOUNS: Record<Section, SectionNouns> = {
+  network: { one: "request", many: "requests", article: "a" },
+  realtime: { one: "connection", many: "connections", article: "a" },
+  redux: { one: "action", many: "actions", article: "an" },
+  query: { one: "query", many: "queries", article: "a" },
+};
+
 export type StateFilter = "all" | MonitorState;
 
 export type ColumnId =

@@ -15,12 +15,13 @@
  * and universal — colour only carries meaning where it adds one, never as
  * decoration.
  *
- * **Every colour here is a token.** The values live in `themes/themes.ts`,
- * which emits one block of custom properties per theme; this file only ever
- * names them. Two consequences worth keeping: a new theme needs no edit here,
- * and a component that needs a colour sets a *role* attribute
- * (`data-state="error"`, `data-accent="post"`) rather than an inline hex, so
- * the role blocks below are the single place those roles resolve.
+ * **Every colour here is a token.** The values live in `themes/themes.ts`;
+ * this file only ever names them. The default theme's tokens are baked in as
+ * the floor, and the active theme's are written to the root element's `style`
+ * attribute, so a new theme needs no edit here at all. A component that needs
+ * a colour sets a *role* attribute (`data-state="error"`, `data-accent="post"`)
+ * rather than an inline hex, so the role blocks below are the single place
+ * those roles resolve.
  *
  * **RTL note:** `direction: ltr` is set on `.nm-root` on purpose, which is why
  * this file uses physical `left`/`right` rather than logical properties.
@@ -32,7 +33,7 @@
  * Chunked into named sections and joined once at module scope.
  */
 
-import { THEME_CSS } from "../themes/themes";
+import { BASE_THEME_CSS } from "../themes/themes";
 
 const BASE = `
 .nm-root {
@@ -50,6 +51,9 @@ const BASE = `
 }
 .nm-root * { box-sizing: border-box; }
 .nm-ico { display: block; flex-shrink: 0; }
+/* Selecting a payload is half of what this panel is for, and the browser's
+   default selection blue sits badly on eight of the twelve palettes. */
+.nm-root ::selection { background: var(--nm-accent-soft); color: var(--nm-txt); }
 `;
 
 /**
@@ -541,11 +545,18 @@ const MENU = `
   box-shadow: var(--nm-shadow-menu);
   animation: nm-in .12s ease-out;
   outline: none;
+  /* The theme list is long enough to run past the bottom of a short viewport.
+     The ceiling is computed per-menu from its own anchor (see Menu.tsx); this
+     is the fallback for menus that don't set one. */
+  max-height: 70vh; overflow-y: auto;
 }
 .nm-menu-head {
   font-size: 10px; font-weight: 700; color: var(--nm-faint); padding: 5px 9px 7px;
   border-bottom: 1px solid var(--nm-line); margin-bottom: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--nm-mono);
+  /* Sticks while a long menu scrolls, so you never lose track of which menu
+     you are in. The -4px cancels the menu's own padding. */
+  position: sticky; top: -4px; z-index: 1; background: var(--nm-surface-3);
 }
 .nm-menu-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -616,6 +627,9 @@ const MISC = `
 .nm-scroll, .nm-tbody, .nm-headers, .nm-tree, .nm-json, .nm-frames, .nm-timing, .nm-sheet {
   overscroll-behavior: contain;
 }
+/* Firefox has no ::-webkit-scrollbar; these two properties are all it offers,
+   and without them its scrollbars ignore the theme entirely. */
+.nm-scroll { scrollbar-width: thin; scrollbar-color: var(--nm-scroll-thumb) transparent; }
 .nm-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 .nm-scroll::-webkit-scrollbar-thumb { background: var(--nm-scroll-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
 .nm-scroll::-webkit-scrollbar-thumb:hover { background: var(--nm-scroll-thumb-hover); background-clip: content-box; }
@@ -688,6 +702,7 @@ const LAYOUT = `
   transition: background .12s ease, color .12s ease;
 }
 .nm-statusbar-btn:hover { color: var(--nm-txt); background: var(--nm-elev); }
+.nm-statusbar-pin { display: inline-flex; align-items: center; gap: 4px; }
 /* Armed for a destructive second click — the only thing in the status bar
    allowed to shout. */
 .nm-statusbar-armed { color: var(--nm-error); font-weight: 700; }
@@ -797,6 +812,10 @@ const LAYOUT = `
   box-shadow: 0 1px 0 var(--nm-line-strong);
 }
 .nm-sheet-desc { font-size: 11.5px; color: var(--nm-muted); }
+.nm-sheet-wide { grid-column: 1 / -1; line-height: 1.5; }
+/* Icons default to display:block so they never pick up line-box descenders;
+   inside a sentence they need the opposite. */
+.nm-inline-ico { display: inline-flex; vertical-align: -1px; color: var(--nm-txt); }
 .nm-sheet-close { position: absolute; top: 12px; right: 12px; }
 `;
 
@@ -880,10 +899,10 @@ const RESPONSIVE = `
 
 export const MONITOR_STYLES = [
   BASE,
-  // Token blocks come before anything that reads them. Ordering is not
-  // strictly required for custom properties, but it keeps the emitted
-  // stylesheet readable when inspected in the browser.
-  THEME_CSS,
+  // Tokens come before anything that reads them. Ordering is not strictly
+  // required for custom properties, but it keeps the emitted stylesheet
+  // readable when inspected in the browser.
+  BASE_THEME_CSS,
   ROLES,
   FAB,
   PANEL,

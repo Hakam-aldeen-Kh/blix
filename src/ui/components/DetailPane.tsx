@@ -15,7 +15,7 @@ import {
   statusText,
 } from "../helpers/format";
 import { toCurl } from "../services/curl";
-import type { Resolved, Tab } from "../types/monitorUi";
+import type { Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
 import { Icon } from "./Icon";
 import { JsonText } from "./JsonText";
@@ -205,6 +205,7 @@ export function DetailPane({
   onTogglePin,
   onSelectEntry,
   query,
+  nouns,
 }: {
   resolved: Resolved;
   hidingLabel: string;
@@ -215,6 +216,10 @@ export function DetailPane({
    * ("Caused by", "Requests caused"). */
   onSelectEntry: (id: string) => void;
   query: string;
+  /** What a row *is* in the active section. The empty states are the one place
+   * this pane has to speak before it has an entry to infer the kind from —
+   * they used to say "request" over a table of Redux actions. */
+  nouns: SectionNouns;
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
@@ -224,8 +229,8 @@ export function DetailPane({
     return (
       <div className="nm-detail">
         <EmptyDetail
-          title="Request no longer buffered"
-          sub="It was dropped to make room for newer requests."
+          title={`This ${nouns.one} is no longer buffered`}
+          sub={`It was dropped to make room for newer ${nouns.many}.`}
           action={
             <button className="nm-notice-btn" onClick={onClearSelection}>
               Clear selection
@@ -240,8 +245,8 @@ export function DetailPane({
     return (
       <div className="nm-detail">
         <EmptyDetail
-          title="Select a request"
-          sub="Pick one from the list to inspect its payloads."
+          title={`Select ${nouns.article} ${nouns.one}`}
+          sub="Pick one from the list to inspect it."
         />
       </div>
     );

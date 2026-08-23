@@ -591,17 +591,26 @@ two features that need a live handle on the app.
 
 ### Themes
 
-The panel ships six themes and picks one for you. The palette button in the
-toolbar (◐) opens the picker:
+Twelve themes, under the ◐ button in the toolbar:
 
 | | Theme | |
 | --- | --- | --- |
 | Dark | **Midnight** | Deep blue-black — the default |
 | | **Carbon** | True black, high contrast; for OLED displays |
 | | **Nord** | Muted arctic blues |
+| | **Tokyo Night** | Deep indigo, soft neon |
+| | **One Dark** | Atom's classic slate |
+| | **Mocha** | Catppuccin — gentle pastels |
 | | **Dracula** | Vivid purples and pinks |
+| | **Gruvbox** | Warm retro browns and amber |
 | Light | **Daylight** | Clean white — the light default |
+| | **GitHub** | The light theme you already read all day |
+| | **Latte** | Catppuccin — soft pastel light |
 | | **Solar** | Warm paper, low blue light |
+
+**Hovering a theme applies it to the panel behind the menu**, so you can see a
+real payload in it before committing; moving away puts back the one you had.
+Arrow keys preview the same way.
 
 The default is **System**: the panel reads the light/dark class off `<html>`
 and paints Midnight or Daylight to match, re-checking whenever your app's theme
@@ -609,11 +618,13 @@ changes. Picking a specific theme overrides that. The choice is stored with the
 panel's other preferences and survives a reload.
 
 The panel never inherits your app's styling — it portals outside every stacking
-context and ships its own palette, so nothing you do to your own theme can
+context and ships its own palettes, so nothing you do to your own theme can
 distort it. Themes are complete rather than partial: every colour the panel
 paints, down to the JSON syntax highlighting and the waterfall bars, comes from
 the active theme. Each palette is checked against WCAG contrast targets — 4.5:1
-for anything read as text, 3:1 for badges and quiet chrome.
+for anything read as text, 3:1 for badges and quiet chrome — which is why a few
+of the ported palettes differ by a shade from the originals in the slots used
+for dense monospace.
 
 There is no API for adding your own; a theme is ~20 colours in
 `src/ui/themes/themes.ts` if you are working from source.
