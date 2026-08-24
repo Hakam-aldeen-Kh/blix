@@ -1,4 +1,5 @@
 # @hakam-aldeen-kh/blix
+[![npm](https://img.shields.io/npm/v/@hakam-aldeen-kh/blix)](https://www.npmjs.com/package/@hakam-aldeen-kh/blix)
 
 An in-app dev-tools panel for React apps. Captures HTTP requests, Redux
 actions, TanStack Query cache events and realtime traffic, and renders them in
@@ -6,6 +7,8 @@ a dockable panel with a waterfall, diffing, replay and HAR/cURL export.
 
 The entire panel is eliminated from production builds — see
 [Production elimination](#production-elimination).
+
+Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
