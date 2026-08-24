@@ -41,11 +41,30 @@ export const SHORTCUT_GROUPS: {
     ],
   },
   {
+    title: "Payload tree",
+    items: [
+      { keys: ["↑", "↓"], desc: "Move through the tree" },
+      { keys: ["→"], desc: "Expand, or step into the object" },
+      { keys: ["←"], desc: "Collapse, or step out to the parent" },
+      { keys: ["Enter"], desc: "Toggle the focused object" },
+      { keys: ["Alt", "Click"], desc: "Expand or collapse everything below" },
+    ],
+  },
+  {
     title: "Capture",
     items: [
       { keys: ["Space"], desc: "Pause / resume capturing" },
       { keys: ["Shift", "L"], desc: "Toggle Preserve log" },
       { keys: ["Shift", "C"], desc: "Clear the log" },
+    ],
+  },
+  {
+    title: "Menus",
+    items: [
+      { keys: ["↑", "↓"], desc: "Move through the open menu" },
+      { keys: ["Home", "End"], desc: "First / last item" },
+      { keys: ["Enter"], desc: "Choose the focused item" },
+      { keys: ["Esc"], desc: "Close the menu, back to its button" },
     ],
   },
 ];
@@ -69,6 +88,33 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
         </button>
         <h3>Keyboard shortcuts</h3>
         <div className="nm-sheet-grid">
+          {/* Not a shortcut, but this sheet is where a developer looks for
+              "what else can this thing do", and the theme picker is otherwise
+              only discoverable by trying the toolbar icons. */}
+          <div className="nm-sheet-group">Appearance</div>
+          <div className="nm-sheet-desc nm-sheet-wide">
+            Twelve themes live under the{" "}
+            <span className="nm-inline-ico">
+              <Icon name="theme" size={11} />
+            </span>{" "}
+            button in the toolbar — hover one to try it on before choosing.
+          </div>
+
+          <div className="nm-sheet-group">Formats</div>
+          <div className="nm-sheet-desc nm-sheet-wide">
+            Payloads render as <b>Tree</b>, <b>Table</b>, <b>JSON</b>,{" "}
+            <b>YAML</b> or <b>Text</b> — switch at the top of the pane, and{" "}
+            <b>Copy</b> gives you whichever one you are looking at. Tree and
+            JSON both fold — Alt-click a row in the Tree to open or close
+            everything under it; JSON adds <b>Collapse all</b>. Export the
+            log as HAR, JSON, NDJSON, CSV, a Markdown table or a cURL script
+            from the{" "}
+            <span className="nm-inline-ico">
+              <Icon name="download" size={11} />
+            </span>{" "}
+            button.
+          </div>
+
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title} style={{ display: "contents" }}>
               <div className="nm-sheet-group">{group.title}</div>

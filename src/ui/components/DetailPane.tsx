@@ -6,7 +6,7 @@ import { summarizeInitiator } from "../../capture/monitorInitiator";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { useContext, useState, useSyncExternalStore } from "react";
 import { BlixContext } from "../BlixContext";
-import { STATE_COLORS, kindAccent } from "../constants/ui";
+import { accentKey } from "../constants/ui";
 import {
   clock,
   copyText,
@@ -14,22 +14,25 @@ import {
   formatDuration,
   statusText,
 } from "../helpers/format";
-import type { PanelTheme } from "../hooks/useAppTheme";
-import { toCurl } from "../services/curl";
-import type { Resolved, Tab } from "../types/monitorUi";
+import { toCurl } from "../services/snippets";
+import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
+import { DataView } from "./DataView";
 import { Icon } from "./Icon";
-import { JsonText } from "./JsonText";
-import { JsonTree } from "./JsonTree";
+import { ScrollStrip } from "./ScrollStrip";
 import { MessagesTab } from "./tabs/MessagesTab";
 import { TimingTab } from "./tabs/TimingTab";
 
+/**
+ * "Preview" and "Response" used to be separate tabs over the same field — one
+ * rendering it as a tree, the other as raw JSON. Now that the viewer carries a
+ * format switch, they are one tab and the reader picks the rendering.
+ */
 const HTTP_TABS: { id: Tab; label: string }[] = [
-  { id: "preview", label: "Preview" },
+  { id: "preview", label: "Response" },
   { id: "payload", label: "Payload" },
   { id: "headers", label: "Headers" },
   { id: "timing", label: "Timing" },
-  { id: "response", label: "Response" },
   { id: "initiator", label: "Initiator" },
 ];
 
@@ -102,12 +105,56 @@ function HeadersTable({
   );
 }
 
-/** Reads the live Redux store rather than anything captured — the entry only
- * carries a bounded diff, never a snapshot, so this is the one place a
- * developer can see the *current* full state, not just what one action
- * changed. Subscribes directly, so it updates while the tab stays open. */
-function ReduxStateTab({ query }: { query: string }) {
+/** What a slice holds, for the chip's tooltip — a rough sense of its size
+ * without having to open it. */
+function sliceSize(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    return `${value.length} ${value.length === 1 ? "item" : "items"}`;
+  }
+  if (typeof value === "object") {
+    const n = Object.keys(value).length;
+    return `${n} ${n === 1 ? "key" : "keys"}`;
+  }
+  return typeof value;
+}
+
+/**
+ * The live Redux store, scoped to one slice at a time.
+ *
+ * Reads the store rather than anything captured — the entry only carries a
+ * bounded diff, never a snapshot, so this is the one place a developer sees
+ * the *current* full state and not just what one action changed. Subscribes
+ * directly, so it stays live while the tab is open.
+ *
+ * **The slice picker is navigation, not a setting**, which is why it gets its
+ * own bar above the format toolbar rather than a slot inside it. A real store
+ * is a dozen reducers wide with names like `cifCorporateSlice`; sharing a row
+ * with the format switch left it clipping names mid-word and squeezing the
+ * size readout into a column narrow enough to wrap.
+ *
+ * **It opens where the action landed.** Until the developer picks a slice, the
+ * tab shows the one this action changed — the question being asked, almost
+ * always, is "what does the state look like *now*, where this action hit".
+ * Falling back to the root meant answering that by hunting through a collapsed
+ * object. An explicit pick sticks, including a pick of `root`.
+ */
+function ReduxStateTab({
+  entry,
+  query,
+  format,
+  onFormat,
+}: {
+  entry: MonitorEntry;
+  query: string;
+  format: DataFormat;
+  onFormat: (format: DataFormat) => void;
+}) {
   const { store } = useContext(BlixContext);
+  // `undefined` is "not chosen yet" and defers to the action; `null` is an
+  // explicit choice of the root. The two must stay distinguishable or the
+  // default would fight the developer every time they clicked root.
+  const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const noop = () => () => {};
   const nullSnapshot = () => null;
   const state = useSyncExternalStore(
@@ -115,8 +162,118 @@ function ReduxStateTab({ query }: { query: string }) {
     store?.getState ?? nullSnapshot,
     store?.getState ?? nullSnapshot,
   );
+
   if (!store) return <div className="nm-empty">— Redux store not provided —</div>;
-  return <JsonTree value={state} query={query} entryId="redux:live-state" />;
+
+  const isRootObject =
+    typeof state === "object" && state !== null && !Array.isArray(state);
+  const slices = isRootObject ? Object.keys(state as object) : [];
+  const touched = entry.redux?.diff?.slices ?? [];
+
+  // Only auto-select when the action names exactly one slice. Two or more and
+  // there is no single right answer, so the root — where all of them are
+  // visible and marked — is the honest default.
+  const suggested =
+    touched.length === 1 && slices.includes(touched[0]) ? touched[0] : null;
+  const chosen = picked === undefined ? suggested : picked;
+  // A slice that has since left the store falls back to the root rather than
+  // rendering an empty pane.
+  const active = chosen && slices.includes(chosen) ? chosen : null;
+
+  const record = state as Record<string, unknown>;
+  const value = active ? record[active] : state;
+  const hits = new Set(touched);
+
+  /** Arrow keys walk the strip, as a tablist should; Home and End jump to its
+   * ends, which is the fast way through a store too wide to see. */
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const chips = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>("button.nm-slice"),
+    );
+    const at = chips.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next =
+      e.key === "Home"
+        ? 0
+        : e.key === "End"
+          ? chips.length - 1
+          : (at + (e.key === "ArrowRight" ? 1 : -1) + chips.length) % chips.length;
+    // `preventScroll`, because the browser's focus scroll walks scrollable
+    // ancestors — including the host app's page. The click that follows moves
+    // the selection, and the strip reveals the selected chip itself.
+    chips[next]?.focus({ preventScroll: true });
+    chips[next]?.click();
+  };
+
+  return (
+    <DataView
+      value={value}
+      query={query}
+      // Keyed by slice so expanding `cart` doesn't restore its expansion state
+      // onto `auth` when you switch.
+      entryId={`redux:live-state:${active ?? "$root"}`}
+      format={format}
+      onFormat={onFormat}
+    >
+      {slices.length > 1 && (
+        <div className="nm-slicebar">
+          <span className="nm-slicebar-label">Store</span>
+          {/* Deliberately not `nm-scroll`: that class styles a visible themed
+              scrollbar, and this strip fades its clipped edges instead. */}
+          <ScrollStrip
+            className="nm-slices"
+            role="tablist"
+            label="Store slice"
+            onKeyDown={onKeyDown}
+            // The auto-selected slice is often deep in an alphabetical list of
+            // twenty; without this the tab opens on a chip nobody can see.
+            activeKey={`${entry.id}:${active ?? "$root"}`}
+          >
+            <button
+              role="tab"
+              aria-selected={active === null}
+              tabIndex={active === null ? 0 : -1}
+              data-strip-active={active === null}
+              className={`nm-slice nm-slice-root${active === null ? " active" : ""}`}
+              onClick={() => setPicked(null)}
+              title={`The whole store — ${slices.length} slices`}
+            >
+              root
+            </button>
+            {slices.map((name) => {
+              const hit = hits.has(name);
+              return (
+                <button
+                  key={name}
+                  role="tab"
+                  aria-selected={active === name}
+                  tabIndex={active === name ? 0 : -1}
+                  data-strip-active={active === name}
+                  className={`nm-slice${active === name ? " active" : ""}${
+                    hit ? " nm-slice-hit" : ""
+                  }`}
+                  onClick={() => setPicked(name)}
+                  title={`${name} — ${sliceSize(record[name])}${
+                    hit ? " · changed by this action" : ""
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </ScrollStrip>
+          {touched.length > 0 && (
+            <span className="nm-slicebar-hint" title="Slices this action changed">
+              {touched.length} changed
+            </span>
+          )}
+        </div>
+      )}
+    </DataView>
+  );
 }
 
 function QueryStateTab({
@@ -206,7 +363,9 @@ export function DetailPane({
   onTogglePin,
   onSelectEntry,
   query,
-  theme,
+  nouns,
+  format,
+  onFormat,
 }: {
   resolved: Resolved;
   hidingLabel: string;
@@ -217,7 +376,15 @@ export function DetailPane({
    * ("Caused by", "Requests caused"). */
   onSelectEntry: (id: string) => void;
   query: string;
-  theme: PanelTheme;
+  /** What a row *is* in the active section. The empty states are the one place
+   * this pane has to speak before it has an entry to infer the kind from —
+   * they used to say "request" over a table of Redux actions. */
+  nouns: SectionNouns;
+  /** How payloads render. Lifted to the panel so it persists across entries
+   * and sections — a developer who works in YAML should not have to re-pick it
+   * for every request they click. */
+  format: DataFormat;
+  onFormat: (format: DataFormat) => void;
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
@@ -227,8 +394,8 @@ export function DetailPane({
     return (
       <div className="nm-detail">
         <EmptyDetail
-          title="Request no longer buffered"
-          sub="It was dropped to make room for newer requests."
+          title={`This ${nouns.one} is no longer buffered`}
+          sub={`It was dropped to make room for newer ${nouns.many}.`}
           action={
             <button className="nm-notice-btn" onClick={onClearSelection}>
               Clear selection
@@ -243,8 +410,8 @@ export function DetailPane({
     return (
       <div className="nm-detail">
         <EmptyDetail
-          title="Select a request"
-          sub="Pick one from the list to inspect its payloads."
+          title={`Select ${nouns.article} ${nouns.one}`}
+          sub="Pick one from the list to inspect it."
         />
       </div>
     );
@@ -298,20 +465,11 @@ export function DetailPane({
       <div className="nm-detail-head">
         <span
           className="nm-method nm-method-lg"
-          style={{
-            color: kindAccent(entry.kind, entry.method, theme),
-            background: `${kindAccent(entry.kind, entry.method, theme)}1c`,
-          }}
+          data-accent={accentKey(entry.kind, entry.method)}
         >
           {entry.transport ?? entry.method}
         </span>
-        <span
-          className="nm-status"
-          style={{
-            color: STATE_COLORS[entry.state],
-            background: `${STATE_COLORS[entry.state]}1f`,
-          }}
-        >
+        <span className="nm-status" data-state={entry.state}>
           {entry.status ?? (entry.state === "aborted" ? "⊘" : "—")}
         </span>
         {statusText(entry.status) && (
@@ -377,10 +535,18 @@ export function DetailPane({
         </div>
       )}
 
-      <div className="nm-tabs">
+      {/* Keyed by kind as well as tab: switching from a Redux action to an
+          HTTP request swaps the whole set, and the new active tab has to be
+          re-revealed even when its id happens to be unchanged. */}
+      <ScrollStrip
+        className="nm-tabs"
+        wrapClassName="nm-tabrow"
+        activeKey={`${kind}:${activeTab}`}
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
+            data-strip-active={activeTab === t.id}
             className={`nm-tab${activeTab === t.id ? " active" : ""}`}
             onClick={() => setTab(t.id)}
           >
@@ -390,39 +556,60 @@ export function DetailPane({
             )}
           </button>
         ))}
-      </div>
+      </ScrollStrip>
 
       <div className="nm-tab-body">
         {activeTab === "timing" && <TimingTab entry={entry} />}
-        {activeTab === "messages" && <MessagesTab entry={entry} query={query} />}
-        {activeTab === "diff" && <DiffTab entry={entry} />}
-        {activeTab === "reduxState" && <ReduxStateTab query={query} />}
+        {activeTab === "messages" && (
+          <MessagesTab
+            entry={entry}
+            query={query}
+            format={format}
+            onFormat={onFormat}
+          />
+        )}
+        {activeTab === "diff" && (
+          <DiffTab entry={entry} query={query} format={format} onFormat={onFormat} />
+        )}
+        {activeTab === "reduxState" && (
+          <ReduxStateTab
+            entry={entry}
+            query={query}
+            format={format}
+            onFormat={onFormat}
+          />
+        )}
         {activeTab === "queryState" && (
           <QueryStateTab entry={entry} onSelectEntry={onSelectEntry} />
         )}
         {activeTab === "preview" && (
-          <JsonTree
+          <DataView
             value={entry.responsePayload ?? entry.error}
             query={query}
             entryId={`${entry.id}:preview`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
         {activeTab === "payload" && (
-          <JsonTree
+          <DataView
             value={entry.requestPayload}
             query={query}
             entryId={`${entry.id}:payload`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
-        {activeTab === "response" && (
-          <JsonText value={entry.responsePayload ?? entry.error} />
-        )}
         {activeTab === "raw" && (
-          <JsonText
+          <DataView
             value={{
               encryptedRequest: entry.encryptedRequest,
               encryptedResponse: entry.encryptedResponse,
             }}
+            query={query}
+            entryId={`${entry.id}:raw`}
+            format={format}
+            onFormat={onFormat}
           />
         )}
         {activeTab === "headers" && (

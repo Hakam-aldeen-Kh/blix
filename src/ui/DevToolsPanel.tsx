@@ -29,7 +29,7 @@ import {
   savePrefs,
   setPreserveLog,
 } from "../capture/monitorPersistence";
-import type { Corner } from "../capture/monitorTypes";
+import type { Corner, MonitorState } from "../capture/monitorTypes";
 import { networkMonitor, type MonitorEntry } from "../capture/networkMonitor";
 import {
   useCallback,
@@ -50,7 +50,16 @@ import { MonitorToolbar } from "./components/MonitorToolbar";
 import { RequestTable, columnsFor } from "./components/RequestTable";
 import { ShortcutsSheet } from "./components/ShortcutsSheet";
 import { StatusBar } from "./components/StatusBar";
-import { DENSITY_ROW_H, NEUTRAL, STATE_COLORS, type Density } from "./constants/ui";
+import { DENSITY_ROW_H, type Density } from "./constants/ui";
+import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
+import { ExportMenu, type ExportScope } from "./components/ExportMenu";
+import { ThemeMenu } from "./components/ThemeMenu";
+import {
+  normalizeThemePref,
+  resolveTheme,
+  themeTokens,
+  type ThemePref,
+} from "./themes/themes";
 
 const DENSITY_ORDER: Density[] = ["compact", "normal", "comfy"];
 
@@ -99,7 +108,7 @@ const EMPTY_COPY: Record<Section, { icon: IconName; title: string; sub: string }
 };
 import { copyText, formatBytes } from "./helpers/format";
 import { computeTimelines } from "./helpers/waterfall";
-import { useAppTheme } from "./hooks/useAppTheme";
+import { useHostTheme } from "./hooks/useHostTheme";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useDockGeometry } from "./hooks/useDockGeometry";
 import { useFabDrag } from "./hooks/useFabDrag";
@@ -108,17 +117,18 @@ import { hidingReasons, useMonitorList } from "./hooks/useMonitorList";
 import { useMonitorSelection } from "./hooks/useMonitorSelection";
 import { usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
-import { exportLog } from "./services/exportLog";
 import { describeTokens, parseFilter, tokenToRaw } from "./services/filterQuery";
-import { exportHar } from "./services/harExport";
 import { canReplay, replayEntry } from "./services/replayRequest";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
-import type {
-  ColumnId,
-  Section,
-  Sort,
-  SortKey,
-  StateFilter,
+import {
+  normalizeDataFormat,
+  SECTION_NOUNS,
+  type ColumnId,
+  type DataFormat,
+  type Section,
+  type Sort,
+  type SortKey,
+  type StateFilter,
 } from "./types/monitorUi";
 
 export default function DevTools() {
@@ -133,7 +143,20 @@ export default function DevTools() {
     prefsStore.getSnapshot,
     prefsStore.getServerSnapshot,
   );
-  const theme = useAppTheme();
+  // Theme is three values, not one: what the developer *chose* (which may be
+  // "follow the app"), what they are currently hovering in the picker, and
+  // what that resolves to. The picker's check mark tracks the choice; the root
+  // element paints the preview when there is one, so hovering a row repaints
+  // the panel without ever changing what is stored.
+  const host = useHostTheme();
+  const [previewPref, setPreviewPref] = useState<ThemePref | null>(null);
+  const dataFormat = normalizeDataFormat(prefs.dataFormat);
+  const themePref = normalizeThemePref(prefs.theme);
+  const theme = resolveTheme(previewPref ?? themePref, host);
+  // Written to the root's `style` rather than shipped as one CSS block per
+  // theme — see `BASE_THEME_CSS`. Memoized on the resolved theme so hovering
+  // down the picker doesn't rebuild ~80 properties per pointer event.
+  const themeStyle = useMemo(() => themeTokens(theme.palette), [theme]);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -152,26 +175,35 @@ export default function DevTools() {
   const [sort, setSort] = useState<Sort>({ key: "time", dir: "desc" });
   const [paused, setPaused] = useState(() => networkMonitor.isPaused);
   const [purgeArmed, setPurgeArmed] = useState(false);
-  type Anchor = { top: number; right: number };
-  // A single piece of state rather than two independent `useState`s: the
-  // export and "more" toggle buttons each only clear *their own* anchor when
-  // opening (see MonitorToolbar's `onExportMenu(exportOpen ? null : ...)`),
-  // so two separate booleans let both menus end up open at once — open
-  // export, then click "more", and export never closes. Only one of the two
-  // can ever be visible, so model it as one nullable union and keep the rest
-  // of this file's `exportAnchor`/`moreAnchor`/`setExportAnchor`/
-  // `setMoreAnchor` call sites unchanged via the derived values below.
+  // Which entries an export covers. Session state rather than a stored pref:
+  // it belongs to the export you are about to do, and defaulting to "shown"
+  // every time is the safer of the two — a too-small export is obvious, a
+  // too-large one is not.
+  const [exportScope, setExportScope] = useState<ExportScope>("shown");
+  // A single piece of state rather than one `useState` per menu: each toggle
+  // button only clears *its own* anchor when opening (see MonitorToolbar's
+  // `onExportMenu(exportOpen ? null : ...)`), so independent booleans let two
+  // menus end up open at once — open export, then click "more", and export
+  // never closes. Only one can ever be visible, so model it as one nullable
+  // union and keep this file's per-menu call sites unchanged via the derived
+  // values below.
+  type Which = "export" | "more" | "theme";
   const [menuState, setMenuState] = useState<
-    { which: "export" | "more"; anchor: Anchor } | null
+    { which: Which; anchor: MenuAnchor } | null
   >(null);
-  const exportAnchor = menuState?.which === "export" ? menuState.anchor : null;
-  const moreAnchor = menuState?.which === "more" ? menuState.anchor : null;
-  const setExportAnchor = useCallback((a: Anchor | null) => {
-    setMenuState(a ? { which: "export", anchor: a } : null);
-  }, []);
-  const setMoreAnchor = useCallback((a: Anchor | null) => {
-    setMenuState(a ? { which: "more", anchor: a } : null);
-  }, []);
+  const anchorFor = (which: Which) =>
+    menuState?.which === which ? menuState.anchor : null;
+  const exportAnchor = anchorFor("export");
+  const moreAnchor = anchorFor("more");
+  const themeAnchor = anchorFor("theme");
+  const openMenu = useCallback(
+    (which: Which) => (a: MenuAnchor | null) =>
+      setMenuState(a ? { which, anchor: a } : null),
+    [],
+  );
+  const setExportAnchor = useMemo(() => openMenu("export"), [openMenu]);
+  const setMoreAnchor = useMemo(() => openMenu("more"), [openMenu]);
+  const setThemeAnchor = useMemo(() => openMenu("theme"), [openMenu]);
 
   // Refs live here rather than inside the hooks: a hook that returns a ref
   // makes every property of its result count as a ref access during render
@@ -266,14 +298,21 @@ export default function DevTools() {
     setDensity(next);
     savePrefs({ density: next });
   }, []);
+  const onDataFormat = useCallback((next: DataFormat) => {
+    savePrefs({ dataFormat: next });
+  }, []);
+  const onTheme = useCallback((next: ThemePref) => {
+    savePrefs({ theme: next });
+    // Left open on purpose: picking a theme is a comparison, and closing the
+    // menu after every pick would mean reopening it to try the next one.
+    // The hover preview is left alone too — the pointer is still on the row
+    // that was just picked, and clearing it would flash.
+  }, []);
 
   // Changing the dock moves the toolbar, which invalidates the export menu's
   // measured anchor — dismiss it as part of the interaction rather than
   // reacting to the change afterwards.
-  const closeMenus = useCallback(() => {
-    setExportAnchor(null);
-    setMoreAnchor(null);
-  }, []);
+  const closeMenus = useCallback(() => setMenuState(null), []);
 
   const onMode = useCallback(
     (next: Parameters<typeof dock.setMode>[0]) => {
@@ -355,6 +394,14 @@ export default function DevTools() {
 
       if (!kb.current.open) return;
 
+      // Something inside the panel already acted on this key. Without this,
+      // the payload tree's arrow keys moved the tree *and* stepped the list
+      // selection underneath it — which swapped the entry out from under the
+      // tree the developer was walking. Any inner widget that handles a key
+      // now suppresses the global shortcut for it, which is the behaviour a
+      // focused control should have anyway.
+      if (e.defaultPrevented) return;
+
       if (e.key === "Escape") {
         // The context menu has its own Escape listener (`useContextMenu`)
         // that closes just the menu — without this branch, that listener and
@@ -362,10 +409,8 @@ export default function DevTools() {
         // underneath the menu the developer was still using.
         if (showShortcuts) setShowShortcuts(false);
         else if (kb.current.menuOpen) menu.close();
-        else if (exportAnchor || moreAnchor) {
-          setExportAnchor(null);
-          setMoreAnchor(null);
-        } else setOpen(false);
+        else if (menuState) closeMenus();
+        else setOpen(false);
         return;
       }
 
@@ -460,19 +505,24 @@ export default function DevTools() {
     // render) would defeat the point of this effect: attach the listener
     // once, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, exportAnchor, moreAnchor, onSection, showShortcuts, togglePause, togglePin, menu.close]);
+  }, [dock, menuState, closeMenus, onSection, showShortcuts, togglePause, togglePin, menu.close]);
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
   useEffect(() => {
-    if (!exportAnchor && !moreAnchor) return;
-    const dismiss = () => {
-      setExportAnchor(null);
-      setMoreAnchor(null);
-    };
-    window.addEventListener("resize", dismiss);
-    return () => window.removeEventListener("resize", dismiss);
-  }, [exportAnchor, moreAnchor]);
+    if (!menuState) return;
+    window.addEventListener("resize", closeMenus);
+    return () => window.removeEventListener("resize", closeMenus);
+  }, [menuState, closeMenus]);
+
+  // A hover preview must not outlive the picker. Keyed off the menu closing
+  // rather than cleared at each of the four call sites that can close it
+  // (Escape, outside click, the toolbar button, opening another menu) — one of
+  // them would eventually be missed and leave the panel stuck in a theme the
+  // developer never chose.
+  useEffect(() => {
+    if (!themeAnchor) setPreviewPref(null);
+  }, [themeAnchor]);
 
   // Click outside closes. Captured on `pointerdown` so it fires even while a
   // Radix modal dialog has the rest of the page pointer-locked. The badge opens
@@ -488,13 +538,44 @@ export default function DevTools() {
       if (root && !root.contains(e.target as Node)) {
         setOpen(false);
         menu.close();
-        setExportAnchor(null);
-        setMoreAnchor(null);
+        closeMenus();
       }
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     return () => window.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open, menu]);
+  }, [open, menu, closeMenus]);
+
+  /**
+   * Pressing anywhere that is not a menu closes the open one.
+   *
+   * The handler above only fires for presses *outside the monitor root*, so
+   * with the theme picker open, clicking a request row, the toolbar or the
+   * detail pane left it hanging over the panel — it could only be dismissed
+   * with Escape or by finding its button again. While the panel is open it is
+   * the whole world as far as the developer is concerned, and click-away-to-
+   * dismiss is what every menu everywhere does.
+   *
+   * `pointerdown` in the capture phase, matching the handler above: it
+   * dismisses on press like a native menu, and a `stopPropagation` inside a
+   * menu cannot suppress it. The press is otherwise left alone — it still
+   * selects the row or hits the button underneath, rather than being eaten as
+   * a "first click just closes the menu", which costs a click every time.
+   *
+   * A press on a menu's *own trigger* is left to that button: it already
+   * toggles itself, and closing here first would have it re-open what it just
+   * closed. The row context menu has no such button, so it always goes.
+   */
+  useEffect(() => {
+    if (!menuState && !menu.menu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest(".nm-menu")) return;
+      menu.close();
+      if (!target?.closest('[aria-haspopup="menu"]')) closeMenus();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => window.removeEventListener("pointerdown", onPointerDown, true);
+  }, [menuState, menu.menu, menu.close, closeMenus]);
 
   // Keep the selected row in view. Arithmetic rather than `scrollIntoView`,
   // because a virtualized row may not be mounted at all.
@@ -535,24 +616,29 @@ export default function DevTools() {
   if (!networkMonitor.enabled) return null;
 
   const persisted = getPersistedStats();
-  const dotColor = list.counts.error
-    ? STATE_COLORS.error
+  // Worst state wins: the badge and the header logo are a health light, so an
+  // error has to outrank an in-flight request outranking "all quiet".
+  const dotState: MonitorState = list.counts.error
+    ? "error"
     : list.counts.pending
-      ? STATE_COLORS.pending
-      : STATE_COLORS.success;
+      ? "pending"
+      : "success";
 
+  const nouns = SECTION_NOUNS[section];
   const pendingLabel =
     section === "realtime" ? "Open" : section === "query" ? "Fetching" : "Pending";
-  const segments: [StateFilter, string, number, string][] = [
-    ["all", "All", list.counts.all, NEUTRAL],
-    ["success", "OK", list.counts.success, STATE_COLORS.success],
-    ["error", "Errors", list.counts.error, STATE_COLORS.error],
-    ["pending", pendingLabel, list.counts.pending, STATE_COLORS.pending],
+  // Each filter key doubles as its own `data-state`, so the dot beside a
+  // segment is coloured by the theme rather than by a colour passed in here.
+  const segments: [StateFilter, string, number][] = [
+    ["all", "All", list.counts.all],
+    ["success", "OK", list.counts.success],
+    ["error", "Errors", list.counts.error],
+    ["pending", pendingLabel, list.counts.pending],
   ];
   // "Aborted" earns a segment only once there is something in it — it exists
   // solely for requests restored mid-flight from a previous page load.
   if (list.counts.aborted > 0) {
-    segments.push(["aborted", "Aborted", list.counts.aborted, STATE_COLORS.aborted]);
+    segments.push(["aborted", "Aborted", list.counts.aborted]);
   }
 
   const selectedEntry = selection.resolved.entry;
@@ -596,10 +682,15 @@ export default function DevTools() {
   const ui = (
     <div
       ref={rootRef}
-      className={`nm-root${theme === "light" ? " nm-light" : ""}`}
+      className={`nm-root nm-theme-${theme.id} nm-${theme.base}`}
       style={
         {
           ...CORNER_STYLE[dock.corner],
+          ...themeStyle,
+          // Tells the browser which way round this subtree is, so its own
+          // chrome — native scrollbars, form controls, the caret — matches
+          // instead of defaulting to the host page's scheme.
+          colorScheme: theme.base,
           "--nm-row-h": `${rowHeight}px`,
         } as React.CSSProperties
       }
@@ -609,7 +700,7 @@ export default function DevTools() {
 
       {!open && !fab.dragPos && (
         <MonitorFab
-          dotColor={dotColor}
+          dotState={dotState}
           total={entries.length}
           errors={list.counts.error}
           pending={list.counts.pending}
@@ -619,7 +710,7 @@ export default function DevTools() {
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} dotColor={dotColor} total={entries.length} />
+        <FabDragPreview pos={fab.dragPos} dotState={dotState} total={entries.length} />
       )}
 
       {open && (
@@ -647,7 +738,7 @@ export default function DevTools() {
           )}
 
           <MonitorToolbar
-            dotColor={dotColor}
+            dotState={dotState}
             section={section}
             onSection={onSection}
             counts={sectionCounts}
@@ -668,6 +759,8 @@ export default function DevTools() {
             onExportMenu={setExportAnchor}
             exportOpen={exportAnchor !== null}
             exportDisabled={entries.length === 0}
+            onThemeMenu={setThemeAnchor}
+            themeOpen={themeAnchor !== null}
             compact={panel.compactToolbar}
             tiny={panel.tinyToolbar}
             onMoreMenu={setMoreAnchor}
@@ -719,7 +812,7 @@ export default function DevTools() {
 
           <div className="nm-filters">
             <div className="nm-seg" role="tablist">
-              {segments.map(([key, label, n, color]) => (
+              {segments.map(([key, label, n]) => (
                 <button
                   key={key}
                   role="tab"
@@ -727,7 +820,7 @@ export default function DevTools() {
                   className={`nm-seg-btn${stateFilter === key ? " active" : ""}`}
                   onClick={() => setStateFilter(key)}
                 >
-                  <span className="nm-seg-dot" style={{ background: color }} />
+                  <span className="nm-seg-dot" data-state={key} />
                   <span className="nm-seg-label">{label}</span>
                   <span className="nm-seg-n">{n}</span>
                 </button>
@@ -798,7 +891,6 @@ export default function DevTools() {
                 onContextMenu={menu.open}
                 virtual={virtual}
                 scrollerRef={scrollerRef}
-                theme={theme}
                 empty={
                   <div className="nm-empty nm-empty-list">
                     <span className={`nm-empty-ico nm-empty-ico-${section}`}>
@@ -833,13 +925,16 @@ export default function DevTools() {
               onTogglePin={togglePin}
               onSelectEntry={selection.pin}
               query={list.normalizedQuery}
-              theme={theme}
+              nouns={nouns}
+              format={dataFormat}
+              onFormat={onDataFormat}
             />
           </div>
 
           <StatusBar
             counts={list.counts}
             shown={list.filtered.length}
+            noun={nouns.many}
             totalBytes={list.totalBytes}
             slowestMs={slowestMs}
             pinnedCount={pinnedCount}
@@ -874,138 +969,112 @@ export default function DevTools() {
       )}
 
       {exportAnchor && (
-        <div
-          className="nm-menu"
-          style={{ top: exportAnchor.top, right: exportAnchor.right, width: 236 }}
-        >
-          <button
-            className="nm-menu-item"
-            onClick={() => {
-              exportHar(entries);
-              setExportAnchor(null);
-            }}
-          >
-            <Icon name="download" size={13} />
-            Export as HAR
-          </button>
-          <div className="nm-menu-note">
-            Opens in Chrome DevTools, Charles or Insomnia — with the decrypted
-            bodies.
-          </div>
-          <div className="nm-menu-sep" />
-          <button
-            className="nm-menu-item"
-            onClick={() => {
-              exportLog(entries);
-              setExportAnchor(null);
-            }}
-          >
-            <Icon name="download" size={13} />
-            Export raw JSON
-          </button>
-          <div className="nm-menu-note">
-            Everything this panel captured, including frames and timings.
-          </div>
-        </div>
+        <ExportMenu
+          anchor={exportAnchor}
+          scope={exportScope}
+          onScope={setExportScope}
+          shown={list.filtered}
+          all={entries}
+          onDone={closeMenus}
+        />
+      )}
+
+      {themeAnchor && (
+        <ThemeMenu
+          anchor={themeAnchor}
+          pref={themePref}
+          host={host}
+          onPick={onTheme}
+          onPreview={setPreviewPref}
+        />
       )}
 
       {moreAnchor && (
-        <div
-          className="nm-menu"
-          style={{ top: moreAnchor.top, right: moreAnchor.right, width: 232 }}
-        >
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+        <Menu anchor={moreAnchor} width={232} label="More actions">
+          <MenuItem
+            icon={<Icon name="preserve" size={13} />}
+            hint={prefs.preserveLog ? "on" : undefined}
+            onSelect={() => {
               setPreserveLog(!prefs.preserveLog);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="preserve" size={13} />
             Preserve log
-            {prefs.preserveLog && <span className="nm-menu-hint">on</span>}
-          </button>
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          </MenuItem>
+          <MenuItem
+            icon={<Icon name="follow" size={13} />}
+            hint={selection.isFollowing ? "on" : undefined}
+            onSelect={() => {
               selection.toggleFollow();
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="follow" size={13} />
             Follow newest
-            {selection.isFollowing && <span className="nm-menu-hint">on</span>}
-          </button>
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          </MenuItem>
+          {/* Stays open: density is a setting you cycle until it looks right,
+              and closing after each step would mean reopening to compare. */}
+          <MenuItem
+            icon={<Icon name="density" size={13} />}
+            hint={density}
+            onSelect={() =>
               onDensity(
                 DENSITY_ORDER[
                   (DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length
                 ],
-              );
-            }}
+              )
+            }
           >
-            <Icon name="density" size={13} />
             Density
-            <span className="nm-menu-hint">{density}</span>
-          </button>
+          </MenuItem>
 
           <div className="nm-menu-sep" />
 
-          <button
-            className="nm-menu-item"
+          {/* Hands off to the export menu rather than duplicating two of its
+              six formats — this menu only exists because the panel is too
+              narrow to show the export button. Reuses the same anchor, so the
+              menu opens exactly where this one was. */}
+          <MenuItem
+            icon={<Icon name="download" size={13} />}
             disabled={entries.length === 0}
-            onClick={() => {
-              exportHar(entries);
-              setMoreAnchor(null);
-            }}
+            onSelect={() => moreAnchor && setExportAnchor(moreAnchor)}
           >
-            <Icon name="download" size={13} />
-            Export as HAR
-          </button>
-          <button
-            className="nm-menu-item"
-            disabled={entries.length === 0}
-            onClick={() => {
-              exportLog(entries);
-              setMoreAnchor(null);
-            }}
-          >
-            <Icon name="download" size={13} />
-            Export raw JSON
-          </button>
+            Export…
+          </MenuItem>
 
           {panel.tinyToolbar && (
             <>
               <div className="nm-menu-sep" />
-              <button
-                className="nm-menu-item"
-                onClick={() => {
-                  onMode(dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom");
-                  setMoreAnchor(null);
+              <MenuItem
+                icon={<Icon name="dock-bottom" size={13} />}
+                hint={dock.mode}
+                onSelect={() => {
+                  onMode(
+                    dock.mode === "bottom"
+                      ? "right"
+                      : dock.mode === "right"
+                        ? "float"
+                        : "bottom",
+                  );
+                  closeMenus();
                 }}
               >
-                <Icon name="dock-bottom" size={13} />
                 Dock position
-                <span className="nm-menu-hint">{dock.mode}</span>
-              </button>
+              </MenuItem>
             </>
           )}
 
           <div className="nm-menu-sep" />
-          <button
-            className="nm-menu-item"
-            onClick={() => {
+          <MenuItem
+            icon={<Icon name="keyboard" size={13} />}
+            hint="?"
+            onSelect={() => {
               setShowShortcuts(true);
-              setMoreAnchor(null);
+              closeMenus();
             }}
           >
-            <Icon name="keyboard" size={13} />
             Keyboard shortcuts
-            <span className="nm-menu-hint">?</span>
-          </button>
-        </div>
+          </MenuItem>
+        </Menu>
       )}
 
       {menu.menu && (

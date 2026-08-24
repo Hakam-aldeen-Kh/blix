@@ -11,7 +11,8 @@
 import type { MonitorEntry, WsFrame } from "../../../capture/networkMonitor";
 import { useState } from "react";
 import { clock, formatBytes } from "../../helpers/format";
-import { JsonTree } from "../JsonTree";
+import type { DataFormat } from "../../types/monitorUi";
+import { DataView } from "../DataView";
 
 function directionLabel(direction: WsFrame["direction"]): string {
   switch (direction) {
@@ -27,9 +28,13 @@ function directionLabel(direction: WsFrame["direction"]): string {
 export function MessagesTab({
   entry,
   query,
+  format,
+  onFormat,
 }: {
   entry: MonitorEntry;
   query: string;
+  format: DataFormat;
+  onFormat: (format: DataFormat) => void;
 }) {
   const frames = entry.frames ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -72,10 +77,12 @@ export function MessagesTab({
       </div>
 
       <div className="nm-frame-body">
-        <JsonTree
+        <DataView
           value={selected.data}
           query={query}
           entryId={`${entry.id}:${selected.id}`}
+          format={format}
+          onFormat={onFormat}
         />
       </div>
     </>

@@ -10,12 +10,18 @@
  * *section-identity* colours (`--nm-c-network/realtime/redux/query`) applied
  * at a handful of deliberate touch points — the section tab, the row's
  * selected-state edge, the method/kind badge — so which of the four worlds a
- * row belongs to reads at a glance without reading the label. Redux and
- * Query lean toward colours close to their own standalone devtools' brands
- * (violet, orange) on purpose: a React developer already has that association.
- * Everything else (JSON syntax, diff add/remove/change, status pills) stays
- * strictly semantic and universal — colour only carries meaning where it adds
- * one, never as decoration.
+ * row belongs to reads at a glance without reading the label. Everything else
+ * (JSON syntax, diff add/remove/change, status pills) stays strictly semantic
+ * and universal — colour only carries meaning where it adds one, never as
+ * decoration.
+ *
+ * **Every colour here is a token.** The values live in `themes/themes.ts`;
+ * this file only ever names them. The default theme's tokens are baked in as
+ * the floor, and the active theme's are written to the root element's `style`
+ * attribute, so a new theme needs no edit here at all. A component that needs
+ * a colour sets a *role* attribute (`data-state="error"`, `data-accent="post"`)
+ * rather than an inline hex, so the role blocks below are the single place
+ * those roles resolve.
  *
  * **RTL note:** `direction: ltr` is set on `.nm-root` on purpose, which is why
  * this file uses physical `left`/`right` rather than logical properties.
@@ -25,9 +31,17 @@
  * it in an RTL sweep.
  *
  * Chunked into named sections and joined once at module scope.
+ *
+ * **Never write a backtick inside these template literals** — not even inside
+ * a CSS comment. It closes the string, and the compiler then reports the
+ * error at whatever happens to follow rather than at the backtick. Refer to
+ * token names as plain words in CSS comments; the JSDoc blocks outside the
+ * literals can quote them freely.
  */
 
-const TOKENS = `
+import { BASE_THEME_CSS } from "../themes/themes";
+
+const BASE = `
 .nm-root {
   position: fixed; z-index: 2147483647;
   pointer-events: auto;
@@ -35,120 +49,41 @@ const TOKENS = `
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 
-  /* Elevation — each layer is a deliberate step up, not a tint of the last. */
-  --nm-bg: #090b10;
-  --nm-surface: #12151c;
-  --nm-surface-2: #191d27;
-  --nm-surface-3: #21252f;
-  --nm-elev: rgba(255,255,255,.05);
-  --nm-elev-hover: rgba(255,255,255,.09);
-  --nm-line: rgba(255,255,255,.08);
-  --nm-line-strong: rgba(255,255,255,.16);
-  --nm-line-2: rgba(255,255,255,.05);
-
-  --nm-txt: #eef0f4;
-  --nm-muted: #99a3b7;
-  --nm-faint: #616b80;
-
-  /* Generic UI accent — doubles as the Network section's identity colour. */
-  --nm-accent: #5b93ff;
-  --nm-accent-soft: rgba(91,147,255,.15);
-
-  /* Section identity. Redux/Query lean toward colours close to their own
-     standalone devtools' brands (violet, orange); Realtime gets a cyan
-     distinct from both the HTTP method palette and the success/error
-     colours a WS row sits next to. */
-  --nm-c-network: #5b93ff;
-  --nm-c-network-soft: rgba(91,147,255,.14);
-  --nm-c-realtime: #22d3ee;
-  --nm-c-realtime-soft: rgba(34,211,238,.14);
-  --nm-c-redux: #a78bfa;
-  --nm-c-redux-soft: rgba(167,139,250,.14);
-  --nm-c-query: #fb923c;
-  --nm-c-query-soft: rgba(251,146,60,.14);
-
-  /* Semantic — kept strictly universal, never repurposed for identity. */
-  --nm-success: #34d399;
-  --nm-success-soft: rgba(52,211,153,.14);
-  --nm-error: #f87171;
-  --nm-error-soft: rgba(248,113,113,.14);
-  --nm-warning: #fbbf24;
-  --nm-warning-soft: rgba(251,191,36,.14);
-
   --nm-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --nm-ease: cubic-bezier(.22,1,.36,1);
 
   /* Row height, driven by the density setting. */
   --nm-row-h: 26px;
 }
-
-/* Light palette, applied when the app is in its light theme. Contrast is tuned
-   against white rather than being a naive inversion — the syntax colours and
-   the section identity colours in particular need darker, more saturated
-   values to stay legible. */
-.nm-root.nm-light {
-  --nm-bg: #f6f7f9;
-  --nm-surface: #ffffff;
-  --nm-surface-2: #f0f2f5;
-  --nm-surface-3: #e7eaf0;
-  --nm-elev: rgba(15,23,42,.045);
-  --nm-elev-hover: rgba(15,23,42,.08);
-  --nm-line: rgba(15,23,42,.1);
-  --nm-line-strong: rgba(15,23,42,.19);
-  --nm-line-2: rgba(15,23,42,.06);
-
-  --nm-txt: #0f1420;
-  --nm-muted: #4b5567;
-  --nm-faint: #7c8698;
-
-  --nm-accent: #2f6fed;
-  --nm-accent-soft: rgba(47,111,237,.12);
-
-  --nm-c-network: #2f6fed;
-  --nm-c-network-soft: rgba(47,111,237,.12);
-  --nm-c-realtime: #0891a8;
-  --nm-c-realtime-soft: rgba(8,145,168,.12);
-  --nm-c-redux: #7c3aed;
-  --nm-c-redux-soft: rgba(124,58,237,.12);
-  --nm-c-query: #ea7317;
-  --nm-c-query-soft: rgba(234,115,23,.12);
-
-  --nm-success: #059669;
-  --nm-success-soft: rgba(5,150,105,.12);
-  --nm-error: #dc2626;
-  --nm-error-soft: rgba(220,38,38,.1);
-  --nm-warning: #b45309;
-  --nm-warning-soft: rgba(180,83,9,.1);
-}
 .nm-root * { box-sizing: border-box; }
 .nm-ico { display: block; flex-shrink: 0; }
+/* Selecting a payload is half of what this panel is for, and the browser's
+   default selection blue sits badly on eight of the twelve palettes. */
+.nm-root ::selection { background: var(--nm-accent-soft); color: var(--nm-txt); }
 `;
 
-/* Colour overrides for the light theme that can't be expressed as tokens. */
-const LIGHT_OVERRIDES = `
-.nm-light .nm-panel { box-shadow: 0 20px 54px rgba(15,23,42,.16), 0 2px 7px rgba(15,23,42,.07); }
-.nm-light .nm-panel.nm-dock-bottom { box-shadow: 0 -7px 22px rgba(15,23,42,.12); }
-.nm-light .nm-panel.nm-dock-right { box-shadow: -7px 0 22px rgba(15,23,42,.12); }
-.nm-light .nm-fab { box-shadow: 0 6px 18px rgba(15,23,42,.14), 0 1px 3px rgba(15,23,42,.08); }
-.nm-light .nm-search { background: #fff; }
-.nm-light .nm-search:focus { background: #fff; }
-.nm-light .nm-seg, .nm-light .nm-dockseg, .nm-light .nm-search-deep, .nm-light .nm-sections { background: rgba(15,23,42,.035); }
-.nm-light .nm-json { color: #1f2937; }
-.nm-light .nm-key, .nm-light .nm-tree-key { color: #1d4ed8; }
-.nm-light .nm-str, .nm-light .nm-tree-str, .nm-light .nm-tree-string { color: #047857; }
-.nm-light .nm-num, .nm-light .nm-tree-number { color: #b45309; }
-.nm-light .nm-bool, .nm-light .nm-tree-boolean { color: #7c3aed; }
-.nm-light .nm-null, .nm-light .nm-tree-null, .nm-light .nm-tree-undefined { color: #94a3b8; }
-.nm-light .nm-tree-blob { color: #a21caf; }
-.nm-light .nm-tab.active { color: var(--nm-accent); }
-.nm-light .nm-menu { box-shadow: 0 16px 40px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.06); }
-.nm-light .nm-scroll::-webkit-scrollbar-thumb { background: rgba(15,23,42,.18); background-clip: content-box; }
-.nm-light .nm-scroll::-webkit-scrollbar-thumb:hover { background: rgba(15,23,42,.3); background-clip: content-box; }
-.nm-light .nm-drag-scrim { background: radial-gradient(120% 120% at 50% 50%, transparent 38%, rgba(15,23,42,.24)); }
-.nm-light .nm-load-divider { background: rgba(15,23,42,.045); }
-.nm-light .nm-wf-track { background: rgba(15,23,42,.07); }
-.nm-light .nm-diff-before { text-decoration-color: rgba(220,38,38,.4); }
-.nm-light .nm-diff-after { color: var(--nm-success); }
+/**
+ * Role → colour. The only place a semantic role becomes a concrete pair of
+ * tokens; every consumer below reads `--nm-state-fg`/`--nm-accent-fg` and
+ * their `-bg` counterparts, so a badge, a dot, a waterfall bar and a status
+ * pill can't disagree about what "error" looks like.
+ */
+const ROLES = `
+[data-state="pending"] { --nm-state-fg: var(--nm-state-pending); --nm-state-bg: var(--nm-state-pending-soft); --nm-state-glow: var(--nm-state-pending-glow); }
+[data-state="success"] { --nm-state-fg: var(--nm-state-success); --nm-state-bg: var(--nm-state-success-soft); --nm-state-glow: var(--nm-state-success-glow); }
+[data-state="error"]   { --nm-state-fg: var(--nm-state-error);   --nm-state-bg: var(--nm-state-error-soft);   --nm-state-glow: var(--nm-state-error-glow); }
+[data-state="aborted"] { --nm-state-fg: var(--nm-state-aborted); --nm-state-bg: var(--nm-state-aborted-soft); --nm-state-glow: var(--nm-state-aborted-glow); }
+/* The All filter's dot — a state slot that deliberately means "no state". */
+[data-state="all"]     { --nm-state-fg: var(--nm-state-all);     --nm-state-bg: var(--nm-state-all-soft);     --nm-state-glow: var(--nm-state-all-glow); }
+
+[data-accent="get"]      { --nm-accent-fg: var(--nm-m-get);      --nm-accent-bg: var(--nm-m-get-soft); }
+[data-accent="post"]     { --nm-accent-fg: var(--nm-m-post);     --nm-accent-bg: var(--nm-m-post-soft); }
+[data-accent="put"]      { --nm-accent-fg: var(--nm-m-put);      --nm-accent-bg: var(--nm-m-put-soft); }
+[data-accent="delete"]   { --nm-accent-fg: var(--nm-m-delete);   --nm-accent-bg: var(--nm-m-delete-soft); }
+[data-accent="other"]    { --nm-accent-fg: var(--nm-m-other);    --nm-accent-bg: var(--nm-m-other-soft); }
+[data-accent="realtime"] { --nm-accent-fg: var(--nm-c-realtime); --nm-accent-bg: var(--nm-c-realtime-soft); }
+[data-accent="redux"]    { --nm-accent-fg: var(--nm-c-redux);    --nm-accent-bg: var(--nm-c-redux-soft); }
+[data-accent="query"]    { --nm-accent-fg: var(--nm-c-query);    --nm-accent-bg: var(--nm-c-query-soft); }
 `;
 
 const FAB = `
@@ -157,20 +92,23 @@ const FAB = `
   border-radius: 999px; border: 1px solid var(--nm-line);
   background: linear-gradient(175deg, var(--nm-surface-2), var(--nm-surface) 70%);
   color: var(--nm-txt); font-size: 12.5px; font-weight: 700; cursor: grab;
-  box-shadow: 0 10px 28px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow: var(--nm-shadow-fab);
   transition: transform .16s var(--nm-ease), box-shadow .16s var(--nm-ease), border-color .16s ease;
   touch-action: none; user-select: none;
 }
 .nm-fab:active { cursor: grabbing; }
 .nm-fab:hover {
   transform: translateY(-1.5px); border-color: var(--nm-line-strong);
-  box-shadow: 0 14px 36px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.07);
+  box-shadow: var(--nm-shadow-fab-hover);
 }
-.nm-fab-dot { position: relative; width: 9px; height: 9px; border-radius: 999px; box-shadow: 0 0 0 3px rgba(255,255,255,.05); }
-.nm-fab-ping { position: absolute; inset: 0; border-radius: 999px; animation: nm-ping 1.5s cubic-bezier(0,0,.2,1) infinite; }
+.nm-fab-dot {
+  position: relative; width: 9px; height: 9px; border-radius: 999px;
+  background: var(--nm-state-fg); box-shadow: 0 0 0 3px var(--nm-elev);
+}
+.nm-fab-ping { position: absolute; inset: 0; border-radius: 999px; background: var(--nm-state-fg); animation: nm-ping 1.5s cubic-bezier(0,0,.2,1) infinite; }
 @keyframes nm-ping { 0% { transform: scale(1); opacity: .7; } 75%,100% { transform: scale(2.8); opacity: 0; } }
 .nm-fab-label { letter-spacing: .3px; }
-.nm-fab-count { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--nm-muted); font-variant-numeric: tabular-nums; }
+.nm-fab-count { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--nm-elev-hover); color: var(--nm-muted); font-variant-numeric: tabular-nums; }
 .nm-fab-err { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; color: var(--nm-error); background: var(--nm-error-soft); font-variant-numeric: tabular-nums; }
 
 .nm-fab-dock { animation: nm-dock .34s cubic-bezier(.34,1.56,.64,1); }
@@ -183,24 +121,24 @@ const FAB = `
 .nm-fab-ghost {
   position: fixed; transform: translate(-50%, -50%) scale(1.04);
   cursor: grabbing; pointer-events: none; opacity: .98;
-  box-shadow: 0 22px 48px rgba(0,0,0,.62); z-index: 2147483647;
+  box-shadow: var(--nm-shadow-ghost); z-index: 2147483647;
 }
 .nm-fab-ghost:hover { transform: translate(-50%, -50%) scale(1.04); }
 
 .nm-zone {
   position: fixed; width: 104px; height: 54px; border-radius: 18px;
-  border: 1.5px dashed rgba(255,255,255,.2); background: rgba(255,255,255,.025);
+  border: 1.5px dashed var(--nm-line-strong); background: var(--nm-elev);
   pointer-events: none; z-index: 2147483646;
   transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 .nm-zone.active {
   border-color: var(--nm-accent); border-style: solid;
   background: var(--nm-accent-soft); transform: scale(1.06);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft), 0 16px 36px rgba(0,0,0,.45);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft), var(--nm-shadow-ghost);
 }
 .nm-drag-scrim {
   position: fixed; inset: 0; z-index: 2147483645; pointer-events: none;
-  background: radial-gradient(120% 120% at 50% 50%, transparent 38%, rgba(3,5,12,.5));
+  background: radial-gradient(120% 120% at 50% 50%, transparent 38%, var(--nm-scrim-drag));
   animation: nm-fade .16s ease-out;
 }
 @keyframes nm-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -214,7 +152,7 @@ const PANEL = `
   container-type: inline-size; container-name: nm;
   background: var(--nm-surface); border: 1px solid var(--nm-line); color: var(--nm-txt);
   border-radius: 16px;
-  box-shadow: 0 32px 84px rgba(0,0,0,.64), 0 2px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.025);
+  box-shadow: var(--nm-shadow-panel);
   animation: nm-in .18s var(--nm-ease);
 }
 /* Docks sit flush against their edge and read against the app via a strong
@@ -222,12 +160,12 @@ const PANEL = `
 .nm-panel.nm-dock-bottom {
   border-radius: 0; border-left: none; border-right: none; border-bottom: none;
   border-top: 1px solid var(--nm-line-strong);
-  box-shadow: 0 -10px 28px rgba(0,0,0,.42);
+  box-shadow: var(--nm-shadow-dock-b);
 }
 .nm-panel.nm-dock-right {
   border-radius: 0; border-top: none; border-right: none; border-bottom: none;
   border-left: 1px solid var(--nm-line-strong);
-  box-shadow: -10px 0 28px rgba(0,0,0,.42);
+  box-shadow: var(--nm-shadow-dock-r);
 }
 .nm-panel.nm-max { border-radius: 12px; }
 .nm-panel.nm-anim {
@@ -266,25 +204,32 @@ const HEADER = `
 .nm-grip { display: inline-flex; color: var(--nm-faint); cursor: grab; transition: color .12s ease; }
 .nm-header:hover .nm-grip { color: var(--nm-muted); }
 .nm-header:active .nm-grip { cursor: grabbing; }
-.nm-brand { display: flex; align-items: center; gap: 9px; }
-.nm-logo { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+/* Brand. The logo doubles as the capture indicator — it takes the colour of
+   the worst state currently in the buffer, so the panel says "something is
+   failing" from its quietest corner, without a badge competing for space. */
+.nm-brand { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.nm-logo {
+  width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
+  background: var(--nm-state-fg); box-shadow: 0 0 12px var(--nm-state-glow);
+  transition: background .2s ease, box-shadow .2s ease;
+}
 .nm-titles { display: flex; flex-direction: column; line-height: 1.2; }
-.nm-title { font-size: 12.5px; font-weight: 700; letter-spacing: .2px; }
+.nm-title { font-size: 12.5px; font-weight: 800; letter-spacing: .4px; color: var(--nm-txt); }
 .nm-sub { font-size: 10px; color: var(--nm-faint); }
 
 .nm-search-wrap { position: relative; display: flex; align-items: center; margin-left: auto; flex: 1 1 300px; min-width: 0; max-width: 340px; }
 .nm-search-ico { position: absolute; left: 9px; display: inline-flex; color: var(--nm-faint); pointer-events: none; }
 .nm-search {
   width: 100%; font-size: 12px; padding: 7px 62px 7px 30px; border-radius: 9px;
-  border: 1px solid var(--nm-line); background: rgba(0,0,0,.28); color: var(--nm-txt); outline: none;
+  border: 1px solid var(--nm-line); background: var(--nm-input); color: var(--nm-txt); outline: none;
   transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
 }
 .nm-search::placeholder { color: var(--nm-faint); }
-.nm-search:focus { border-color: var(--nm-accent); background: rgba(0,0,0,.36); box-shadow: 0 0 0 3px var(--nm-accent-soft); }
-.nm-search-busy { border-color: rgba(91,147,255,.45); }
+.nm-search:focus { border-color: var(--nm-accent); background: var(--nm-input-focus); box-shadow: 0 0 0 3px var(--nm-accent-soft); }
+.nm-search-busy { border-color: var(--nm-accent-line); }
 .nm-search-deep {
   position: absolute; right: 5px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--nm-line); background: rgba(0,0,0,.22); color: var(--nm-faint);
+  border: 1px solid var(--nm-line); background: var(--nm-sunken); color: var(--nm-faint);
   cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 800;
   font-family: var(--nm-mono); line-height: 1.4;
   transition: color .14s ease, background .14s ease, border-color .14s ease;
@@ -314,29 +259,29 @@ const HEADER = `
 .nm-iconbtn-sq { width: 30px; height: 30px; padding: 0; justify-content: center; }
 .nm-iconbtn-on { color: var(--nm-accent); border-color: var(--nm-accent); background: var(--nm-accent-soft); }
 .nm-iconbtn-on:hover { background: var(--nm-accent-soft); border-color: var(--nm-accent); }
-.nm-iconbtn-close:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: rgba(248,113,113,.4); }
+.nm-iconbtn-close:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
 
-.nm-dockseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: rgba(0,0,0,.26); }
+.nm-dockseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: var(--nm-sunken); }
 .nm-dockbtn {
   display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px;
   border: none; border-radius: 7px; background: transparent; color: var(--nm-muted); cursor: pointer;
   transition: background .14s ease, color .14s ease;
 }
 .nm-dockbtn:hover { color: var(--nm-txt); }
-.nm-dockbtn.active { background: var(--nm-accent-soft); color: var(--nm-accent); box-shadow: inset 0 0 0 1px rgba(91,147,255,.35); }
+.nm-dockbtn.active { background: var(--nm-accent-soft); color: var(--nm-accent); box-shadow: inset 0 0 0 1px var(--nm-accent-line); }
 `;
 
 const FILTERS = `
 .nm-filters { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--nm-line); background: var(--nm-bg); flex-shrink: 0; min-width: 0; overflow: hidden; }
-.nm-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; border: 1px solid var(--nm-line); background: rgba(0,0,0,.26); }
+.nm-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; border: 1px solid var(--nm-line); background: var(--nm-sunken); }
 .nm-seg-btn {
   display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
   padding: 4px 10px; border: none; border-radius: 8px; background: transparent;
   color: var(--nm-muted); cursor: pointer; transition: background .14s ease, color .14s ease;
 }
 .nm-seg-btn:hover { color: var(--nm-txt); }
-.nm-seg-btn.active { background: var(--nm-surface-2); color: var(--nm-txt); box-shadow: 0 1px 3px rgba(0,0,0,.32); }
-.nm-seg-dot { width: 7px; height: 7px; border-radius: 999px; }
+.nm-seg-btn.active { background: var(--nm-surface-2); color: var(--nm-txt); box-shadow: var(--nm-shadow-seg); }
+.nm-seg-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--nm-state-fg); }
 .nm-seg-n { font-size: 10px; font-weight: 700; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
 .nm-seg-btn.active .nm-seg-n { color: var(--nm-muted); }
 .nm-filters-spacer { flex: 1; }
@@ -345,17 +290,17 @@ const FILTERS = `
 .nm-paused-pill {
   display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800;
   letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
-  color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid rgba(251,191,36,.3);
+  color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
 }
 .nm-restoring { font-size: 10.5px; font-weight: 600; color: var(--nm-muted); animation: nm-pulse 1.4s ease-in-out infinite; }
 .nm-persist-pill {
   font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
   padding: 2px 8px; border-radius: 999px; cursor: pointer;
   color: var(--nm-accent); background: var(--nm-accent-soft);
-  border: 1px solid rgba(91,147,255,.3);
+  border: 1px solid var(--nm-accent-line);
   transition: color .14s ease, background .14s ease, border-color .14s ease;
 }
-.nm-persist-pill:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: rgba(248,113,113,.4); }
+.nm-persist-pill:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
 `;
 
 const TABLE = `
@@ -419,7 +364,7 @@ const TABLE = `
 .nm-trow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nm-col-name { font-family: var(--nm-mono); color: var(--nm-txt); display: flex; align-items: center; gap: 5px; }
-.nm-col-method { font-size: 10px; font-weight: 800; letter-spacing: .3px; }
+.nm-col-method { font-size: 10px; font-weight: 800; letter-spacing: .3px; color: var(--nm-accent-fg); }
 .nm-col-init { font-family: var(--nm-mono); font-size: 10.5px; color: var(--nm-faint); }
 .nm-col-size, .nm-col-dur { font-variant-numeric: tabular-nums; text-align: right; font-size: 10.5px; }
 .nm-col-status { display: flex; }
@@ -430,18 +375,22 @@ const TABLE = `
   color: var(--nm-accent); background: var(--nm-accent-soft); flex-shrink: 0;
 }
 
-.nm-wf-track { position: relative; display: block; width: 100%; height: 8px; border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; }
-.nm-wf-bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: .85; }
-.nm-wf-live { background-image: linear-gradient(90deg, rgba(255,255,255,.28) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.28) 75%, transparent 75%); background-size: 10px 10px; animation: nm-stripe .8s linear infinite; }
+.nm-wf-track { position: relative; display: block; width: 100%; height: 8px; border-radius: 3px; background: var(--nm-wf-track); overflow: hidden; }
+.nm-wf-bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: .85; background: var(--nm-state-fg); }
+.nm-wf-live { background-image: linear-gradient(90deg, var(--nm-stripe) 25%, transparent 25%, transparent 50%, var(--nm-stripe) 50%, var(--nm-stripe) 75%, transparent 75%); background-size: 10px 10px; animation: nm-stripe .8s linear infinite; }
 @keyframes nm-stripe { from { background-position: 0 0; } to { background-position: 10px 0; } }
 .nm-wf-inf { position: absolute; right: 1px; top: 50%; transform: translateY(-50%); font-size: 9px; line-height: 1; color: var(--nm-txt); pointer-events: none; }
 
-.nm-status { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 5px; min-width: 34px; text-align: center; }
+.nm-status {
+  font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 5px;
+  min-width: 34px; text-align: center;
+  color: var(--nm-state-fg); background: var(--nm-state-bg);
+}
 
 .nm-load-divider {
   display: flex; align-items: center; gap: 8px; padding: 0 12px;
   font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
-  color: var(--nm-faint); background: rgba(0,0,0,.28);
+  color: var(--nm-faint); background: var(--nm-well);
   border-top: 1px solid var(--nm-line); border-bottom: 1px solid var(--nm-line);
 }
 .nm-load-divider > span { display: inline-flex; align-items: center; gap: 5px; }
@@ -459,7 +408,10 @@ const DETAIL = `
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px;
   border-bottom: 1px solid var(--nm-line); background: var(--nm-surface-2); flex-shrink: 0;
 }
-.nm-method { font-size: 10px; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 6px; }
+.nm-method {
+  font-size: 10px; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 6px;
+  color: var(--nm-accent-fg); background: var(--nm-accent-bg);
+}
 .nm-method-lg { font-size: 11px; padding: 3px 9px; }
 .nm-meta { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--nm-muted); }
 .nm-status-text { color: var(--nm-faint); }
@@ -488,15 +440,63 @@ const DETAIL = `
 .nm-notice-btn:hover { background: var(--nm-elev-hover); }
 .nm-empty .nm-notice-btn { margin-top: 10px; }
 
-.nm-tabs { display: flex; gap: 3px; padding: 7px 10px; border-bottom: 1px solid var(--nm-line); flex-shrink: 0; overflow-x: auto; }
+/* ── Scrolling chip strips ─────────────────────────────────────────────────
+   The tab row and the store slice picker. Both overflow routinely — eight tabs
+   in a 320px dock, twenty reducers at any width — so both get the same
+   treatment: no scrollbar stealing height from a 28px row, a fade over each
+   edge that is *actually* clipped, and arrows for pointer users, since a fade
+   says "there is more" without offering any way to reach it.
+
+   The fade widths are variables rather than four mask rules, and default to 0
+   so a strip that fits is not dimmed at all. */
+.nm-strip { position: relative; display: flex; min-width: 0; flex: 1 1 auto; }
+.nm-strip-scroll {
+  --nm-fade-s: 0px; --nm-fade-e: 0px;
+  min-width: 0; flex: 1 1 auto;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+  /* No scroll-behavior: smooth here on purpose — it would animate every wheel
+     tick, which reads as lag. The arrows opt into smooth per call instead. */
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--nm-fade-s),
+    #000 calc(100% - var(--nm-fade-e)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--nm-fade-s),
+    #000 calc(100% - var(--nm-fade-e)), transparent 100%);
+}
+.nm-strip-scroll::-webkit-scrollbar { height: 0; width: 0; }
+.nm-strip-s .nm-strip-scroll { --nm-fade-s: 26px; }
+.nm-strip-e .nm-strip-scroll { --nm-fade-e: 26px; }
+
+/* Sits over the fade, not beside it: stealing 22px of a narrow strip to park
+   an arrow would cost more chips than the arrow is worth. Hidden entirely
+   while that direction has nowhere to go, so it never offers a dead click. */
+.nm-strip-nav {
+  position: absolute; top: 0; bottom: 0; z-index: 2;
+  display: none; align-items: center; justify-content: center;
+  width: 20px; padding: 0; border: none; background: transparent;
+  color: var(--nm-muted); cursor: pointer; opacity: .75;
+  transition: opacity .14s ease, color .14s ease;
+}
+.nm-strip-nav:hover { opacity: 1; color: var(--nm-txt); }
+.nm-strip-nav-s { left: 0; }
+.nm-strip-nav-e { right: 0; }
+.nm-strip-nav-s .nm-ico { transform: rotate(180deg); }
+.nm-strip-s .nm-strip-nav-s, .nm-strip-e .nm-strip-nav-e { display: flex; }
+
+/* The rule lives on the wrapper, not the scroller: a border on a masked
+   element fades out with the chips, leaving the tab row visibly unfinished at
+   both ends. */
+/* flex: 0 0 auto overrides the strip default: the detail pane is a column,
+   where a grow factor would stretch the tab row over the payload below it. */
+.nm-tabrow { flex: 0 0 auto; border-bottom: 1px solid var(--nm-line); }
+.nm-tabs { display: flex; gap: 3px; padding: 7px 10px; }
 .nm-tab {
   font-size: 11.5px; font-weight: 600; padding: 5px 11px; border: none; background: transparent;
   color: var(--nm-muted); cursor: pointer; border-radius: 8px; white-space: nowrap;
   transition: color .14s ease, background .14s ease, box-shadow .14s ease;
 }
 .nm-tab:hover { color: var(--nm-txt); background: var(--nm-elev); }
-.nm-tab.active { color: #fff; background: var(--nm-accent-soft); box-shadow: inset 0 0 0 1px rgba(91,147,255,.35); }
-.nm-light .nm-tab.active { color: var(--nm-accent); }
+.nm-tab.active { color: var(--nm-accent); background: var(--nm-accent-soft); box-shadow: inset 0 0 0 1px var(--nm-accent-line); }
 .nm-tab-body { flex: 1; min-height: 0; min-width: 0; overflow: hidden; background: var(--nm-bg); display: flex; flex-direction: column; }
 
 .nm-headers { flex: 1; min-height: 0; overflow: auto; padding: 6px 0 14px; background: var(--nm-bg); }
@@ -533,7 +533,7 @@ const DETAIL = `
   font-family: var(--nm-mono); font-size: 11px; padding: 2px 7px; border-radius: 6px;
   background: var(--nm-elev); color: var(--nm-txt); word-break: break-all; max-width: 100%; min-width: 0;
 }
-.nm-diff-before { color: var(--nm-muted); text-decoration: line-through; text-decoration-color: rgba(248,113,113,.55); }
+.nm-diff-before { color: var(--nm-muted); text-decoration: line-through; text-decoration-color: var(--nm-error-line); }
 .nm-diff-after { color: var(--nm-success); }
 .nm-diff-arrow { color: var(--nm-faint); font-size: 11px; }
 
@@ -544,7 +544,103 @@ const DETAIL = `
 const VIEWERS = `
 .nm-json-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .nm-json-toolbar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 6px 12px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
-.nm-json-size { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint); margin-right: auto; }
+/* Tertiary information: it yields its space to the controls rather than
+   competing for it. The nowrap is the part that matters — as a wrapping flex
+   item it once folded "116 B · 10 lines" onto three lines and made the whole
+   toolbar twice as tall. */
+.nm-json-size {
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint);
+  margin-right: auto; min-width: 0; flex-shrink: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Display-format switch. Sits at the head of the payload toolbar because it
+   changes what the pane below it *is*, unlike Wrap and Copy which act on
+   whatever is already there. */
+.nm-fmt { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
+.nm-fmt-btn {
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.nm-fmt-btn:hover:not(:disabled) { color: var(--nm-txt); }
+.nm-fmt-btn.active { background: var(--nm-surface-2); color: var(--nm-accent); box-shadow: var(--nm-shadow-seg); }
+/* Table stays visible while unavailable rather than disappearing — a control
+   that comes and goes as you click between requests is harder to learn than
+   one that is simply dim, and its tooltip explains why. */
+.nm-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── Redux store slices ────────────────────────────────────────────────────
+   Its own bar above the format toolbar. Sharing that row meant three
+   different jobs — navigation, presentation and metadata — competing for one
+   line, which clipped slice names mid-word and squeezed the size readout into
+   a column narrow enough to wrap onto three lines. */
+.nm-slicebar {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0;
+  padding: 5px 12px; border-bottom: 1px solid var(--nm-line-2);
+  background: var(--nm-surface-2);
+}
+.nm-slicebar-label {
+  flex-shrink: 0; font-size: 9.5px; font-weight: 800; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--nm-faint);
+}
+.nm-slicebar-hint {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 1px 7px;
+  border-radius: 999px; font-variant-numeric: tabular-nums;
+  color: var(--nm-warning); background: var(--nm-warning-soft);
+  border: 1px solid var(--nm-warning-line);
+}
+
+/* Scrolls rather than wrapping — a twenty-reducer store must not push the
+   payload off the bottom of the pane. Scrolling, fades and arrows come from
+   .nm-strip-scroll; this rule only lays the chips out. */
+.nm-slices { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
+.nm-slice {
+  flex-shrink: 0; font-size: 11px; font-weight: 600; font-family: var(--nm-mono);
+  padding: 2px 9px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  white-space: nowrap;
+  transition: color .14s ease, background .14s ease, border-color .14s ease;
+}
+/* Quiet by default. Twenty outlined pills read as twenty things demanding
+   attention; the only chips that earn a border are the selected one and the
+   ones this action actually wrote to. */
+.nm-slice:hover { color: var(--nm-txt); background: var(--nm-elev); }
+.nm-slice.active {
+  color: var(--nm-c-redux); background: var(--nm-c-redux-soft);
+  border-color: var(--nm-c-redux);
+}
+.nm-slice-root { color: var(--nm-faint); }
+.nm-slice-root.active { color: var(--nm-c-redux); }
+/* Changed by this action — a leading dot rather than a colour swap, so
+   "changed" and "selected" stay independently readable. */
+.nm-slice-hit { color: var(--nm-txt); }
+.nm-slice-hit::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 6px;
+  border-radius: 999px; background: var(--nm-warning); vertical-align: 1px;
+}
+
+/* Grid view of a tabular payload. */
+.nm-tv { flex: 1; min-height: 0; overflow: auto; background: var(--nm-bg); }
+.nm-tv-grid { display: grid; min-width: min-content; }
+.nm-tv-head, .nm-tv-row { display: contents; }
+.nm-tv-head > span {
+  position: sticky; top: 0; z-index: 1;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--nm-faint); background: var(--nm-surface-2);
+  padding: 5px 10px; border-bottom: 1px solid var(--nm-line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nm-td {
+  padding: 3px 10px; font-family: var(--nm-mono); font-size: 11px;
+  border-bottom: 1px solid var(--nm-line-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Hovering a row highlights the whole row even though the cells are grid
+   children with no row element of their own to hang :hover on. */
+.nm-tv-row:hover > .nm-td { background: var(--nm-elev); }
+.nm-tv-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
+.nm-tv-note { font-size: 10.5px; color: var(--nm-faint); }
 .nm-copy {
   font-size: 11px; font-weight: 600; padding: 4px 11px; border-radius: 7px; border: 1px solid var(--nm-line);
   background: var(--nm-elev); color: var(--nm-txt); cursor: pointer;
@@ -556,13 +652,61 @@ const VIEWERS = `
 .nm-nowrap { white-space: pre !important; word-break: normal !important; }
 .nm-json {
   margin: 0; flex: 1; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6;
-  font-family: var(--nm-mono); color: #cbd5e1; white-space: pre-wrap; word-break: break-word;
+  font-family: var(--nm-mono); color: var(--nm-syn-txt); white-space: pre-wrap; word-break: break-word;
 }
-.nm-key { color: #93c5fd; }
-.nm-str { color: #86efac; }
-.nm-num { color: #fbbf24; }
-.nm-bool { color: #c084fc; }
-.nm-null { color: #64748b; font-style: italic; }
+/* Foldable JSON. Same typography as the flat .nm-json above, but one row per
+   line so each can carry a gutter. The padding moves from the container to the
+   rows, so a row's hover highlight runs the full width of the pane. */
+.nm-jfold {
+  flex: 1; min-height: 0; overflow: auto; padding: 12px 0;
+  font-size: 12px; line-height: 1.6; font-family: var(--nm-mono);
+  color: var(--nm-syn-txt);
+}
+.nm-jrow { display: flex; align-items: flex-start; padding-right: 14px; }
+.nm-jrow:hover { background: var(--nm-elev); }
+.nm-jline { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+/* Wrapping off: rows size to their content so the pane scrolls sideways, and
+   the 100% floor keeps the hover highlight spanning the full scrolled width
+   instead of stopping at the shortest line. */
+.nm-jfold.nm-nowrap .nm-jrow { width: max-content; min-width: 100%; }
+.nm-jfold.nm-nowrap .nm-jline { flex: 0 0 auto; white-space: pre; word-break: normal; }
+/* Fixed-width gutter, present on every row — a caret that only occupies space
+   on foldable lines would shift the indentation of everything around it.
+
+   The triangle is drawn by CSS rather than being text inside the button: a
+   selection dragged across the pane picks up DOM text, so a caret glyph per
+   row landed in the clipboard, and what you pasted was JSON with a triangle
+   welded to the front of every foldable line. */
+.nm-jcaret {
+  flex-shrink: 0; width: 18px; padding: 0 0 0 4px; border: none; background: transparent;
+  font-family: inherit; font-size: 9px; line-height: inherit; text-align: left;
+  color: var(--nm-faint); cursor: pointer; transition: color .12s ease;
+  user-select: none; -webkit-user-select: none;
+}
+.nm-jcaret::before { content: "\\25BE"; }
+.nm-jcaret[aria-expanded="false"]::before { content: "\\25B8"; }
+.nm-jcaret-empty { cursor: default; }
+.nm-jcaret-empty::before { content: none; }
+.nm-jrow:hover .nm-jcaret { color: var(--nm-muted); }
+.nm-jcaret:hover { color: var(--nm-accent); }
+.nm-jcaret:focus-visible, .nm-jsum:focus-visible {
+  outline: 2px solid var(--nm-accent); outline-offset: -1px; border-radius: 3px;
+}
+/* The collapsed stand-in. Reads as content, not as a control, until hovered —
+   it is standing in for the lines it replaced. */
+.nm-jsum {
+  border: none; background: var(--nm-elev); color: var(--nm-faint);
+  font-family: inherit; font-size: 10.5px; line-height: 1.4;
+  padding: 0 6px; margin: 0 2px; border-radius: 5px; cursor: pointer;
+  transition: color .12s ease, background .12s ease;
+}
+.nm-jsum:hover { color: var(--nm-accent); background: var(--nm-accent-soft); }
+
+.nm-key { color: var(--nm-syn-key); }
+.nm-str { color: var(--nm-syn-str); }
+.nm-num { color: var(--nm-syn-num); }
+.nm-bool { color: var(--nm-syn-bool); }
+.nm-null { color: var(--nm-syn-null); font-style: italic; }
 
 .nm-tree { flex: 1; min-height: 0; overflow: auto; padding: 6px 0 14px; font-family: var(--nm-mono); font-size: 11.5px; line-height: 1.55; }
 .nm-tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 1px 8px 1px 0; white-space: pre-wrap; word-break: break-word; }
@@ -571,25 +715,36 @@ const VIEWERS = `
 .nm-tree-caret { display: inline-flex; width: 12px; flex-shrink: 0; color: var(--nm-faint); transition: transform .12s ease; margin-top: 2px; }
 .nm-tree-caret.open { transform: rotate(90deg); }
 .nm-tree-caret-empty { visibility: hidden; }
-.nm-tree-key { color: #93c5fd; flex-shrink: 0; }
+.nm-tree-key { color: var(--nm-syn-key); flex-shrink: 0; }
 .nm-tree-colon { color: var(--nm-faint); margin-right: 3px; }
 .nm-tree-summary { color: var(--nm-faint); font-style: italic; }
-.nm-tree-string, .nm-tree-str { color: #86efac; }
-.nm-tree-number { color: #fbbf24; }
-.nm-tree-boolean { color: #c084fc; }
-.nm-tree-null, .nm-tree-undefined { color: #64748b; font-style: italic; }
-.nm-tree-blob { color: #f0abfc; display: inline-flex; align-items: center; gap: 6px; }
-.nm-tree-trunc { color: #fbbf24; font-style: italic; }
+.nm-tree-string, .nm-tree-str { color: var(--nm-syn-str); }
+.nm-tree-number { color: var(--nm-syn-num); }
+.nm-tree-boolean { color: var(--nm-syn-bool); }
+.nm-tree-null, .nm-tree-undefined { color: var(--nm-syn-null); font-style: italic; }
+.nm-tree-blob { color: var(--nm-syn-blob); display: inline-flex; align-items: center; gap: 6px; }
+.nm-tree-trunc { color: var(--nm-warning); font-style: italic; }
 .nm-tree-chip {
   font-size: 9.5px; font-weight: 700; padding: 0 6px; border-radius: 5px; margin-left: 6px;
   border: 1px solid var(--nm-line-strong); background: var(--nm-elev); color: var(--nm-muted);
   cursor: pointer; font-family: inherit; transition: background .12s ease, color .12s ease;
 }
 .nm-tree-chip:hover { color: var(--nm-txt); background: var(--nm-elev-hover); }
-.nm-tree-more { color: var(--nm-accent); cursor: pointer; padding: 2px 0; font-size: 11px; }
+/* A real button, not a styled div: it is a control the tree's arrow keys land
+   on, and Enter has to activate it there. */
+.nm-tree-more {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  font-family: inherit; font-size: 11px; color: var(--nm-accent);
+  cursor: pointer; padding: 2px 0;
+}
 .nm-tree-more:hover { text-decoration: underline; }
+/* Inset, because the tree clips its overflow — an outline drawn outside the
+   row would be cut off at the left edge, which is exactly where the caret is. */
+.nm-tree-row:focus-visible, .nm-tree-more:focus-visible {
+  outline: 2px solid var(--nm-accent); outline-offset: -2px; border-radius: 4px;
+}
 .nm-tree-cap { padding: 10px 14px; color: var(--nm-warning); font-size: 11px; }
-.nm-mark { background: rgba(251,191,36,.32); color: inherit; border-radius: 2px; }
+.nm-mark { background: var(--nm-mark); color: inherit; border-radius: 2px; }
 `;
 
 const MENU = `
@@ -597,13 +752,21 @@ const MENU = `
   position: fixed; z-index: 2147483647; padding: 4px;
   border-radius: 11px; border: 1px solid var(--nm-line-strong);
   background: var(--nm-surface-3); color: var(--nm-txt);
-  box-shadow: 0 20px 48px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.03);
+  box-shadow: var(--nm-shadow-menu);
   animation: nm-in .12s ease-out;
+  outline: none;
+  /* The theme list is long enough to run past the bottom of a short viewport.
+     The ceiling is computed per-menu from its own anchor (see Menu.tsx); this
+     is the fallback for menus that don't set one. */
+  max-height: 70vh; overflow-y: auto;
 }
 .nm-menu-head {
   font-size: 10px; font-weight: 700; color: var(--nm-faint); padding: 5px 9px 7px;
   border-bottom: 1px solid var(--nm-line); margin-bottom: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--nm-mono);
+  /* Sticks while a long menu scrolls, so you never lose track of which menu
+     you are in. The -4px cancels the menu's own padding. */
+  position: sticky; top: -4px; z-index: 1; background: var(--nm-surface-3);
 }
 .nm-menu-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -619,6 +782,46 @@ const MENU = `
 .nm-menu-note { font-size: 10px; color: var(--nm-faint); padding: 2px 9px 6px; line-height: 1.35; }
 .nm-menu-warn { font-size: 10.5px; color: var(--nm-warning); padding: 4px 9px 8px; line-height: 1.35; }
 .nm-menu-err { color: var(--nm-error); }
+/* Group label inside a menu — quieter than a section head, since it labels a
+   run of items rather than the menu itself. */
+.nm-menu-group {
+  font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--nm-faint); padding: 7px 9px 3px;
+}
+/* Export scope. A segmented control rather than two menu items, because it is
+   a property *of* the formats below it, not a seventh thing you can pick. */
+.nm-menu-scope { display: flex; gap: 2px; padding: 3px; margin: 2px 0 4px; border-radius: 8px; background: var(--nm-sunken); }
+.nm-scope-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 4px 8px; border: none; border-radius: 6px;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.nm-scope-btn:hover { color: var(--nm-txt); }
+.nm-scope-btn.active { background: var(--nm-surface-2); color: var(--nm-accent); box-shadow: var(--nm-shadow-seg); }
+.nm-scope-btn b { font-variant-numeric: tabular-nums; font-weight: 800; }
+
+/* The chosen item, marked rather than highlighted: a menu of themes is a set
+   of radio buttons, and a hover highlight already means something else here. */
+.nm-menu-item.nm-menu-on { color: var(--nm-accent); }
+.nm-menu-check { margin-left: auto; display: inline-flex; color: var(--nm-accent); }
+
+/* ── Theme picker ──────────────────────────────────────────────────────────
+   Each row previews the theme it selects, not the theme currently applied —
+   the swatch is painted from that palette's own literal colours, which is the
+   one place in the panel where an inline colour is correct. Three chips is
+   enough to tell six themes apart: the surface you'd read code on, the accent,
+   and one identity colour. */
+.nm-swatch {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  padding: 2px; border-radius: 6px; border: 1px solid var(--nm-line-strong);
+}
+.nm-swatch-chip { width: 9px; height: 14px; }
+.nm-swatch-chip:first-child { border-radius: 3px 0 0 3px; }
+.nm-swatch-chip:last-child { border-radius: 0 3px 3px 0; }
+.nm-theme-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+.nm-theme-name { font-size: 12px; font-weight: 600; }
+.nm-theme-hint { font-size: 10px; color: var(--nm-faint); line-height: 1.3; }
 `;
 
 const MISC = `
@@ -644,12 +847,15 @@ const MISC = `
 .nm-pulse { animation: nm-pulse 1.1s ease-in-out infinite; }
 @keyframes nm-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
-.nm-scroll, .nm-tbody, .nm-headers, .nm-tree, .nm-json, .nm-frames, .nm-timing, .nm-sheet {
+.nm-scroll, .nm-tbody, .nm-headers, .nm-tree, .nm-json, .nm-jfold, .nm-frames, .nm-timing, .nm-sheet {
   overscroll-behavior: contain;
 }
+/* Firefox has no ::-webkit-scrollbar; these two properties are all it offers,
+   and without them its scrollbars ignore the theme entirely. */
+.nm-scroll { scrollbar-width: thin; scrollbar-color: var(--nm-scroll-thumb) transparent; }
 .nm-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.nm-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-.nm-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.22); background-clip: content-box; }
+.nm-scroll::-webkit-scrollbar-thumb { background: var(--nm-scroll-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+.nm-scroll::-webkit-scrollbar-thumb:hover { background: var(--nm-scroll-thumb-hover); background-clip: content-box; }
 .nm-scroll::-webkit-scrollbar-track { background: transparent; }
 
 .nm-fab:focus-visible, .nm-iconbtn:focus-visible, .nm-seg-btn:focus-visible,
@@ -658,6 +864,9 @@ const MISC = `
   outline: 2px solid var(--nm-accent); outline-offset: 2px;
 }
 .nm-trow:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
+/* Inset, unlike the rest: the slice strip clips its overflow, so an outline
+   drawn outside a chip would be sliced off at the strip's edges. */
+.nm-slice:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-fab-dock, .nm-fab-ping, .nm-zone,
@@ -674,7 +883,7 @@ const LAYOUT = `
    than one mixed table with half the cells empty. Each carries its own icon
    and identity colour (applied only to the active state, so the inactive row
    stays quiet and the active one is unambiguous). */
-.nm-sections { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: rgba(0,0,0,.2); flex-shrink: 0; }
+.nm-sections { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
 .nm-section {
   display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600;
   padding: 4px 11px 4px 8px; border: none; border-radius: 7px; background: transparent;
@@ -683,8 +892,7 @@ const LAYOUT = `
 .nm-section-ico { display: inline-flex; opacity: .8; transition: opacity .14s ease; }
 .nm-section:hover { color: var(--nm-txt); }
 .nm-section:hover .nm-section-ico { opacity: 1; }
-.nm-section.active { background: var(--nm-surface); color: var(--nm-txt); box-shadow: 0 1px 3px rgba(0,0,0,.28); }
-.nm-light .nm-section.active { box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.nm-section.active { background: var(--nm-surface); color: var(--nm-txt); box-shadow: var(--nm-shadow-seg); }
 .nm-section.active .nm-section-ico { opacity: 1; }
 .nm-section-n { font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 999px; background: var(--nm-elev); color: var(--nm-faint); font-variant-numeric: tabular-nums; }
 .nm-section-live { width: 6px; height: 6px; border-radius: 999px; background: var(--nm-success); box-shadow: 0 0 0 3px var(--nm-success-soft); }
@@ -720,6 +928,11 @@ const LAYOUT = `
   transition: background .12s ease, color .12s ease;
 }
 .nm-statusbar-btn:hover { color: var(--nm-txt); background: var(--nm-elev); }
+.nm-statusbar-pin { display: inline-flex; align-items: center; gap: 4px; }
+/* Armed for a destructive second click — the only thing in the status bar
+   allowed to shout. */
+.nm-statusbar-armed { color: var(--nm-error); font-weight: 700; }
+.nm-statusbar-armed:hover { color: var(--nm-error); background: var(--nm-error-soft); }
 
 /* Active-filter chips. */
 .nm-chips { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -727,9 +940,8 @@ const LAYOUT = `
   display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
   padding: 1px 4px 1px 7px; border-radius: 999px;
   color: var(--nm-accent); background: var(--nm-accent-soft);
-  border: 1px solid rgba(91,147,255,.28); font-family: var(--nm-mono);
+  border: 1px solid var(--nm-accent-line); font-family: var(--nm-mono);
 }
-.nm-light .nm-chip { border-color: rgba(47,111,237,.24); }
 .nm-chip-x { border: none; background: transparent; color: inherit; cursor: pointer; padding: 0 2px; opacity: .65; font-size: 11px; line-height: 1; }
 .nm-chip-x:hover { opacity: 1; }
 
@@ -788,7 +1000,13 @@ const LAYOUT = `
 .nm-frame-size { color: var(--nm-faint); text-align: right; font-variant-numeric: tabular-nums; font-size: 10px; }
 .nm-frame-body { flex: 1 1 45%; min-height: 0; border-top: 1px solid var(--nm-line); display: flex; flex-direction: column; overflow: hidden; }
 
-/* Timing breakdown. */
+/* Timing breakdown. The three phases borrow existing identity colours rather
+   than inventing a fourth palette: network time takes the Network section's
+   colour, and the two crypto phases take the two colours furthest from it. */
+.nm-timing-encrypt { --nm-phase: var(--nm-c-redux); }
+.nm-timing-network { --nm-phase: var(--nm-c-network); }
+.nm-timing-decrypt { --nm-phase: var(--nm-warning); }
+.nm-timing-seg, .nm-timing-swatch { background: var(--nm-phase); }
 .nm-timing { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
 .nm-timing-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--nm-elev); margin-bottom: 12px; }
 .nm-timing-seg { height: 100%; transition: width .2s ease; }
@@ -800,14 +1018,13 @@ const LAYOUT = `
 .nm-timing-value { color: var(--nm-txt); font-variant-numeric: tabular-nums; font-weight: 600; }
 
 /* Shortcut cheatsheet. */
-.nm-sheet-scrim { position: fixed; inset: 0; z-index: 2147483646; background: rgba(3,5,12,.55); animation: nm-fade .14s ease-out; }
-.nm-light .nm-sheet-scrim { background: rgba(15,23,42,.32); }
+.nm-sheet-scrim { position: fixed; inset: 0; z-index: 2147483646; background: var(--nm-scrim); animation: nm-fade .14s ease-out; }
 .nm-sheet {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
   z-index: 2147483647; width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow: auto;
   padding: 18px 20px; border-radius: 14px; border: 1px solid var(--nm-line-strong);
   background: var(--nm-surface-3); color: var(--nm-txt);
-  box-shadow: 0 26px 64px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.03);
+  box-shadow: var(--nm-shadow-sheet);
   animation: nm-in .16s var(--nm-ease);
 }
 .nm-sheet h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; }
@@ -821,6 +1038,10 @@ const LAYOUT = `
   box-shadow: 0 1px 0 var(--nm-line-strong);
 }
 .nm-sheet-desc { font-size: 11.5px; color: var(--nm-muted); }
+.nm-sheet-wide { grid-column: 1 / -1; line-height: 1.5; }
+/* Icons default to display:block so they never pick up line-box descenders;
+   inside a sentence they need the opposite. */
+.nm-inline-ico { display: inline-flex; vertical-align: -1px; color: var(--nm-txt); }
 .nm-sheet-close { position: absolute; top: 12px; right: 12px; }
 `;
 
@@ -869,6 +1090,13 @@ const RESPONSIVE = `
   .nm-timing-note { display: none; }
 }
 
+@container nm (max-width: 640px) {
+  /* The controls win the toolbar outright once it is this tight; the byte
+     count is the one thing there that nothing depends on. */
+  .nm-json-size { display: none; }
+  .nm-slicebar-label { display: none; }
+}
+
 @container nm (max-width: 520px) {
   .nm-brand { display: none; }
   .nm-statusbar { gap: 7px; font-size: 10px; }
@@ -903,7 +1131,12 @@ const RESPONSIVE = `
 `;
 
 export const MONITOR_STYLES = [
-  TOKENS,
+  BASE,
+  // Tokens come before anything that reads them. Ordering is not strictly
+  // required for custom properties, but it keeps the emitted stylesheet
+  // readable when inspected in the browser.
+  BASE_THEME_CSS,
+  ROLES,
   FAB,
   PANEL,
   HEADER,
@@ -915,6 +1148,4 @@ export const MONITOR_STYLES = [
   LAYOUT,
   MISC,
   RESPONSIVE,
-  // Last, so its selectors win the cascade at equal specificity.
-  LIGHT_OVERRIDES,
 ].join("\n");

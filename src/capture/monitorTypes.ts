@@ -291,6 +291,21 @@ export interface MonitorPrefs {
   /** Last pinned request; restored only if the id still resolves. */
   selectedId: string | null;
 
+  /**
+   * Panel theme — `"auto"` (follow the host app's light/dark choice) or a
+   * theme id from `ui/themes/themes.ts`.
+   *
+   * Typed as a plain string like the two settings below it, so this module
+   * stays free of any dependency on the UI layer — the panel normalizes it on
+   * read, and an id that no longer exists falls back to `"auto"`.
+   */
+  theme: string;
+
+  /** How payloads are rendered in the detail pane — tree | table | json |
+   * yaml | text. A plain string for the same reason as `theme`: this module
+   * stays free of any dependency on the UI layer. */
+  dataFormat: string;
+
   /** Active top-level section — `"network"` (HTTP) or `"realtime"` (sockets). */
   section: string;
   /** Row height preset: compact | normal | comfy. */

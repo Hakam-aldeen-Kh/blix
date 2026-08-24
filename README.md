@@ -589,6 +589,96 @@ structural typing means you just pass your store and client.)
 Passing neither still gives you a fully working capture log; you only lose the
 two features that need a live handle on the app.
 
+### Viewing payloads
+
+Every payload pane has a format switch. The choice is remembered, so you pick
+it once rather than per request.
+
+| Format | Answers |
+| --- | --- |
+| **Tree** | *What's in here?* Collapsible and searchable; a collapsed subtree costs one row, so it stays fast on multi-megabyte responses. |
+| **Table** | *How do these records compare?* A grid, offered when the payload is a list of records or a keyed map. Sparse and surplus columns are hidden with a count. |
+| **JSON** | *What exactly came back?* Raw and syntax-coloured, with a fold caret on every object and array — plus **Collapse all**, which leaves the top-level keys readable and their contents folded. |
+| **YAML** | *What shape is this?* Indentation instead of punctuation, and multi-line strings — stack traces, SQL — shown as text rather than escapes. |
+| **Text** | *It isn't JSON.* An HTML error page, a CSV body, a proxy's plain-text response. |
+
+**Copy gives you what you're looking at**: Table copies CSV, YAML copies YAML.
+
+The switch is on every payload pane — request and response bodies, realtime
+frames, the encrypted envelope, Redux actions, and both Redux state views:
+
+- **State** shows the live store, scoped by a **slice picker**. Slices the
+  selected action wrote to are marked with a dot, so "what does `cart` look
+  like now" is one click rather than a hunt through a collapsed root object.
+- **Diff** keeps its `+ / − / ±` rows as the default view and adds the other
+  five alongside. **Table** is the natural one — a diff *is* `path | op |
+  before | after` — and Tree lets you open up a `before` that was an object,
+  which the one-line rows could only ever summarise. Copying the rows view
+  gives you a plain-text diff for a ticket, not JSON.
+
+Right-click any request for **Copy as cURL** or **Copy as fetch** — the latter
+pastes straight into the browser console, with the body as an editable object
+literal rather than a pre-serialized string.
+
+### Exporting the log
+
+The ◐ toolbar's neighbour, the download button, offers six formats and a scope
+toggle — **Shown** (what the current section and filters leave visible) or
+**All**. It defaults to Shown, with both counts on the control, so an export
+says what it will contain before you pick a format.
+
+| | Format | For |
+| --- | --- | --- |
+| Tool | **HAR** | Chrome DevTools, Charles, Insomnia, Postman — with the decrypted bodies. HTTP entries only. |
+| | **JSON** | Everything captured: frames, Redux diffs, timings. |
+| | **NDJSON** | One entry per line — pipe it into `jq`. |
+| Person | **Markdown** | A table plus failure bodies, copied to the clipboard for an issue, a PR or Slack. |
+| | **CSV** | One row per entry, no bodies — sort and count in a spreadsheet. Opens as UTF-8 in Excel. |
+| Shell | **cURL script** | Every request in order, runnable against another environment. |
+
+Captured `Authorization` headers are masked, so cURL and fetch output carries a
+placeholder rather than a working token — use **Replay** for a real re-run.
+
+### Themes
+
+Twelve themes, under the ◐ button in the toolbar:
+
+| | Theme | |
+| --- | --- | --- |
+| Dark | **Midnight** | Deep blue-black — the default |
+| | **Carbon** | True black, high contrast; for OLED displays |
+| | **Nord** | Muted arctic blues |
+| | **Tokyo Night** | Deep indigo, soft neon |
+| | **One Dark** | Atom's classic slate |
+| | **Mocha** | Catppuccin — gentle pastels |
+| | **Dracula** | Vivid purples and pinks |
+| | **Gruvbox** | Warm retro browns and amber |
+| Light | **Daylight** | Clean white — the light default |
+| | **GitHub** | The light theme you already read all day |
+| | **Latte** | Catppuccin — soft pastel light |
+| | **Solar** | Warm paper, low blue light |
+
+**Hovering a theme applies it to the panel behind the menu**, so you can see a
+real payload in it before committing; moving away puts back the one you had.
+Arrow keys preview the same way.
+
+The default is **System**: the panel reads the light/dark class off `<html>`
+and paints Midnight or Daylight to match, re-checking whenever your app's theme
+changes. Picking a specific theme overrides that. The choice is stored with the
+panel's other preferences and survives a reload.
+
+The panel never inherits your app's styling — it portals outside every stacking
+context and ships its own palettes, so nothing you do to your own theme can
+distort it. Themes are complete rather than partial: every colour the panel
+paints, down to the JSON syntax highlighting and the waterfall bars, comes from
+the active theme. Each palette is checked against WCAG contrast targets — 4.5:1
+for anything read as text, 3:1 for badges and quiet chrome — which is why a few
+of the ported palettes differ by a shade from the originals in the slots used
+for dense monospace.
+
+There is no API for adding your own; a theme is ~20 colours in
+`src/ui/themes/themes.ts` if you are working from source.
+
 ### `dbName` — when you need it
 
 The panel persists its log to IndexedDB so it survives a reload. IndexedDB is

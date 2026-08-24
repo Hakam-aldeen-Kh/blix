@@ -13,12 +13,6 @@
 import type { MonitorEntry } from "../../../capture/networkMonitor";
 import { formatDuration } from "../../helpers/format";
 
-const COLORS = {
-  encrypt: "#c084fc",
-  network: "#60a5fa",
-  decrypt: "#fbbf24",
-};
-
 export function TimingTab({ entry }: { entry: MonitorEntry }) {
   const total = entry.durationMs;
 
@@ -71,11 +65,8 @@ export function TimingTab({ entry }: { entry: MonitorEntry }) {
         {rows.map((row) => (
           <span
             key={row.key}
-            className="nm-timing-seg"
-            style={{
-              width: `${pct(row.value)}%`,
-              background: COLORS[row.key],
-            }}
+            className={`nm-timing-seg nm-timing-${row.key}`}
+            style={{ width: `${pct(row.value)}%` }}
             title={`${row.label} — ${formatDuration(row.value)}`}
           />
         ))}
@@ -84,10 +75,7 @@ export function TimingTab({ entry }: { entry: MonitorEntry }) {
       <div className="nm-timing-legend">
         {rows.map((row) => (
           <div className="nm-timing-row" key={row.key}>
-            <span
-              className="nm-timing-swatch"
-              style={{ background: COLORS[row.key] }}
-            />
+            <span className={`nm-timing-swatch nm-timing-${row.key}`} />
             <span className="nm-timing-label">{row.label}</span>
             <span className="nm-timing-note">{row.note}</span>
             <span className="nm-timing-value">

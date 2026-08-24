@@ -7,7 +7,7 @@
 
 import { useContext, useLayoutEffect, useRef, useState } from "react";
 import { copyText } from "../helpers/format";
-import { toCurl } from "../services/curl";
+import { toCurl, toFetch } from "../services/snippets";
 import { canReplay, replayEntry } from "../services/replayRequest";
 import {
   canRedispatch,
@@ -144,6 +144,13 @@ export function ContextMenu({
               <button className="nm-menu-item" onClick={run(() => copyText(toCurl(entry)))}>
                 <Icon name="terminal" size={13} />
                 Copy as cURL
+              </button>
+              {/* The same request as JS, for pasting back into this app's own
+                  console — where most "does it still fail if I change one
+                  header" experiments actually happen. */}
+              <button className="nm-menu-item" onClick={run(() => copyText(toFetch(entry)))}>
+                <Icon name="terminal" size={13} />
+                Copy as fetch
               </button>
               <button
                 className="nm-menu-item"

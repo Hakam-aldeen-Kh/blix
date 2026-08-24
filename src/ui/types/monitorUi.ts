@@ -9,17 +9,58 @@ export type Tab =
   | "headers"
   | "timing"
   | "messages"
-  | "response"
   | "initiator"
   | "raw"
   | "diff"
   | "reduxState"
   | "queryState";
 
+/**
+ * How a payload is rendered. Chosen per developer, not per tab — the old
+ * split, where "Preview" meant tree and "Response" meant raw text, made format
+ * a property of *which field* you were reading rather than of *how* you wanted
+ * to read it, and showed the same data under two tabs.
+ */
+export type DataFormat = "tree" | "table" | "json" | "yaml" | "text" | "diff";
+
+/** The five formats every payload pane offers. `"diff"` is not here: it is a
+ * *view-supplied* format, valid only where a pane contributes one (the Redux
+ * Diff tab), and it falls back to the tree everywhere else. */
+export const DATA_FORMATS: DataFormat[] = ["tree", "table", "json", "yaml", "text"];
+
+/** Prefs store this as a plain string; anything unrecognized falls back. */
+export function normalizeDataFormat(value: unknown): DataFormat {
+  if (value === "diff") return "diff";
+  return DATA_FORMATS.includes(value as DataFormat) ? (value as DataFormat) : "tree";
+}
+
 /** Top-level section. Each kind of traffic has different columns and
  * different notions of a row, so they are separate views rather than one
  * mixed table with half the columns empty. */
 export type Section = "network" | "realtime" | "redux" | "query";
+
+/**
+ * What a row *is*, per section — so shared chrome can name it instead of
+ * calling everything a "request". The status bar under a table of Redux
+ * actions read "12 of 40 requests", and the detail pane's empty state said
+ * "Select a request" whichever section you were in.
+ *
+ * The plural is stored rather than derived (there is no rule that turns
+ * "query" into "queries" without a dictionary) and so is the article, which
+ * only "action" needs.
+ */
+export interface SectionNouns {
+  one: string;
+  many: string;
+  article: "a" | "an";
+}
+
+export const SECTION_NOUNS: Record<Section, SectionNouns> = {
+  network: { one: "request", many: "requests", article: "a" },
+  realtime: { one: "connection", many: "connections", article: "a" },
+  redux: { one: "action", many: "actions", article: "an" },
+  query: { one: "query", many: "queries", article: "a" },
+};
 
 export type StateFilter = "all" | MonitorState;
 

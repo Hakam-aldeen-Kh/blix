@@ -10,6 +10,7 @@ import { Icon } from "./Icon";
 export function StatusBar({
   counts,
   shown,
+  noun,
   totalBytes,
   slowestMs,
   pinnedCount,
@@ -22,6 +23,9 @@ export function StatusBar({
 }: {
   counts: Counts;
   shown: number;
+  /** What a row *is* in the active section — the bar sat under a table of
+   * Redux actions calling them "requests". */
+  noun: string;
   totalBytes: number;
   slowestMs: number;
   pinnedCount: number;
@@ -36,7 +40,7 @@ export function StatusBar({
     <div className="nm-statusbar">
       <span>
         <b>{shown}</b>
-        {shown !== counts.all && <> of {counts.all}</>} requests
+        {shown !== counts.all && <> of {counts.all}</>} {noun}
       </span>
       <span className="nm-status-transferred">
         <b>{formatBytes(totalBytes)}</b> transferred
@@ -63,11 +67,15 @@ export function StatusBar({
       )}
       {pinnedCount > 0 && (
         <button
-          className="nm-statusbar-btn"
+          className="nm-statusbar-btn nm-statusbar-pin"
           onClick={onShowPinned}
-          title="Filter to pinned requests"
+          title="Filter to pinned entries"
         >
-          📌 {pinnedCount} pinned
+          {/* The panel's own pin glyph, not the 📌 emoji this used to carry:
+              an emoji renders in the system font at a size and weight nothing
+              else in the bar shares, and looks different on every platform. */}
+          <Icon name="pin" size={11} />
+          {pinnedCount} pinned
         </button>
       )}
 
@@ -75,14 +83,15 @@ export function StatusBar({
 
       {persistedLabel && (
         <button
-          className="nm-statusbar-btn nm-status-persisted"
+          className={`nm-statusbar-btn nm-status-persisted${
+            purgeArmed ? " nm-statusbar-armed" : ""
+          }`}
           onClick={onPurge}
           title={
             purgeArmed
               ? "Click again to delete the saved log"
               : "Saved to IndexedDB — click twice to purge"
           }
-          style={purgeArmed ? { color: "#fca5a5", fontWeight: 700 } : undefined}
         >
           {purgeArmed ? "Purge saved log?" : persistedLabel}
         </button>
