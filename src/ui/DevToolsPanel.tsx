@@ -545,6 +545,38 @@ export default function DevTools() {
     return () => window.removeEventListener("pointerdown", onPointerDown, true);
   }, [open, menu, closeMenus]);
 
+  /**
+   * Pressing anywhere that is not a menu closes the open one.
+   *
+   * The handler above only fires for presses *outside the monitor root*, so
+   * with the theme picker open, clicking a request row, the toolbar or the
+   * detail pane left it hanging over the panel — it could only be dismissed
+   * with Escape or by finding its button again. While the panel is open it is
+   * the whole world as far as the developer is concerned, and click-away-to-
+   * dismiss is what every menu everywhere does.
+   *
+   * `pointerdown` in the capture phase, matching the handler above: it
+   * dismisses on press like a native menu, and a `stopPropagation` inside a
+   * menu cannot suppress it. The press is otherwise left alone — it still
+   * selects the row or hits the button underneath, rather than being eaten as
+   * a "first click just closes the menu", which costs a click every time.
+   *
+   * A press on a menu's *own trigger* is left to that button: it already
+   * toggles itself, and closing here first would have it re-open what it just
+   * closed. The row context menu has no such button, so it always goes.
+   */
+  useEffect(() => {
+    if (!menuState && !menu.menu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest(".nm-menu")) return;
+      menu.close();
+      if (!target?.closest('[aria-haspopup="menu"]')) closeMenus();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => window.removeEventListener("pointerdown", onPointerDown, true);
+  }, [menuState, menu.menu, menu.close, closeMenus]);
+
   // Keep the selected row in view. Arithmetic rather than `scrollIntoView`,
   // because a virtualized row may not be mounted at all.
   const activeRowId = selection.activeRowId;
