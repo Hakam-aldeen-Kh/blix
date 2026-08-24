@@ -598,7 +598,7 @@ it once rather than per request.
 | --- | --- |
 | **Tree** | *What's in here?* Collapsible and searchable; a collapsed subtree costs one row, so it stays fast on multi-megabyte responses. |
 | **Table** | *How do these records compare?* A grid, offered when the payload is a list of records or a keyed map. Sparse and surplus columns are hidden with a count. |
-| **JSON** | *What exactly came back?* Raw, syntax-coloured. |
+| **JSON** | *What exactly came back?* Raw and syntax-coloured, with a fold caret on every object and array — plus **Collapse all**, which leaves the top-level keys readable and their contents folded. |
 | **YAML** | *What shape is this?* Indentation instead of punctuation, and multi-line strings — stack traces, SQL — shown as text rather than escapes. |
 | **Text** | *It isn't JSON.* An HTML error page, a CSV body, a proxy's plain-text response. |
 

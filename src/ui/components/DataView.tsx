@@ -29,6 +29,7 @@
 
 import { useMemo, useState } from "react";
 import { copyText, formatBytes } from "../helpers/format";
+import { analyzeFolds } from "../helpers/jsonFold";
 import { asTable } from "../helpers/tabular";
 import { toYaml } from "../helpers/toYaml";
 import type { DataFormat } from "../types/monitorUi";
@@ -64,6 +65,9 @@ export interface ExtraFormat {
 
 /** Formats whose output is a flat block of text, and so can wrap. */
 const TEXTUAL: DataFormat[] = ["json", "yaml", "text"];
+
+/** Shared empty set, so "nothing folded" is one stable reference. */
+const EMPTY_FOLDS: ReadonlySet<string> = new Set();
 
 function jsonText(value: unknown): string {
   try {
@@ -123,8 +127,10 @@ export function DataView({
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
   extraFormat?: ExtraFormat;
-  /** Pane-specific controls, rendered into the shared toolbar so a tab does
-   * not need a second bar of its own (the Redux State tab's slice picker). */
+  /** A pane's own navigation, rendered as its own bar above the format
+   * toolbar — the Redux State tab's slice picker. Kept separate because
+   * "which part of the store am I looking at" and "how is it rendered" are
+   * different questions and should not compete for the same row. */
   children?: React.ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
@@ -161,6 +167,56 @@ export function DataView({
     [format, value],
   );
 
+  // Foldable blocks in the JSON rendering. Only JSON: the map's rules are
+  // `JSON.stringify`'s output conventions, not something general.
+  const jsonLines = useMemo(() => (json === null ? null : json.split("\n")), [json]);
+  const folds = useMemo(
+    () => (jsonLines === null ? null : analyzeFolds(jsonLines)),
+    [jsonLines],
+  );
+  /**
+   * Which blocks the reader has folded, as the paths they occupy in the value
+   * — `$.user.tags` — carried on each region by `analyzeFolds`.
+   *
+   * This is the payload tree's model, and it is here because the line-number
+   * version it replaced could not survive the text changing underneath it. The
+   * text changes constantly in one important case: the Redux **State** tab
+   * reads the live store, so every dispatched action re-serializes the whole
+   * payload. A fold addressed by line either vanished when a line shifted or
+   * landed on whatever moved into that position. A path is a fact about the
+   * structure, so `$.cart.items` stays folded while a counter ticks beside it,
+   * and a path that no longer exists simply matches nothing.
+   *
+   * `key` is the entry it belongs to, compared during render rather than
+   * cleared in an effect — an effect runs *after* the render that already drew
+   * the previous payload's folds over this one.
+   */
+  const [foldState, setFoldState] = useState<{ key: string; paths: Set<string> }>(
+    () => ({ key: entryId, paths: new Set() }),
+  );
+  const folded: ReadonlySet<string> =
+    foldState.key === entryId ? foldState.paths : EMPTY_FOLDS;
+
+  /** Blocks below the outermost one — what "Collapse all" acts on. Folding the
+   * root too would leave a single line, which is not a view of anything. */
+  const collapsible = useMemo(
+    () => (folds?.regions ?? []).filter((r) => r.depth > 0),
+    [folds],
+  );
+  const allFolded =
+    collapsible.length > 0 && collapsible.every((r) => folded.has(r.path));
+
+  const setPaths = (paths: Set<string>) => setFoldState({ key: entryId, paths });
+
+  const toggleFold = (path: string) => {
+    const paths = new Set(folded);
+    if (!paths.delete(path)) paths.add(path);
+    setPaths(paths);
+  };
+
+  const foldAll = () => setPaths(new Set(collapsible.map((r) => r.path)));
+  const unfoldAll = () => setPaths(new Set());
+
   if (value === undefined) {
     return <div className="nm-empty">— not captured —</div>;
   }
@@ -189,11 +245,17 @@ export function DataView({
   };
 
   const body = json ?? yaml?.text ?? text ?? null;
-  const lines = body ? body.split("\n").length : 0;
+  const lines = jsonLines?.length ?? (body ? body.split("\n").length : 0);
   const isTextual = TEXTUAL.includes(format);
 
   return (
     <div className="nm-json-wrap">
+      {/* Navigation sits *above* the presentation controls, not inside them.
+          Crammed into one row it squeezed the size readout into a 40px column
+          that wrapped "116 B · 10 lines" across three lines, and clipped the
+          slice names mid-word — three unrelated jobs competing for one line. */}
+      {children}
+
       <div className="nm-json-toolbar">
         <div className="nm-fmt" role="tablist" aria-label="Display format">
           {/* The pane's own view leads: it is the one this tab was designed
@@ -220,8 +282,6 @@ export function DataView({
           })}
         </div>
 
-        {children}
-
         <span className="nm-json-size">
           {body != null &&
             `${formatBytes(body.length)} · ${lines} ${lines === 1 ? "line" : "lines"}`}
@@ -231,6 +291,23 @@ export function DataView({
           {yaml?.truncated && " · truncated"}
         </span>
 
+        {/* Only JSON folds, so this only appears there. It offers Expand all
+            only once everything *is* folded: flipping the moment one block was
+            folded by hand left no way to collapse the rest without expanding
+            them all first. */}
+        {collapsible.length > 0 && (
+          <button
+            className="nm-copy"
+            onClick={allFolded ? unfoldAll : foldAll}
+            title={
+              allFolded
+                ? "Expand every collapsed object"
+                : "Collapse every object below the top level"
+            }
+          >
+            {allFolded ? "Expand all" : "Collapse all"}
+          </button>
+        )}
         {isTextual && (
           <button
             className={`nm-copy nm-toggle${wrap ? " active" : ""}`}
@@ -266,7 +343,14 @@ export function DataView({
           <div className="nm-empty">— not a list of records —</div>
         ))}
       {isTextual && body !== null && (
-        <JsonText text={body} wrap={wrap} highlight={format === "json"} />
+        <JsonText
+          text={body}
+          wrap={wrap}
+          highlight={format === "json"}
+          folds={folds}
+          folded={folded}
+          onToggleFold={toggleFold}
+        />
       )}
     </div>
   );

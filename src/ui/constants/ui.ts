@@ -131,3 +131,8 @@ export const INLINE_STRING_CAP = 200;
 export const BASE64_SNIFF_MIN = 10 * 1024;
 /** Ceiling on nodes visited while auto-expanding to search matches. */
 export const MAX_SEARCH_NODES = 20_000;
+/** Ceiling on nodes visited by an Alt-click expand/collapse of a whole
+ * subtree. Well above `MAX_RENDERED_NODES`, since expanding past the render
+ * cap is only set entries, but still bounded — the click must not walk an
+ * unbounded response. */
+export const DEEP_EXPAND_NODES = 20_000;

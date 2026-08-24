@@ -394,6 +394,14 @@ export default function DevTools() {
 
       if (!kb.current.open) return;
 
+      // Something inside the panel already acted on this key. Without this,
+      // the payload tree's arrow keys moved the tree *and* stepped the list
+      // selection underneath it — which swapped the entry out from under the
+      // tree the developer was walking. Any inner widget that handles a key
+      // now suppresses the global shortcut for it, which is the behaviour a
+      // focused control should have anyway.
+      if (e.defaultPrevented) return;
+
       if (e.key === "Escape") {
         // The context menu has its own Escape listener (`useContextMenu`)
         // that closes just the menu — without this branch, that listener and

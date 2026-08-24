@@ -19,6 +19,7 @@ import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi
 import { DiffTab } from "./tabs/DiffTab";
 import { DataView } from "./DataView";
 import { Icon } from "./Icon";
+import { ScrollStrip } from "./ScrollStrip";
 import { MessagesTab } from "./tabs/MessagesTab";
 import { TimingTab } from "./tabs/TimingTab";
 
@@ -104,10 +105,20 @@ function HeadersTable({
   );
 }
 
-/** Reads the live Redux store rather than anything captured — the entry only
- * carries a bounded diff, never a snapshot, so this is the one place a
- * developer can see the *current* full state, not just what one action
- * changed. Subscribes directly, so it updates while the tab stays open. */
+/** What a slice holds, for the chip's tooltip — a rough sense of its size
+ * without having to open it. */
+function sliceSize(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) {
+    return `${value.length} ${value.length === 1 ? "item" : "items"}`;
+  }
+  if (typeof value === "object") {
+    const n = Object.keys(value).length;
+    return `${n} ${n === 1 ? "key" : "keys"}`;
+  }
+  return typeof value;
+}
+
 /**
  * The live Redux store, scoped to one slice at a time.
  *
@@ -116,12 +127,17 @@ function HeadersTable({
  * the *current* full state and not just what one action changed. Subscribes
  * directly, so it stays live while the tab is open.
  *
- * The slice picker matters more than it looks. A real store's root object is
- * a dozen reducers deep and tens of thousands of nodes wide; rendering it
- * whole meant every visit started by collapsing things. Scoping to a slice
- * makes "show me `cart`" one click, and the slices this action actually
- * touched are marked, so the tab answers "what does the state look like *now*,
- * where this action hit" rather than making you hunt for it.
+ * **The slice picker is navigation, not a setting**, which is why it gets its
+ * own bar above the format toolbar rather than a slot inside it. A real store
+ * is a dozen reducers wide with names like `cifCorporateSlice`; sharing a row
+ * with the format switch left it clipping names mid-word and squeezing the
+ * size readout into a column narrow enough to wrap.
+ *
+ * **It opens where the action landed.** Until the developer picks a slice, the
+ * tab shows the one this action changed — the question being asked, almost
+ * always, is "what does the state look like *now*, where this action hit".
+ * Falling back to the root meant answering that by hunting through a collapsed
+ * object. An explicit pick sticks, including a pick of `root`.
  */
 function ReduxStateTab({
   entry,
@@ -135,7 +151,10 @@ function ReduxStateTab({
   onFormat: (format: DataFormat) => void;
 }) {
   const { store } = useContext(BlixContext);
-  const [slice, setSlice] = useState<string | null>(null);
+  // `undefined` is "not chosen yet" and defers to the action; `null` is an
+  // explicit choice of the root. The two must stay distinguishable or the
+  // default would fight the developer every time they clicked root.
+  const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const noop = () => () => {};
   const nullSnapshot = () => null;
   const state = useSyncExternalStore(
@@ -149,12 +168,45 @@ function ReduxStateTab({
   const isRootObject =
     typeof state === "object" && state !== null && !Array.isArray(state);
   const slices = isRootObject ? Object.keys(state as object) : [];
-  // A slice that has since been removed from the store falls back to the root
-  // rather than rendering an empty pane.
-  const active = slice && slices.includes(slice) ? slice : null;
-  const touched = new Set(entry.redux?.diff?.slices ?? []);
+  const touched = entry.redux?.diff?.slices ?? [];
 
-  const value = active ? (state as Record<string, unknown>)[active] : state;
+  // Only auto-select when the action names exactly one slice. Two or more and
+  // there is no single right answer, so the root — where all of them are
+  // visible and marked — is the honest default.
+  const suggested =
+    touched.length === 1 && slices.includes(touched[0]) ? touched[0] : null;
+  const chosen = picked === undefined ? suggested : picked;
+  // A slice that has since left the store falls back to the root rather than
+  // rendering an empty pane.
+  const active = chosen && slices.includes(chosen) ? chosen : null;
+
+  const record = state as Record<string, unknown>;
+  const value = active ? record[active] : state;
+  const hits = new Set(touched);
+
+  /** Arrow keys walk the strip, as a tablist should; Home and End jump to its
+   * ends, which is the fast way through a store too wide to see. */
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const chips = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>("button.nm-slice"),
+    );
+    const at = chips.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next =
+      e.key === "Home"
+        ? 0
+        : e.key === "End"
+          ? chips.length - 1
+          : (at + (e.key === "ArrowRight" ? 1 : -1) + chips.length) % chips.length;
+    // `preventScroll`, because the browser's focus scroll walks scrollable
+    // ancestors — including the host app's page. The click that follows moves
+    // the selection, and the strip reveals the selected chip itself.
+    chips[next]?.focus({ preventScroll: true });
+    chips[next]?.click();
+  };
 
   return (
     <DataView
@@ -166,37 +218,58 @@ function ReduxStateTab({
       format={format}
       onFormat={onFormat}
     >
-      {/* Deliberately not `nm-scroll`: that class styles a visible themed
-          scrollbar, and this strip hides its own. */}
       {slices.length > 1 && (
-        <div className="nm-slices" role="tablist" aria-label="State slice">
-          <button
-            role="tab"
-            aria-selected={active === null}
-            className={`nm-slice${active === null ? " active" : ""}`}
-            onClick={() => setSlice(null)}
-            title="The whole store"
+        <div className="nm-slicebar">
+          <span className="nm-slicebar-label">Store</span>
+          {/* Deliberately not `nm-scroll`: that class styles a visible themed
+              scrollbar, and this strip fades its clipped edges instead. */}
+          <ScrollStrip
+            className="nm-slices"
+            role="tablist"
+            label="Store slice"
+            onKeyDown={onKeyDown}
+            // The auto-selected slice is often deep in an alphabetical list of
+            // twenty; without this the tab opens on a chip nobody can see.
+            activeKey={`${entry.id}:${active ?? "$root"}`}
           >
-            root
-          </button>
-          {slices.map((name) => (
             <button
-              key={name}
               role="tab"
-              aria-selected={active === name}
-              className={`nm-slice${active === name ? " active" : ""}${
-                touched.has(name) ? " nm-slice-hit" : ""
-              }`}
-              onClick={() => setSlice(name)}
-              title={
-                touched.has(name)
-                  ? `${name} — changed by this action`
-                  : name
-              }
+              aria-selected={active === null}
+              tabIndex={active === null ? 0 : -1}
+              data-strip-active={active === null}
+              className={`nm-slice nm-slice-root${active === null ? " active" : ""}`}
+              onClick={() => setPicked(null)}
+              title={`The whole store — ${slices.length} slices`}
             >
-              {name}
+              root
             </button>
-          ))}
+            {slices.map((name) => {
+              const hit = hits.has(name);
+              return (
+                <button
+                  key={name}
+                  role="tab"
+                  aria-selected={active === name}
+                  tabIndex={active === name ? 0 : -1}
+                  data-strip-active={active === name}
+                  className={`nm-slice${active === name ? " active" : ""}${
+                    hit ? " nm-slice-hit" : ""
+                  }`}
+                  onClick={() => setPicked(name)}
+                  title={`${name} — ${sliceSize(record[name])}${
+                    hit ? " · changed by this action" : ""
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </ScrollStrip>
+          {touched.length > 0 && (
+            <span className="nm-slicebar-hint" title="Slices this action changed">
+              {touched.length} changed
+            </span>
+          )}
         </div>
       )}
     </DataView>
@@ -462,10 +535,18 @@ export function DetailPane({
         </div>
       )}
 
-      <div className="nm-tabs">
+      {/* Keyed by kind as well as tab: switching from a Redux action to an
+          HTTP request swaps the whole set, and the new active tab has to be
+          re-revealed even when its id happens to be unchanged. */}
+      <ScrollStrip
+        className="nm-tabs"
+        wrapClassName="nm-tabrow"
+        activeKey={`${kind}:${activeTab}`}
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
+            data-strip-active={activeTab === t.id}
             className={`nm-tab${activeTab === t.id ? " active" : ""}`}
             onClick={() => setTab(t.id)}
           >
@@ -475,7 +556,7 @@ export function DetailPane({
             )}
           </button>
         ))}
-      </div>
+      </ScrollStrip>
 
       <div className="nm-tab-body">
         {activeTab === "timing" && <TimingTab entry={entry} />}

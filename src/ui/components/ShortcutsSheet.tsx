@@ -41,6 +41,16 @@ export const SHORTCUT_GROUPS: {
     ],
   },
   {
+    title: "Payload tree",
+    items: [
+      { keys: ["↑", "↓"], desc: "Move through the tree" },
+      { keys: ["→"], desc: "Expand, or step into the object" },
+      { keys: ["←"], desc: "Collapse, or step out to the parent" },
+      { keys: ["Enter"], desc: "Toggle the focused object" },
+      { keys: ["Alt", "Click"], desc: "Expand or collapse everything below" },
+    ],
+  },
+  {
     title: "Capture",
     items: [
       { keys: ["Space"], desc: "Pause / resume capturing" },
@@ -94,7 +104,9 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
           <div className="nm-sheet-desc nm-sheet-wide">
             Payloads render as <b>Tree</b>, <b>Table</b>, <b>JSON</b>,{" "}
             <b>YAML</b> or <b>Text</b> — switch at the top of the pane, and{" "}
-            <b>Copy</b> gives you whichever one you are looking at. Export the
+            <b>Copy</b> gives you whichever one you are looking at. Tree and
+            JSON both fold — Alt-click a row in the Tree to open or close
+            everything under it; JSON adds <b>Collapse all</b>. Export the
             log as HAR, JSON, NDJSON, CSV, a Markdown table or a cURL script
             from the{" "}
             <span className="nm-inline-ico">

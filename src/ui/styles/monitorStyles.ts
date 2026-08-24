@@ -31,6 +31,12 @@
  * it in an RTL sweep.
  *
  * Chunked into named sections and joined once at module scope.
+ *
+ * **Never write a backtick inside these template literals** — not even inside
+ * a CSS comment. It closes the string, and the compiler then reports the
+ * error at whatever happens to follow rather than at the backtick. Refer to
+ * token names as plain words in CSS comments; the JSDoc blocks outside the
+ * literals can quote them freely.
  */
 
 import { BASE_THEME_CSS } from "../themes/themes";
@@ -434,7 +440,56 @@ const DETAIL = `
 .nm-notice-btn:hover { background: var(--nm-elev-hover); }
 .nm-empty .nm-notice-btn { margin-top: 10px; }
 
-.nm-tabs { display: flex; gap: 3px; padding: 7px 10px; border-bottom: 1px solid var(--nm-line); flex-shrink: 0; overflow-x: auto; }
+/* ── Scrolling chip strips ─────────────────────────────────────────────────
+   The tab row and the store slice picker. Both overflow routinely — eight tabs
+   in a 320px dock, twenty reducers at any width — so both get the same
+   treatment: no scrollbar stealing height from a 28px row, a fade over each
+   edge that is *actually* clipped, and arrows for pointer users, since a fade
+   says "there is more" without offering any way to reach it.
+
+   The fade widths are variables rather than four mask rules, and default to 0
+   so a strip that fits is not dimmed at all. */
+.nm-strip { position: relative; display: flex; min-width: 0; flex: 1 1 auto; }
+.nm-strip-scroll {
+  --nm-fade-s: 0px; --nm-fade-e: 0px;
+  min-width: 0; flex: 1 1 auto;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+  /* No scroll-behavior: smooth here on purpose — it would animate every wheel
+     tick, which reads as lag. The arrows opt into smooth per call instead. */
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--nm-fade-s),
+    #000 calc(100% - var(--nm-fade-e)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--nm-fade-s),
+    #000 calc(100% - var(--nm-fade-e)), transparent 100%);
+}
+.nm-strip-scroll::-webkit-scrollbar { height: 0; width: 0; }
+.nm-strip-s .nm-strip-scroll { --nm-fade-s: 26px; }
+.nm-strip-e .nm-strip-scroll { --nm-fade-e: 26px; }
+
+/* Sits over the fade, not beside it: stealing 22px of a narrow strip to park
+   an arrow would cost more chips than the arrow is worth. Hidden entirely
+   while that direction has nowhere to go, so it never offers a dead click. */
+.nm-strip-nav {
+  position: absolute; top: 0; bottom: 0; z-index: 2;
+  display: none; align-items: center; justify-content: center;
+  width: 20px; padding: 0; border: none; background: transparent;
+  color: var(--nm-muted); cursor: pointer; opacity: .75;
+  transition: opacity .14s ease, color .14s ease;
+}
+.nm-strip-nav:hover { opacity: 1; color: var(--nm-txt); }
+.nm-strip-nav-s { left: 0; }
+.nm-strip-nav-e { right: 0; }
+.nm-strip-nav-s .nm-ico { transform: rotate(180deg); }
+.nm-strip-s .nm-strip-nav-s, .nm-strip-e .nm-strip-nav-e { display: flex; }
+
+/* The rule lives on the wrapper, not the scroller: a border on a masked
+   element fades out with the chips, leaving the tab row visibly unfinished at
+   both ends. */
+/* flex: 0 0 auto overrides the strip default: the detail pane is a column,
+   where a grow factor would stretch the tab row over the payload below it. */
+.nm-tabrow { flex: 0 0 auto; border-bottom: 1px solid var(--nm-line); }
+.nm-tabs { display: flex; gap: 3px; padding: 7px 10px; }
 .nm-tab {
   font-size: 11.5px; font-weight: 600; padding: 5px 11px; border: none; background: transparent;
   color: var(--nm-muted); cursor: pointer; border-radius: 8px; white-space: nowrap;
@@ -489,7 +544,15 @@ const DETAIL = `
 const VIEWERS = `
 .nm-json-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .nm-json-toolbar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 6px 12px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
-.nm-json-size { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint); margin-right: auto; }
+/* Tertiary information: it yields its space to the controls rather than
+   competing for it. The nowrap is the part that matters — as a wrapping flex
+   item it once folded "116 B · 10 lines" onto three lines and made the whole
+   toolbar twice as tall. */
+.nm-json-size {
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint);
+  margin-right: auto; min-width: 0; flex-shrink: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* Display-format switch. Sits at the head of the payload toolbar because it
    changes what the pane below it *is*, unlike Wrap and Copy which act on
@@ -507,27 +570,53 @@ const VIEWERS = `
    one that is simply dim, and its tooltip explains why. */
 .nm-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
 
-/* Redux slice picker, hosted inside the payload toolbar. Scrolls rather than
-   wrapping: the toolbar is one row tall by design, and a store with twenty
-   reducers must not push the format switch off the top of the pane. */
-.nm-slices {
-  display: flex; align-items: center; gap: 3px; min-width: 0;
-  overflow-x: auto; overflow-y: hidden; padding: 1px 0; flex: 1 1 auto;
-  scrollbar-width: none;
+/* ── Redux store slices ────────────────────────────────────────────────────
+   Its own bar above the format toolbar. Sharing that row meant three
+   different jobs — navigation, presentation and metadata — competing for one
+   line, which clipped slice names mid-word and squeezed the size readout into
+   a column narrow enough to wrap onto three lines. */
+.nm-slicebar {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0;
+  padding: 5px 12px; border-bottom: 1px solid var(--nm-line-2);
+  background: var(--nm-surface-2);
 }
-.nm-slices::-webkit-scrollbar { height: 0; }
+.nm-slicebar-label {
+  flex-shrink: 0; font-size: 9.5px; font-weight: 800; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--nm-faint);
+}
+.nm-slicebar-hint {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 1px 7px;
+  border-radius: 999px; font-variant-numeric: tabular-nums;
+  color: var(--nm-warning); background: var(--nm-warning-soft);
+  border: 1px solid var(--nm-warning-line);
+}
+
+/* Scrolls rather than wrapping — a twenty-reducer store must not push the
+   payload off the bottom of the pane. Scrolling, fades and arrows come from
+   .nm-strip-scroll; this rule only lays the chips out. */
+.nm-slices { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
 .nm-slice {
-  flex-shrink: 0; font-size: 10.5px; font-weight: 600; font-family: var(--nm-mono);
-  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--nm-line);
-  background: var(--nm-elev); color: var(--nm-muted); cursor: pointer;
+  flex-shrink: 0; font-size: 11px; font-weight: 600; font-family: var(--nm-mono);
+  padding: 2px 9px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--nm-muted); cursor: pointer;
+  white-space: nowrap;
   transition: color .14s ease, background .14s ease, border-color .14s ease;
 }
-.nm-slice:hover { color: var(--nm-txt); border-color: var(--nm-line-strong); }
-.nm-slice.active { color: var(--nm-c-redux); background: var(--nm-c-redux-soft); border-color: var(--nm-c-redux); }
-/* A slice this action actually wrote to. Marked with a leading dot rather
-   than a colour swap, so it reads as "changed" independently of "selected". */
+/* Quiet by default. Twenty outlined pills read as twenty things demanding
+   attention; the only chips that earn a border are the selected one and the
+   ones this action actually wrote to. */
+.nm-slice:hover { color: var(--nm-txt); background: var(--nm-elev); }
+.nm-slice.active {
+  color: var(--nm-c-redux); background: var(--nm-c-redux-soft);
+  border-color: var(--nm-c-redux);
+}
+.nm-slice-root { color: var(--nm-faint); }
+.nm-slice-root.active { color: var(--nm-c-redux); }
+/* Changed by this action — a leading dot rather than a colour swap, so
+   "changed" and "selected" stay independently readable. */
+.nm-slice-hit { color: var(--nm-txt); }
 .nm-slice-hit::before {
-  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 5px;
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 6px;
   border-radius: 999px; background: var(--nm-warning); vertical-align: 1px;
 }
 
@@ -565,6 +654,54 @@ const VIEWERS = `
   margin: 0; flex: 1; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6;
   font-family: var(--nm-mono); color: var(--nm-syn-txt); white-space: pre-wrap; word-break: break-word;
 }
+/* Foldable JSON. Same typography as the flat .nm-json above, but one row per
+   line so each can carry a gutter. The padding moves from the container to the
+   rows, so a row's hover highlight runs the full width of the pane. */
+.nm-jfold {
+  flex: 1; min-height: 0; overflow: auto; padding: 12px 0;
+  font-size: 12px; line-height: 1.6; font-family: var(--nm-mono);
+  color: var(--nm-syn-txt);
+}
+.nm-jrow { display: flex; align-items: flex-start; padding-right: 14px; }
+.nm-jrow:hover { background: var(--nm-elev); }
+.nm-jline { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+/* Wrapping off: rows size to their content so the pane scrolls sideways, and
+   the 100% floor keeps the hover highlight spanning the full scrolled width
+   instead of stopping at the shortest line. */
+.nm-jfold.nm-nowrap .nm-jrow { width: max-content; min-width: 100%; }
+.nm-jfold.nm-nowrap .nm-jline { flex: 0 0 auto; white-space: pre; word-break: normal; }
+/* Fixed-width gutter, present on every row — a caret that only occupies space
+   on foldable lines would shift the indentation of everything around it.
+
+   The triangle is drawn by CSS rather than being text inside the button: a
+   selection dragged across the pane picks up DOM text, so a caret glyph per
+   row landed in the clipboard, and what you pasted was JSON with a triangle
+   welded to the front of every foldable line. */
+.nm-jcaret {
+  flex-shrink: 0; width: 18px; padding: 0 0 0 4px; border: none; background: transparent;
+  font-family: inherit; font-size: 9px; line-height: inherit; text-align: left;
+  color: var(--nm-faint); cursor: pointer; transition: color .12s ease;
+  user-select: none; -webkit-user-select: none;
+}
+.nm-jcaret::before { content: "\\25BE"; }
+.nm-jcaret[aria-expanded="false"]::before { content: "\\25B8"; }
+.nm-jcaret-empty { cursor: default; }
+.nm-jcaret-empty::before { content: none; }
+.nm-jrow:hover .nm-jcaret { color: var(--nm-muted); }
+.nm-jcaret:hover { color: var(--nm-accent); }
+.nm-jcaret:focus-visible, .nm-jsum:focus-visible {
+  outline: 2px solid var(--nm-accent); outline-offset: -1px; border-radius: 3px;
+}
+/* The collapsed stand-in. Reads as content, not as a control, until hovered —
+   it is standing in for the lines it replaced. */
+.nm-jsum {
+  border: none; background: var(--nm-elev); color: var(--nm-faint);
+  font-family: inherit; font-size: 10.5px; line-height: 1.4;
+  padding: 0 6px; margin: 0 2px; border-radius: 5px; cursor: pointer;
+  transition: color .12s ease, background .12s ease;
+}
+.nm-jsum:hover { color: var(--nm-accent); background: var(--nm-accent-soft); }
+
 .nm-key { color: var(--nm-syn-key); }
 .nm-str { color: var(--nm-syn-str); }
 .nm-num { color: var(--nm-syn-num); }
@@ -593,8 +730,19 @@ const VIEWERS = `
   cursor: pointer; font-family: inherit; transition: background .12s ease, color .12s ease;
 }
 .nm-tree-chip:hover { color: var(--nm-txt); background: var(--nm-elev-hover); }
-.nm-tree-more { color: var(--nm-accent); cursor: pointer; padding: 2px 0; font-size: 11px; }
+/* A real button, not a styled div: it is a control the tree's arrow keys land
+   on, and Enter has to activate it there. */
+.nm-tree-more {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  font-family: inherit; font-size: 11px; color: var(--nm-accent);
+  cursor: pointer; padding: 2px 0;
+}
 .nm-tree-more:hover { text-decoration: underline; }
+/* Inset, because the tree clips its overflow — an outline drawn outside the
+   row would be cut off at the left edge, which is exactly where the caret is. */
+.nm-tree-row:focus-visible, .nm-tree-more:focus-visible {
+  outline: 2px solid var(--nm-accent); outline-offset: -2px; border-radius: 4px;
+}
 .nm-tree-cap { padding: 10px 14px; color: var(--nm-warning); font-size: 11px; }
 .nm-mark { background: var(--nm-mark); color: inherit; border-radius: 2px; }
 `;
@@ -699,7 +847,7 @@ const MISC = `
 .nm-pulse { animation: nm-pulse 1.1s ease-in-out infinite; }
 @keyframes nm-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
-.nm-scroll, .nm-tbody, .nm-headers, .nm-tree, .nm-json, .nm-frames, .nm-timing, .nm-sheet {
+.nm-scroll, .nm-tbody, .nm-headers, .nm-tree, .nm-json, .nm-jfold, .nm-frames, .nm-timing, .nm-sheet {
   overscroll-behavior: contain;
 }
 /* Firefox has no ::-webkit-scrollbar; these two properties are all it offers,
@@ -716,6 +864,9 @@ const MISC = `
   outline: 2px solid var(--nm-accent); outline-offset: 2px;
 }
 .nm-trow:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
+/* Inset, unlike the rest: the slice strip clips its overflow, so an outline
+   drawn outside a chip would be sliced off at the strip's edges. */
+.nm-slice:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-fab-dock, .nm-fab-ping, .nm-zone,
@@ -937,6 +1088,13 @@ const RESPONSIVE = `
   /* The timing legend loses its explanatory note column. */
   .nm-timing-row { grid-template-columns: 12px 1fr auto; }
   .nm-timing-note { display: none; }
+}
+
+@container nm (max-width: 640px) {
+  /* The controls win the toolbar outright once it is this tight; the byte
+     count is the one thing there that nothing depends on. */
+  .nm-json-size { display: none; }
+  .nm-slicebar-label { display: none; }
 }
 
 @container nm (max-width: 520px) {

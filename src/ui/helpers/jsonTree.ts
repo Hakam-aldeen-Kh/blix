@@ -13,6 +13,7 @@ import {
   AUTO_DEPTH,
   AUTO_NODE_BUDGET,
   BASE64_SNIFF_MIN,
+  DEEP_EXPAND_NODES,
   MAX_SEARCH_NODES,
 } from "../constants/ui";
 
@@ -77,8 +78,57 @@ export function isLargeBase64(value: string): boolean {
   return /^[A-Za-z0-9+/\r\n=]+$/.test(sample);
 }
 
+/**
+ * The path a child is addressed by.
+ *
+ * Keys are escaped, which is not decoration: expansion state is a set of these
+ * strings, so two different nodes sharing one path share one open/closed bit.
+ * Unescaped, `{ a: { b: … } }` and `{ "a.b": … }` both produce `$.a.b`, and
+ * opening one silently opens the other. Dotted keys are common enough in real
+ * payloads — form paths, i18n keys, Redux slices named `user.profile` — for
+ * that to be a bug people actually hit.
+ */
 export function childPath(parent: string, key: string | number): string {
-  return typeof key === "number" ? `${parent}[${key}]` : `${parent}.${key}`;
+  if (typeof key === "number") return `${parent}[${key}]`;
+  return `${parent}.${key.replace(/[\\.[]/g, (c) => `\\${c}`)}`;
+}
+
+/**
+ * Every expandable path in a subtree, including its root — what an Alt-click
+ * expands or collapses in one go.
+ *
+ * Bounded by `limit` visited nodes: a deep expand of a 200 MB response should
+ * cost a bounded walk and a bounded set, not a hang. Past the bound the walk
+ * stops, which leaves the deepest nodes at whatever state they already had —
+ * the visible result is the same, since rendering caps out long before this.
+ */
+export function subtreePaths(
+  root: unknown,
+  rootPath: string,
+  limit = DEEP_EXPAND_NODES,
+): Set<string> {
+  const out = new Set<string>();
+  let visited = 0;
+
+  const visit = (value: unknown, path: string) => {
+    if (visited++ >= limit || !isExpandable(value)) return;
+    out.add(path);
+
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i += 1) {
+        if (visited >= limit) return;
+        visit(value[i], childPath(path, i));
+      }
+      return;
+    }
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (visited >= limit) return;
+      visit(child, childPath(path, key));
+    }
+  };
+
+  visit(root, rootPath);
+  return out;
 }
 
 /**
@@ -124,7 +174,9 @@ export function defaultExpansion(root: unknown, rootPath = "$"): Set<string> {
  */
 export function countVisible(
   root: unknown,
-  expanded: Set<string>,
+  /** Same predicate the tree renders with — a set can no longer express it,
+   * since an explicit collapse has to beat a search match. */
+  isOpen: (path: string) => boolean,
   shown: Map<string, number>,
   limit: number,
   rootPath = "$",
@@ -134,7 +186,7 @@ export function countVisible(
   const visit = (value: unknown, path: string) => {
     if (count >= limit) return;
     count += 1;
-    if (!expanded.has(path) || !isExpandable(value)) return;
+    if (!isOpen(path) || !isExpandable(value)) return;
 
     if (Array.isArray(value)) {
       const cap = Math.min(value.length, shown.get(path) ?? ARRAY_PAGE);
