@@ -848,7 +848,7 @@ With preserve-log on, this is what is kept:
 | HTTP entries — bodies, headers, timings | yes |
 | Realtime frames | yes |
 | The encrypted envelope, if you call `captureEncrypted` | yes |
-| Panel preferences and budget totals | yes |
+| Panel preferences and budget totals | yes — preferences are also mirrored to `localStorage` |
 | Redux actions, payloads and diffs | only if you pin the row |
 | Query cache rows | only if you pin the row |
 
@@ -870,8 +870,9 @@ people out, and `proxy-authorization`, `x-csrf-token` and
 `x-amz-security-token` are equally uncovered. If your auth travels in a header
 that is not one of the four above, it is captured verbatim.
 
-Masking is partial rather than total: the first 8 and last 4 characters of the
-real value survive, so you can still tell which token you sent.
+Masking is partial rather than total: for a value longer than 12 characters
+the first 8 and last 4 survive, so you can still tell which token you sent.
+Shorter values are replaced outright.
 
 **Nothing inside a body is redacted.** Request bodies, response bodies, error
 payloads, the encrypted request/response values, Redux payloads and diffs, and
@@ -896,14 +897,26 @@ records or 24 MB of newer traffic push it out, or when you clear it yourself.
 On a low-traffic app with preserve-log left on, a captured token stays in the
 browser profile indefinitely.
 
+> **Realtime frames are an exception to the size bound.** They are stored
+> without truncation and are under-counted against the byte budget — a record
+> is charged a flat allowance regardless of how many frames it carries, and a
+> connection can hold hundreds. A long-lived realtime session can therefore
+> occupy considerably more on disk than the 24 MB figure implies, and eviction
+> will not reclaim it. The record and size caps hold for HTTP entries.
+> Tracked in [#N](https://github.com/Hakam-aldeen-Kh/blix/issues/N).
+
 To purge, use the persisted-size label in the status bar — the one reading
 `12 saved · 3.4 MB`. It is the control: click once to arm it, at which point
 it changes to `Purge saved log?`, and click again to delete the database.
 
-**The purge control is only rendered while preserve-log is on.** If you
-captured a session and *then* switched the toggle off, there is no purge
-control left in the UI to find, and there is no programmatic API for it
-either. Purge first, then switch off.
+Switching preserve-log **off** also clears the stored entries, so turning it
+off is itself a way to drop everything Blix has written. What survives is the
+database and your panel preferences, not the captured bodies.
+
+**The purge control is only rendered while preserve-log is on**, so once you
+have switched it off there is nothing left in the UI to press — and there is
+no programmatic API for it either. Use Purge when you want the database gone
+outright; switch off when clearing the entries is enough.
 
 ### Threat model
 
