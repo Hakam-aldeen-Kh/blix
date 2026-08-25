@@ -8,7 +8,7 @@ a dockable panel with a waterfall, diffing, replay and HAR/cURL export.
 The entire panel is eliminated from production builds — see
 [Production elimination](#production-elimination).
 
-Release notes are in [CHANGELOG.md](CHANGELOG.md).
+Release notes are in [CHANGELOG.md](https://github.com/Hakam-aldeen-Kh/blix/blob/main/CHANGELOG.md).
 
 ---
 
@@ -830,8 +830,10 @@ Three ways to toggle it:
 | Where | Note |
 | --- | --- |
 | Toolbar button | Hidden in the compact layout |
-| **⋯ More actions** overflow menu | Always available |
-| `Shift+L` | Always available |
+| **⋯ More actions** overflow menu | — |
+| `Shift+L` | — |
+
+All three require the panel to be mounted.
 
 **Turning it on is retroactive.** The toggle does not mean "from now on".
 Switching it on writes every entry already sitting in the live buffer — the
@@ -887,7 +889,7 @@ for your payloads and no way to tell a secret from any other string.
 | Bound | Value |
 | --- | --- |
 | Records | 200 |
-| Total size | 24 MB |
+| Total size | 24 MB — HTTP entries only |
 | Per payload field | 512 KB |
 | Eviction | oldest first, once either bound is exceeded |
 | Time-based expiry | none |
@@ -897,26 +899,21 @@ records or 24 MB of newer traffic push it out, or when you clear it yourself.
 On a low-traffic app with preserve-log left on, a captured token stays in the
 browser profile indefinitely.
 
-> **Realtime frames are an exception to the size bound.** They are stored
-> without truncation and are under-counted against the byte budget — a record
-> is charged a flat allowance regardless of how many frames it carries, and a
-> connection can hold hundreds. A long-lived realtime session can therefore
-> occupy considerably more on disk than the 24 MB figure implies, and eviction
-> will not reclaim it. The record and size caps hold for HTTP entries.
-> Tracked in [#N](https://github.com/Hakam-aldeen-Kh/blix/issues/N).
-
 To purge, use the persisted-size label in the status bar — the one reading
 `12 saved · 3.4 MB`. It is the control: click once to arm it, at which point
 it changes to `Purge saved log?`, and click again to delete the database.
 
 Switching preserve-log **off** also clears the stored entries, so turning it
-off is itself a way to drop everything Blix has written. What survives is the
-database and your panel preferences, not the captured bodies.
+off is itself a way to drop everything Blix has written.
+
+Both paths clear the captured entries; Purge additionally deletes the
+IndexedDB database itself. **Your panel preferences survive either way** —
+they are mirrored to `localStorage`, and a fresh database is re-seeded from
+that mirror on the next boot. There is no UI or API for clearing them.
 
 **The purge control is only rendered while preserve-log is on**, so once you
-have switched it off there is nothing left in the UI to press — and there is
-no programmatic API for it either. Use Purge when you want the database gone
-outright; switch off when clearing the entries is enough.
+have switched it off there is nothing left in the UI to press. There is no
+programmatic API for either path.
 
 ### Threat model
 
@@ -931,7 +928,7 @@ Export and copy move captured data out of the browser entirely:
 | --- | --- |
 | HAR export | Decrypted request and response bodies |
 | JSON / NDJSON export | Everything captured — frames, Redux diffs, timings |
-| **Copy as cURL** / **Copy as fetch** | Headers and bodies, with `Authorization` masked — so the output is not a working request |
+| **Copy as cURL** / **Copy as fetch** | Headers and bodies, with the four redacted headers masked — so the output is not a working request |
 
 HAR is the one to watch. It is a plain JSON file carrying your decrypted
 bodies, and it is the artifact most likely to end up attached to a ticket.
@@ -941,8 +938,9 @@ bodies, and it is the artifact most likely to end up attached to a ticket.
 - **Leave preserve-log off unless you actively need it.** It is off by
   default. In-memory capture already gives you the entire panel; the toggle
   buys you nothing but survival across a reload.
-- **Purge after any session that captured an auth flow** — and purge *before*
-  you switch preserve-log back off, or the control disappears on you.
+- **Clear the log after any session that captured an auth flow** —
+  switching preserve-log off is enough; Purge additionally deletes the
+  database, though neither removes your panel preferences.
 - **Use the Redux `ignore` option** for action types that carry credentials or
   personal data, so they are never captured in the first place. See
   [Redux](#redux--createreduxmonitormiddlewareoptions).
@@ -973,4 +971,4 @@ The `/capture` entry exports `attachHttpMonitor`, `captureEncrypted`,
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE).

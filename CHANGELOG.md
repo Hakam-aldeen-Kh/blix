@@ -5,7 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2026-08-24
+## [0.4.2] - 2026-08-25
+
+Documentation and packaging only — no code change.
+
+### Changed
+
+- Corrected the Security section on clearing: switching preserve-log off
+  already clears the stored entries, and panel preferences survive both that
+  and a Purge, since they are mirrored to `localStorage`.
+- Scoped the 24 MB retention cap to HTTP entries. Realtime frames are stored
+  untruncated and under-counted against the byte budget, so the cap does not
+  bound them.
+- Clarified header masking: values of 12 characters or fewer are replaced
+  entirely rather than partially masked.
+- Noted that panel preferences are mirrored to `localStorage` in addition to
+  IndexedDB.
+- The preserve-log toggles all require the panel to be mounted.
+- CHANGELOG and LICENSE links in the README are now absolute, so they resolve
+  from the npm package page.
+- `CHANGELOG.md` is no longer included in the published package. The README
+  links to it on GitHub instead.
+
+## [0.4.1] - 2026-08-25
 
 ### Changed
 
