@@ -1,6 +1,6 @@
 {
   "name": "@hakam-aldeen-kh/blix",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Dev-tools panel for React apps — HTTP, Redux, Query and Realtime monitoring.",
   "keywords": [
     "devtools",
@@ -63,7 +63,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=18"

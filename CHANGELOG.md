@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-24
+
+### Changed
+
+- Documentation only — no code change.
+- Added a Security section documenting what Blix captures, what reaches
+  IndexedDB and when, the four redacted header names, retention limits and
+  how to purge.
+- Documented `preserve-log`: its default, the three toggles, and that
+  switching it on writes the session already in the buffer.
+- Corrected the `dbName` section, which claimed the log persists across a
+  reload by default. It does not — persistence is opt-in.
+- Noted that the package is ESM-only.
+- Added `SECURITY.md`.
+
 ## [0.4.0] - 2026-08-24
 
 Identical in code to 0.3.3. It exists only to correct the version number: 0.3.3
