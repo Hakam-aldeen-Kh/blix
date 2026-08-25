@@ -32,6 +32,13 @@ while resolving that import. devDependencies have to be present at build time.
 Dropping them from the final runtime image is fine: nothing from Blix reaches
 the production output anyway.
 
+The package ships **ESM only**. Both entry points declare `"types"` and
+`"import"` in `exports`, with no `"require"` and no `"default"` fallback, so
+`require("@hakam-aldeen-kh/blix")` and CJS-only tooling — an older Jest config
+is the usual one — fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`. That is by
+design, not a packaging bug: a dev tool that is eliminated from production has
+no reason to carry a second build output.
+
 ### Peer dependencies
 
 `react` and `react-dom` (v19) are required. `axios`, `@reduxjs/toolkit` and
@@ -351,12 +358,14 @@ as a bounded hex preview plus byte length). They go through the same
 serialization and truncation rules as the plaintext bodies, both in the panel
 and in IndexedDB, so a multi-megabyte ciphertext cannot blow out the log.
 
-> **Redaction.** Blix masks sensitive *headers* (`authorization`, `cookie`, …).
-> It does **not**, and cannot, redact anything inside the values you pass here
-> — they are bodies, and Blix has no way to tell ciphertext from plaintext. If
-> you pass an already-decrypted body as `response`, whatever secrets it
-> contains are shown in the panel verbatim and written to IndexedDB when
-> preserve-log is on. Pass the wire form, not the decrypted one.
+> **Redaction.** Blix masks sensitive *headers* — and the list is closed at
+> exactly four, matched exactly: `authorization`, `cookie`, `set-cookie`,
+> `x-api-key`. It does **not**, and cannot, redact anything inside the values
+> you pass here — they are bodies, and Blix has no way to tell ciphertext from
+> plaintext. If you pass an already-decrypted body as `response`, whatever
+> secrets it contains are shown in the panel verbatim and written to IndexedDB
+> when preserve-log is on. Pass the wire form, not the decrypted one. See
+> [Security](#security) for the full picture.
 
 #### `withInitiatorCapture(instance)`
 
@@ -684,11 +693,15 @@ There is no API for adding your own; a theme is ~20 colours in
 
 ### `dbName` — when you need it
 
-The panel persists its log to IndexedDB so it survives a reload. IndexedDB is
-scoped **per origin**, not per app — so two apps served from the same origin
-(different ports in dev are different origins, but path-based routing,
-multi-zone Next.js setups and anything behind one reverse proxy are not) both
-open `nm-devtools` and interleave their logs into one database.
+The panel can persist its log to IndexedDB so it survives a reload, but only
+when you opt in: **preserve-log is off by default**, and while it is off
+nothing is written to disk. See [Security](#security) for what the toggle does
+and what lands there.
+
+IndexedDB is scoped **per origin**, not per app — so two apps served from the
+same origin (different ports in dev are different origins, but path-based
+routing, multi-zone Next.js setups and anything behind one reverse proxy are
+not) both open `nm-devtools` and interleave their logs into one database.
 
 Give each app its own name to keep them separate:
 
@@ -785,6 +798,143 @@ Two rules for writing the guard:
 `createReduxMonitorMiddleware` needs the middleware callback restructured
 rather than a one-line guard — see the [Redux](#redux--createreduxmonitormiddlewareoptions)
 example above, which is written in the guarded form.
+
+---
+
+## Security
+
+Blix is a debugger, and it captures what a debugger has to capture: **full
+request and response bodies, request and response headers, Redux action
+payloads and state diffs, and realtime frames**. It captures them in
+plaintext — the request body *before* your encryption interceptor runs, the
+response body *after* your decryption interceptor. That is the whole point of
+it, and it means the log holds whatever your traffic holds, credentials
+included.
+
+By default all of that is **in memory only**. Nothing is written to disk, and
+a reload starts clean.
+
+All of it is dev-only regardless. Capture is gated on
+`process.env.NODE_ENV === "development" && typeof window !== "undefined"`, and
+the database is opened only when the panel mounts — see
+[Production elimination](#production-elimination).
+
+### What reaches disk, and when
+
+**Preserve-log** is the sole gate on disk writes. It is off by default, and
+while it is off nothing Blix captures reaches IndexedDB — the store is
+actively cleared on every panel mount.
+
+Three ways to toggle it:
+
+| Where | Note |
+| --- | --- |
+| Toolbar button | Hidden in the compact layout |
+| **⋯ More actions** overflow menu | Always available |
+| `Shift+L` | Always available |
+
+**Turning it on is retroactive.** The toggle does not mean "from now on".
+Switching it on writes every entry already sitting in the live buffer — the
+session you have *already* captured — to disk immediately, along with
+everything that follows. If you have just reproduced a login flow and then
+reach for the toggle, you have written that login flow to disk. Read that
+again before you assume otherwise; it is the one behaviour here that
+reasonably surprises people.
+
+With preserve-log on, this is what is kept:
+
+| Captured | Persisted |
+| --- | --- |
+| HTTP entries — bodies, headers, timings | yes |
+| Realtime frames | yes |
+| The encrypted envelope, if you call `captureEncrypted` | yes |
+| Panel preferences and budget totals | yes |
+| Redux actions, payloads and diffs | only if you pin the row |
+| Query cache rows | only if you pin the row |
+
+### What is redacted
+
+Exactly four header names, and nothing else:
+
+| Header | Match |
+| --- | --- |
+| `authorization` | exact, case-insensitive |
+| `cookie` | exact, case-insensitive |
+| `set-cookie` | exact, case-insensitive |
+| `x-api-key` | exact, case-insensitive |
+
+The match is **exact on the full header name** — not a prefix, not a
+substring, not a pattern. Near-miss names are *not* covered and are written in
+the clear: `x-auth-token` and `api-key` are the two that most often catch
+people out, and `proxy-authorization`, `x-csrf-token` and
+`x-amz-security-token` are equally uncovered. If your auth travels in a header
+that is not one of the four above, it is captured verbatim.
+
+Masking is partial rather than total: the first 8 and last 4 characters of the
+real value survive, so you can still tell which token you sent.
+
+**Nothing inside a body is redacted.** Request bodies, response bodies, error
+payloads, the encrypted request/response values, Redux payloads and diffs, and
+realtime frames all pass through a size-only walker — it truncates large
+values and never once inspects a key name. A `password`, `ssn` or
+`refreshToken` field is captured, and with preserve-log on written to disk,
+exactly as it appears. Blix has no mechanism to do otherwise: it has no schema
+for your payloads and no way to tell a secret from any other string.
+
+### Retention and clearing
+
+| Bound | Value |
+| --- | --- |
+| Records | 200 |
+| Total size | 24 MB |
+| Per payload field | 512 KB |
+| Eviction | oldest first, once either bound is exceeded |
+| Time-based expiry | none |
+
+There is **no TTL of any kind**. A record leaves the database when 200 newer
+records or 24 MB of newer traffic push it out, or when you clear it yourself.
+On a low-traffic app with preserve-log left on, a captured token stays in the
+browser profile indefinitely.
+
+To purge, use the persisted-size label in the status bar — the one reading
+`12 saved · 3.4 MB`. It is the control: click once to arm it, at which point
+it changes to `Purge saved log?`, and click again to delete the database.
+
+**The purge control is only rendered while preserve-log is on.** If you
+captured a session and *then* switched the toggle off, there is no purge
+control left in the UI to find, and there is no programmatic API for it
+either. Purge first, then switch off.
+
+### Threat model
+
+IndexedDB is scoped **per origin, not per app**, and it is not encrypted at
+rest. Any script running on that origin can read Blix's database — including
+browser extension content scripts with access to the origin. Whatever you
+capture is readable by whatever you have installed.
+
+Export and copy move captured data out of the browser entirely:
+
+| Path | Carries |
+| --- | --- |
+| HAR export | Decrypted request and response bodies |
+| JSON / NDJSON export | Everything captured — frames, Redux diffs, timings |
+| **Copy as cURL** / **Copy as fetch** | Headers and bodies, with `Authorization` masked — so the output is not a working request |
+
+HAR is the one to watch. It is a plain JSON file carrying your decrypted
+bodies, and it is the artifact most likely to end up attached to a ticket.
+
+### If you handle sensitive data
+
+- **Leave preserve-log off unless you actively need it.** It is off by
+  default. In-memory capture already gives you the entire panel; the toggle
+  buys you nothing but survival across a reload.
+- **Purge after any session that captured an auth flow** — and purge *before*
+  you switch preserve-log back off, or the control disappears on you.
+- **Use the Redux `ignore` option** for action types that carry credentials or
+  personal data, so they are never captured in the first place. See
+  [Redux](#redux--createreduxmonitormiddlewareoptions).
+- **Treat an exported HAR as a credential-bearing file.** Do not attach one to
+  a public issue, and do not commit one.
 
 ---
 
