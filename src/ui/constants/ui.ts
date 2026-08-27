@@ -17,15 +17,22 @@
  */
 export type Density = "compact" | "normal" | "comfy";
 
+/* Two lines of content now sit in the duration column — the number and its
+ * bar — so the floor is a few pixels taller than it was when every cell was a
+ * single line. */
 export const DENSITY_ROW_H: Record<Density, number> = {
-  compact: 22,
-  normal: 26,
-  comfy: 32,
+  compact: 26,
+  normal: 30,
+  comfy: 36,
 };
 
 /** Default row height; used where density isn't threaded through. */
 export const ROW_H = DENSITY_ROW_H.normal;
 export const OVERSCAN = 8;
+
+/** Sources rail, expanded and icons-only. */
+export const RAIL_W = 178;
+export const RAIL_W_MINI = 52;
 
 export const MIN_W = 440;
 export const MIN_H = 340;

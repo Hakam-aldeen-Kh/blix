@@ -772,6 +772,9 @@ export function themeTokens(p: Palette): Record<string, string> {
     "--nm-syn-bool": p.syntax.bool,
     "--nm-syn-null": p.syntax.nul,
     "--nm-syn-blob": p.syntax.blob,
+    /* The blob colour also marks ciphertext outside the viewer — the Encrypted
+       tab's badge — so it needs the same soft companion every badge colour has. */
+    "--nm-syn-blob-soft": soft(p.syntax.blob),
     "--nm-mark": alpha(p.warning, dark ? 0.32 : 0.28),
 
     "--nm-wf-track": ov(dark ? 0.05 : 0.07),

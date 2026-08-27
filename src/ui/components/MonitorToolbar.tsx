@@ -1,46 +1,35 @@
 "use client";
 
-/** Dev Tools — header bar: section tabs, search, capture controls, dock
- * switcher, window controls. Doubles as the drag handle in float mode. */
+/**
+ * Dev Tools — the header bar.
+ *
+ * One 38px row for everything that is true of the *session* rather than of one
+ * entry: whether capture is running, what is being filtered out, and where the
+ * panel lives. Which of the four sources you are reading moved to the rail —
+ * that is navigation, and as four tabs here it competed with the filter field
+ * for width on every dock.
+ *
+ * The two things a developer glances at mid-debug get words rather than
+ * glyphs: capture state ("Capturing" / "Paused") and preserve-log. Everything
+ * else is a quiet pill, and the ones that open a menu report their position
+ * upward instead of rendering it — a `position: fixed` menu nested here would
+ * resolve its offsets against the viewport, not the button.
+ */
 
 import type { DockMode, MonitorState } from "../../capture/monitorTypes";
 import { useRef } from "react";
-import type { Density } from "../constants/ui";
-import type { Section } from "../types/monitorUi";
-import { Icon, type IconName } from "./Icon";
+import { Icon } from "./Icon";
 import type { MenuAnchor } from "./Menu";
-
-/** Top-level sections, in display/hotkey order. Each gets its own icon and
- * (via the `nm-section-{id}` class) its own accent colour — see `--nm-c-*` in
- * `styles/monitorStyles.ts` — so which world you're in reads at a glance
- * without having to read the label. */
-export const SECTION_DEFS: {
-  id: Section;
-  label: string;
-  hotkey: "1" | "2" | "3" | "4";
-  title: string;
-  icon: IconName;
-}[] = [
-  { id: "network", label: "Network", hotkey: "1", title: "HTTP requests (1)", icon: "network" },
-  { id: "realtime", label: "Realtime", hotkey: "2", title: "WebSocket / ActionCable connections (2)", icon: "bolt" },
-  { id: "redux", label: "Redux", hotkey: "3", title: "Redux actions (3)", icon: "stack" },
-  { id: "query", label: "Query", hotkey: "4", title: "TanStack Query cache activity (4)", icon: "database" },
-];
 
 export interface ToolbarProps {
   /** Worst state currently in the buffer — colours the brand dot. */
   dotState: MonitorState;
-  section: Section;
-  onSection: (section: Section) => void;
-  /** Row count per section, for the tab badges. */
-  counts: Record<Section, number>;
-  /** Which sections show a "something is live" dot — an open socket, or a
-   * query currently fetching. */
-  live: Partial<Record<Section, boolean>>;
   query: string;
   onQuery: (value: string) => void;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onSearchFocus: (focused: boolean) => void;
+  /** Parsed filter tokens, shown as removable chips inside the field. */
+  chips: string[];
+  onRemoveChip: (index: number) => void;
   deepSearch: boolean;
   onDeepSearch: (value: boolean) => void;
   searching: boolean;
@@ -48,27 +37,21 @@ export interface ToolbarProps {
   onTogglePause: () => void;
   preserveLog: boolean;
   onTogglePreserve: () => void;
-  following: boolean;
-  onToggleFollow: () => void;
-  /** Opens the export menu anchored under the button, or closes it (null).
-   * The menu itself is rendered by the panel root — a `position: fixed` menu
-   * nested in the toolbar would resolve its offsets against the viewport, not
-   * the button, and fly to the corner of the screen. */
+  /** Opens the export menu anchored under the button, or closes it (null). */
   onExportMenu: (anchor: MenuAnchor | null) => void;
   exportOpen: boolean;
   exportDisabled: boolean;
   /** Same anchoring contract as the export menu. */
   onThemeMenu: (anchor: MenuAnchor | null) => void;
   themeOpen: boolean;
-  /** Secondary actions move into an overflow menu when the panel is narrow. */
-  compact: boolean;
-  /** Even the dock switcher moves there. */
-  tiny: boolean;
+  themeLabel: string;
   onMoreMenu: (anchor: MenuAnchor | null) => void;
   moreOpen: boolean;
-  onClear: () => void;
-  density: Density;
-  onDensity: (density: Density) => void;
+  onOpenPalette: () => void;
+  /** Labelled pills lose their labels, then the whole button. */
+  compact: boolean;
+  /** Even the dock switcher moves into the overflow menu. */
+  tiny: boolean;
   mode: DockMode;
   onMode: (mode: DockMode) => void;
   maximized: boolean;
@@ -87,19 +70,14 @@ const DOCKS: {
   { mode: "float", icon: "dock-float", title: "Undock (floating window)" },
 ];
 
-const DENSITIES: Density[] = ["compact", "normal", "comfy"];
-
 export function MonitorToolbar(props: ToolbarProps) {
   const {
     dotState,
-    section,
-    onSection,
-    counts,
-    live,
     query,
     onQuery,
     searchRef,
-    onSearchFocus,
+    chips,
+    onRemoveChip,
     deepSearch,
     onDeepSearch,
     searching,
@@ -107,20 +85,17 @@ export function MonitorToolbar(props: ToolbarProps) {
     onTogglePause,
     preserveLog,
     onTogglePreserve,
-    following,
-    onToggleFollow,
     onExportMenu,
     exportOpen,
     exportDisabled,
     onThemeMenu,
     themeOpen,
-    compact,
-    tiny,
+    themeLabel,
     onMoreMenu,
     moreOpen,
-    onClear,
-    density,
-    onDensity,
+    onOpenPalette,
+    compact,
+    tiny,
     mode,
     onMode,
     maximized,
@@ -133,10 +108,9 @@ export function MonitorToolbar(props: ToolbarProps) {
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
   const themeBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  /** Menus are rendered by the panel root from a measured viewport rect — a
-   * `position: fixed` menu nested here would resolve against the viewport.
-   * Both vertical edges are reported so a tall menu can flip above the button
-   * when there is more room there; see `MenuAnchor`. */
+  /** Menus are rendered by the panel root from a measured viewport rect. Both
+   * vertical edges are reported so a tall menu can flip above the button when
+   * there is more room there; see `MenuAnchor`. */
   const anchorOf = (el: HTMLElement | null): MenuAnchor | null => {
     const rect = el?.getBoundingClientRect();
     return rect
@@ -161,56 +135,70 @@ export function MonitorToolbar(props: ToolbarProps) {
 
       {/* The wordmark earns its space by making the dot legible: on its own the
           dot is an unexplained coloured square, next to the name it reads as
-          the tool's status light. Both are the first thing dropped when the
-          panel gets narrow. */}
+          the tool's status light. Both are dropped first when space runs out. */}
       <span className="nm-brand">
         <span className="nm-logo" data-state={dotState} />
-        <span className="nm-titles">
-          <span className="nm-title">BLIX</span>
-        </span>
+        <span className="nm-title">BLIX</span>
       </span>
 
-      {/* Top-level sections — each kind of traffic is a separate view, not
-          one mixed table with half the columns empty. */}
-      <div className="nm-sections" role="tablist">
-        {SECTION_DEFS.map((s) => (
-          <button
-            key={s.id}
-            role="tab"
-            aria-selected={section === s.id}
-            className={`nm-section nm-section-${s.id}${section === s.id ? " active" : ""}`}
-            onClick={() => onSection(s.id)}
-            title={s.title}
-          >
-            <span className="nm-section-ico">
-              <Icon name={s.icon} size={12.5} />
-            </span>
-            {live[s.id] && <span className="nm-section-live" />}
-            <span className="nm-section-label">{s.label}</span>
-            <span className="nm-section-n">{counts[s.id]}</span>
-          </button>
-        ))}
-      </div>
+      <span className="nm-hsep" />
 
-      <div className="nm-search-wrap">
-        <span className="nm-search-ico" aria-hidden>
-          <Icon name="search" size={14} />
+      <button
+        className="nm-capture"
+        data-state={paused ? "pending" : "success"}
+        onClick={onTogglePause}
+        aria-pressed={paused}
+        title={paused ? "Resume capturing (Space)" : "Pause capturing (Space)"}
+      >
+        {paused ? "Paused" : "Capturing"}
+      </button>
+
+      {/* The filter field. Parsed tokens become chips inside the box, so what
+          has already been applied and what you are still typing occupy one
+          control rather than a field plus a separate strip of chips. */}
+      <div
+        className={`nm-filter${searching ? " nm-filter-on" : ""}`}
+        // The field is inside the drag handle; a press that lands on it must
+        // put the caret in the input, not start moving the panel.
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <span className="nm-filter-ico" aria-hidden>
+          <Icon name="search" size={13} />
         </span>
+        {chips.length > 0 && (
+          <div className="nm-filter-tokens">
+            {chips.map((chip, i) => (
+              <span className="nm-token" key={`${chip}-${i}`}>
+                {chip}
+                <button
+                  className="nm-token-x"
+                  onClick={() => onRemoveChip(i)}
+                  aria-label={`Remove filter ${chip}`}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <input
           ref={searchRef}
-          className={`nm-search${searching ? " nm-search-busy" : ""}`}
+          className="nm-filter-input"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          onFocus={() => onSearchFocus(true)}
-          onBlur={() => onSearchFocus(false)}
+          spellCheck={false}
+          aria-label="Filter"
           placeholder={
-            deepSearch
-              ? "Filter — try  -polling  status:5xx  slower-than:500"
-              : "Filter — try  method:post  is:error  larger-than:10k"
+            chips.length
+              ? "and…"
+              : deepSearch
+                ? "Filter — try status:5xx or slower-than:500"
+                : "Filter — try method:post or is:error"
           }
         />
         <button
-          className={`nm-search-deep${deepSearch ? " active" : ""}`}
+          className={`nm-filter-re${deepSearch ? " active" : ""}`}
           onClick={() => onDeepSearch(!deepSearch)}
           aria-label="Deep search — also scan request and response bodies"
           aria-pressed={deepSearch}
@@ -218,168 +206,118 @@ export function MonitorToolbar(props: ToolbarProps) {
         >
           {".*"}
         </button>
-        {query && (
-          <button
-            className="nm-search-clear"
-            onClick={() => onQuery("")}
-            aria-label="Clear filter"
-            title="Clear filter"
-          >
-            <Icon name="close" size={12} />
-          </button>
-        )}
+        <kbd
+          className="nm-kbd"
+          onClick={onOpenPalette}
+          title="Command palette"
+          style={{ cursor: "pointer" }}
+        >
+          ⌘K
+        </kbd>
       </div>
 
       <div className="nm-actions">
         <button
-          className={`nm-iconbtn nm-iconbtn-sq${paused ? " nm-iconbtn-on" : ""}`}
-          onClick={onTogglePause}
-          aria-label={paused ? "Resume capturing" : "Pause capturing"}
-          aria-pressed={paused}
-          title={paused ? "Resume capturing (Space)" : "Pause capturing (Space)"}
+          className={`nm-pill${preserveLog ? " nm-pill-warn" : ""}`}
+          onClick={onTogglePreserve}
+          aria-pressed={preserveLog}
+          title={
+            preserveLog
+              ? "Preserve log is on — captured traffic survives a reload (Shift+L)"
+              : "Preserve log — keep captured traffic across reloads (Shift+L)"
+          }
         >
-          <Icon name={paused ? "play" : "pause"} size={14} />
+          <Icon name="preserve" size={13} />
+          {!compact && "Preserve"}
         </button>
-        {!compact && (
-          <>
-            <button
-              className={`nm-iconbtn nm-iconbtn-sq${preserveLog ? " nm-iconbtn-on" : ""}`}
-              onClick={onTogglePreserve}
-              aria-label="Preserve log across reloads"
-              aria-pressed={preserveLog}
-              title={
-                preserveLog
-                  ? "Preserve log is on — captured traffic survives a reload (Shift+L)"
-                  : "Preserve log — keep captured traffic across reloads (Shift+L)"
-              }
-            >
-              <Icon name="preserve" size={14} />
-            </button>
-            <button
-              className={`nm-iconbtn nm-iconbtn-sq${following ? " nm-iconbtn-on" : ""}`}
-              onClick={onToggleFollow}
-              aria-label="Follow the newest request"
-              aria-pressed={following}
-              title={
-                following
-                  ? "Following the newest request — click to pin the current one"
-                  : "Follow the newest request"
-              }
-            >
-              <Icon name="follow" size={14} />
-            </button>
-          </>
-        )}
-
-        {/* Export has two formats, so it opens a menu. The button only reports
-            its position; the panel root renders the menu. */}
-        {!compact && (
-          <button
-            ref={exportBtnRef}
-            className={`nm-iconbtn nm-iconbtn-sq${exportOpen ? " nm-iconbtn-on" : ""}`}
-            onClick={() =>
-              onExportMenu(exportOpen ? null : anchorOf(exportBtnRef.current))
-            }
-            disabled={exportDisabled}
-            aria-label="Export the captured log"
-            aria-haspopup="menu"
-            aria-expanded={exportOpen}
-            title="Export the captured log"
-          >
-            <Icon name="download" size={14} />
-          </button>
-        )}
 
         <button
-          className="nm-iconbtn nm-iconbtn-sq"
-          onClick={onClear}
-          aria-label="Clear the log"
-          title="Clear — pinned entries are kept (Shift+C)"
+          ref={exportBtnRef}
+          className={`nm-pill${exportOpen ? " nm-pill-on" : ""}`}
+          onClick={() => onExportMenu(exportOpen ? null : anchorOf(exportBtnRef.current))}
+          disabled={exportDisabled}
+          aria-haspopup="menu"
+          aria-expanded={exportOpen}
+          title="Export the captured log"
         >
-          <Icon name="clear" size={14} />
+          <Icon name="download" size={13} />
+          {!compact && (
+            <>
+              Export<span className="nm-pill-caret">▾</span>
+            </>
+          )}
         </button>
 
-        {compact && (
-          <button
-            ref={moreBtnRef}
-            className={`nm-iconbtn nm-iconbtn-sq${moreOpen ? " nm-iconbtn-on" : ""}`}
-            onClick={() => onMoreMenu(moreOpen ? null : anchorOf(moreBtnRef.current))}
-            aria-label="More actions"
-            aria-haspopup="menu"
-            aria-expanded={moreOpen}
-            title="More actions"
-          >
-            <Icon name="more" size={14} />
-          </button>
-        )}
-
-        {!compact && <span className="nm-actions-sep" />}
-
-        {/* Theme survives into the compact toolbar where density does not: it
-            is the one appearance control there is no other way to reach, and
-            it is also the one a developer is most likely to want on a small
-            docked panel that is fighting the app's own colours. */}
+        {/* Theme names itself. It is the one appearance control with no other
+            way in, and knowing which of twelve palettes is on is half of
+            deciding whether to change it. */}
         <button
           ref={themeBtnRef}
-          className={`nm-iconbtn nm-iconbtn-sq${themeOpen ? " nm-iconbtn-on" : ""}`}
+          className={`nm-pill${themeOpen ? " nm-pill-on" : ""}`}
           onClick={() => onThemeMenu(themeOpen ? null : anchorOf(themeBtnRef.current))}
-          aria-label="Theme"
           aria-haspopup="menu"
           aria-expanded={themeOpen}
-          title="Theme"
+          title={`Theme — ${themeLabel}`}
         >
-          <Icon name="theme" size={14} />
+          <Icon name="theme" size={13} />
+          {!compact && (
+            <>
+              {themeLabel}
+              <span className="nm-pill-caret">▾</span>
+            </>
+          )}
         </button>
 
-        {!compact && (
-          <button
-            className="nm-iconbtn nm-iconbtn-sq"
-            onClick={() =>
-              onDensity(
-                DENSITIES[(DENSITIES.indexOf(density) + 1) % DENSITIES.length],
-              )
-            }
-            aria-label={`Row density: ${density}`}
-            title={`Row density: ${density} — click to cycle`}
-          >
-            <Icon name="density" size={14} />
-          </button>
-        )}
+        <button
+          ref={moreBtnRef}
+          className={`nm-pill nm-pill-sq${moreOpen ? " nm-pill-on" : ""}`}
+          onClick={() => onMoreMenu(moreOpen ? null : anchorOf(moreBtnRef.current))}
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={moreOpen}
+          title="More actions"
+        >
+          <Icon name="more" size={13} />
+        </button>
 
         {!tiny && (
-          <div className="nm-dockseg">
-            {DOCKS.map((d) => (
-              <button
-                key={d.mode}
-                className={`nm-dockbtn${mode === d.mode ? " active" : ""}`}
-                onClick={() => onMode(d.mode)}
-                aria-label={d.title}
-                aria-pressed={mode === d.mode}
-                title={d.title}
-              >
-                <Icon name={d.icon} size={13} />
-              </button>
-            ))}
-          </div>
+          <>
+            <span className="nm-hsep" style={{ margin: "0 3px" }} />
+            <div className="nm-dockseg">
+              {DOCKS.map((d) => (
+                <button
+                  key={d.mode}
+                  className={`nm-dockbtn${mode === d.mode ? " active" : ""}`}
+                  onClick={() => onMode(d.mode)}
+                  aria-label={d.title}
+                  aria-pressed={mode === d.mode}
+                  title={d.title}
+                >
+                  <Icon name={d.icon} size={13} />
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {!compact && mode === "float" && (
           <button
-            className="nm-iconbtn nm-iconbtn-sq"
+            className="nm-pill nm-pill-sq"
             onClick={onToggleMaximize}
             aria-label={maximized ? "Restore" : "Maximize"}
             title={maximized ? "Restore" : "Maximize"}
           >
-            <Icon name={maximized ? "restore" : "maximize"} size={14} />
+            <Icon name={maximized ? "restore" : "maximize"} size={13} />
           </button>
         )}
+
         <button
-          className="nm-iconbtn nm-iconbtn-sq nm-iconbtn-close"
+          className="nm-pill nm-pill-sq nm-pill-close"
           onClick={onClose}
           aria-label="Close the panel"
           title="Close (Esc)"
         >
-          <Icon name="close" size={14} />
+          <Icon name="close" size={13} />
         </button>
       </div>
     </div>

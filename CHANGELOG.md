@@ -5,6 +5,76 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-26
+
+The panel is redesigned. **The runtime API is unchanged** — `<Blix />` and
+every capture function keep their signatures and behaviour, so upgrading is a
+version bump. The one breaking change is to an exported *type*: see Removed.
+
+### Changed
+
+- **Redesigned the panel.** The four sources moved from tabs in the toolbar to
+  a rail down the left, which also carries the session totals; the header now
+  holds only session-level controls, with a labelled capture pill and a filter
+  field whose parsed tokens are removable chips inside the box. The detail
+  pane's tabs and the payload format switch share one row, and the entry list
+  is a fixed five-track row rather than a resizable column set.
+- Row metadata that used to have its own column — size, initiator, transport,
+  touched slices — folds into the identity column and gives up width before
+  the name does. The waterfall column is replaced by a duration bar scaled
+  against the slowest entry in view.
+- Empty sections now carry their setup call and a Copy button, so the fact
+  that capture must be installed where the adapter or store is *constructed*
+  is stated where a developer discovers the problem.
+- The Timing tab compares a request against the session's median and its
+  slowest entry.
+- Masked headers are labelled `MASKED` in the Headers tab rather than leaving
+  the reader to infer it from an ellipsis. The stored value keeps its
+  `(masked)` suffix, so every export path still carries the fact.
+- Row density defaults are a few pixels taller (26 / 30 / 36) — the duration
+  column now holds a number and its bar.
+- The docked badge separates its identity from its counts and carries a grip,
+  so what is draggable is visible before you drag it. The failing count is
+  titled rather than only coloured.
+
+### Added
+
+- **Command palette** (`Ctrl/⌘ K`), reachable from the header, the rail and
+  the status bar. It is the only affordance for sorting, density, dock
+  position, the per-entry copy formats and the filter syntax.
+- Two more ways to purge the saved log — **⋯ More actions** and the palette —
+  alongside the status bar's arm-then-confirm label. Both delete on a single
+  press, and both stay available with preserve-log off, so a log written
+  earlier in the session can still be deleted after the toggle is switched
+  back. They are disabled when nothing is on disk.
+- **Linked events.** The correlations Blix already observed — the query behind
+  a request, the requests a query caused, the original of a replay — are now
+  symmetric, shown as a tick on the row and a strip of chips at the foot of
+  the detail pane. They replace the one-directional "Caused by" notice and the
+  "Requests caused" list inside the Query State tab.
+- `railCollapsed` panel preference.
+
+### Fixed
+
+- The list rendered only the overscan window — eight rows and a blank column
+  below them — when the panel was opened onto a buffer that had filled up
+  before it was opened. The virtualizer's ResizeObserver never attached,
+  because the scroller does not exist until the panel is open and nothing in
+  its effect changed at that moment.
+- `Pause capture` and the rail toggle performed a store write inside a
+  `setState` updater, which React runs during the render phase — a setState
+  from inside a render, warned about in the console.
+
+### Removed
+
+- Column resizing, and `columnWidths` from the exported `MonitorPrefs` type.
+  The list has one elastic column now; the rest are fixed. **Breaking** for
+  anyone who constructs a `MonitorPrefs` object or reads that field —
+  `railCollapsed` is required in its place. Stored preferences carrying the old
+  key still load; it is ignored.
+- The filter-syntax hint row under the toolbar, and the state-filter bar. The
+  filters moved into the list header; the syntax moved into the palette.
+
 ## [0.4.2] - 2026-08-25
 
 Documentation and packaging only — no code change.

@@ -53,7 +53,16 @@ const BASE = `
   --nm-ease: cubic-bezier(.22,1,.36,1);
 
   /* Row height, driven by the density setting. */
-  --nm-row-h: 26px;
+  --nm-row-h: 30px;
+
+  /* Floors for the two role variables, so a component that paints with them
+     without declaring a role still renders in the generic accent rather than
+     with an empty custom property. */
+  --nm-accent-fg: var(--nm-accent);
+  --nm-accent-bg: var(--nm-accent-soft);
+  --nm-state-fg: var(--nm-state-all);
+  --nm-state-bg: var(--nm-state-all-soft);
+  --nm-state-glow: var(--nm-state-all-glow);
 }
 .nm-root * { box-sizing: border-box; }
 .nm-ico { display: block; flex-shrink: 0; }
@@ -81,35 +90,60 @@ const ROLES = `
 [data-accent="put"]      { --nm-accent-fg: var(--nm-m-put);      --nm-accent-bg: var(--nm-m-put-soft); }
 [data-accent="delete"]   { --nm-accent-fg: var(--nm-m-delete);   --nm-accent-bg: var(--nm-m-delete-soft); }
 [data-accent="other"]    { --nm-accent-fg: var(--nm-m-other);    --nm-accent-bg: var(--nm-m-other-soft); }
+/* The four source identities, addressable the same way — the rail, the tab
+   underline, the link ticks and the linked chips all need "the colour of the
+   section this belongs to" without knowing which section that is. */
+[data-accent="network"]  { --nm-accent-fg: var(--nm-c-network);  --nm-accent-bg: var(--nm-c-network-soft); }
 [data-accent="realtime"] { --nm-accent-fg: var(--nm-c-realtime); --nm-accent-bg: var(--nm-c-realtime-soft); }
 [data-accent="redux"]    { --nm-accent-fg: var(--nm-c-redux);    --nm-accent-bg: var(--nm-c-redux-soft); }
 [data-accent="query"]    { --nm-accent-fg: var(--nm-c-query);    --nm-accent-bg: var(--nm-c-query-soft); }
+/* Two non-source accents, for the command palette: a command that destroys
+   something and one that keeps writing after you walk away. */
+[data-accent="danger"]   { --nm-accent-fg: var(--nm-error);      --nm-accent-bg: var(--nm-error-soft); }
+[data-accent="warn"]     { --nm-accent-fg: var(--nm-warning);    --nm-accent-bg: var(--nm-warning-soft); }
 `;
 
 const FAB = `
+/* ── The launcher ──────────────────────────────────────────────────────────
+   A segmented pill rather than a padded row of items: brand, counts and grip
+   are three different jobs, and hairlines between them read at 34px where
+   whitespace alone does not. */
 .nm-fab {
-  display: flex; align-items: center; gap: 9px; padding: 9px 14px 9px 12px;
-  border-radius: 999px; border: 1px solid var(--nm-line);
-  background: linear-gradient(175deg, var(--nm-surface-2), var(--nm-surface) 70%);
-  color: var(--nm-txt); font-size: 12.5px; font-weight: 700; cursor: grab;
+  display: flex; align-items: center; height: 34px; padding: 0;
+  border-radius: 17px; border: 1px solid var(--nm-line-strong);
+  background: var(--nm-surface-2);
+  color: var(--nm-txt); font-size: 11px; cursor: grab; overflow: hidden;
   box-shadow: var(--nm-shadow-fab);
   transition: transform .16s var(--nm-ease), box-shadow .16s var(--nm-ease), border-color .16s ease;
   touch-action: none; user-select: none;
 }
 .nm-fab:active { cursor: grabbing; }
 .nm-fab:hover {
-  transform: translateY(-1.5px); border-color: var(--nm-line-strong);
+  transform: translateY(-1.5px); border-color: var(--nm-accent-line);
   box-shadow: var(--nm-shadow-fab-hover);
 }
+.nm-fab-brand { display: flex; align-items: center; gap: 7px; padding: 0 11px 0 12px; }
+.nm-fab-sep { width: 1px; height: 20px; background: var(--nm-line); flex-shrink: 0; }
+.nm-fab-stats { display: flex; align-items: center; gap: 1px; padding: 0 4px; }
+.nm-fab-grip { display: flex; align-items: center; padding: 0 8px 0 3px; color: var(--nm-faint); }
 .nm-fab-dot {
-  position: relative; width: 9px; height: 9px; border-radius: 999px;
-  background: var(--nm-state-fg); box-shadow: 0 0 0 3px var(--nm-elev);
+  position: relative; width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0;
+  background: var(--nm-state-fg); box-shadow: 0 0 9px var(--nm-state-glow);
 }
 .nm-fab-ping { position: absolute; inset: 0; border-radius: 999px; background: var(--nm-state-fg); animation: nm-ping 1.5s cubic-bezier(0,0,.2,1) infinite; }
 @keyframes nm-ping { 0% { transform: scale(1); opacity: .7; } 75%,100% { transform: scale(2.8); opacity: 0; } }
-.nm-fab-label { letter-spacing: .3px; }
-.nm-fab-count { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--nm-elev-hover); color: var(--nm-muted); font-variant-numeric: tabular-nums; }
-.nm-fab-err { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; color: var(--nm-error); background: var(--nm-error-soft); font-variant-numeric: tabular-nums; }
+.nm-fab-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--nm-txt); }
+.nm-fab-count {
+  display: flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px;
+  font-family: var(--nm-mono); font-size: 11px; font-weight: 600;
+  background: var(--nm-elev); color: var(--nm-txt); font-variant-numeric: tabular-nums;
+}
+.nm-fab-err {
+  display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 11px;
+  font-family: var(--nm-mono); font-size: 11px; font-weight: 600;
+  color: var(--nm-error); background: var(--nm-error-soft); font-variant-numeric: tabular-nums;
+}
+.nm-fab-err::before { content: ""; width: 5px; height: 5px; border-radius: 999px; background: var(--nm-error); }
 
 .nm-fab-dock { animation: nm-dock .34s cubic-bezier(.34,1.56,.64,1); }
 @keyframes nm-dock {
@@ -195,117 +229,221 @@ const PANEL = `
 `;
 
 const HEADER = `
+/* ── Header ────────────────────────────────────────────────────────────────
+   One 38px row for everything that is true of the *session* rather than of
+   one entry: whether we are capturing, what is being filtered out, and where
+   the panel lives. Which of the four sources you are reading moved to the
+   rail (see RAIL), because that is navigation, not a session control. */
 .nm-header {
-  display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-width: 0;
+  height: 38px; flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 0 8px 0 10px; min-width: 0;
   border-bottom: 1px solid var(--nm-line); background: var(--nm-surface-2);
-  user-select: none; touch-action: none; flex-shrink: 0;
+  box-shadow: 0 1px 0 var(--nm-sunken);
+  user-select: none; touch-action: none;
 }
 .nm-header.nm-draggable { cursor: move; }
 .nm-grip { display: inline-flex; color: var(--nm-faint); cursor: grab; transition: color .12s ease; }
 .nm-header:hover .nm-grip { color: var(--nm-muted); }
 .nm-header:active .nm-grip { cursor: grabbing; }
-/* Brand. The logo doubles as the capture indicator — it takes the colour of
+/* Brand. The dot doubles as the capture indicator — it takes the colour of
    the worst state currently in the buffer, so the panel says "something is
    failing" from its quietest corner, without a badge competing for space. */
-.nm-brand { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.nm-brand { display: flex; align-items: center; gap: 6px; flex: none; }
 .nm-logo {
-  width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
-  background: var(--nm-state-fg); box-shadow: 0 0 12px var(--nm-state-glow);
+  width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0;
+  background: var(--nm-state-fg); box-shadow: 0 0 8px var(--nm-state-glow);
   transition: background .2s ease, box-shadow .2s ease;
 }
-.nm-titles { display: flex; flex-direction: column; line-height: 1.2; }
-.nm-title { font-size: 12.5px; font-weight: 800; letter-spacing: .4px; color: var(--nm-txt); }
-.nm-sub { font-size: 10px; color: var(--nm-faint); }
+.nm-title { font-size: 10.5px; font-weight: 700; letter-spacing: .16em; color: var(--nm-txt); }
+.nm-hsep { width: 1px; height: 18px; background: var(--nm-line); flex: none; }
 
-.nm-search-wrap { position: relative; display: flex; align-items: center; margin-left: auto; flex: 1 1 300px; min-width: 0; max-width: 340px; }
-.nm-search-ico { position: absolute; left: 9px; display: inline-flex; color: var(--nm-faint); pointer-events: none; }
-.nm-search {
-  width: 100%; font-size: 12px; padding: 7px 62px 7px 30px; border-radius: 9px;
-  border: 1px solid var(--nm-line); background: var(--nm-input); color: var(--nm-txt); outline: none;
-  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+/* Capture state. A labelled pill rather than a play/pause glyph: "am I still
+   recording?" is the one question the header has to answer without being
+   interpreted, and a two-state icon answers it ambiguously. */
+.nm-capture {
+  flex: none; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px;
+  border-radius: 6px; border: 1px solid var(--nm-state-bg);
+  background: var(--nm-state-bg); color: var(--nm-state-fg);
+  font-family: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .02em;
+  cursor: pointer; transition: filter .14s ease;
 }
-.nm-search::placeholder { color: var(--nm-faint); }
-.nm-search:focus { border-color: var(--nm-accent); background: var(--nm-input-focus); box-shadow: 0 0 0 3px var(--nm-accent-soft); }
-.nm-search-busy { border-color: var(--nm-accent-line); }
-.nm-search-deep {
-  position: absolute; right: 5px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--nm-line); background: var(--nm-sunken); color: var(--nm-faint);
-  cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 800;
-  font-family: var(--nm-mono); line-height: 1.4;
+.nm-capture:hover { filter: brightness(1.18); }
+.nm-capture::before {
+  content: ""; width: 5px; height: 5px; border-radius: 999px; background: var(--nm-state-fg);
+}
+
+/* ── Filter field ──────────────────────────────────────────────────────────
+   A composite control, not an input with decoration around it: parsed tokens
+   become chips *inside* the field, so what has already been applied and what
+   you are still typing occupy the same box. */
+.nm-filter {
+  flex: 1 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 640px;
+  height: 26px; padding: 0 6px 0 8px; border-radius: 7px;
+  background: var(--nm-input); border: 1px solid var(--nm-line);
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.nm-filter-on { border-color: var(--nm-accent-line); box-shadow: 0 0 0 3px var(--nm-accent-soft); }
+.nm-filter-ico { display: inline-flex; color: var(--nm-faint); flex: none; }
+.nm-filter-tokens { display: flex; align-items: center; gap: 4px; flex: none; }
+.nm-token {
+  display: flex; align-items: center; gap: 5px; height: 18px; padding: 0 4px 0 6px;
+  border-radius: 4px; background: var(--nm-accent-soft); border: 1px solid var(--nm-accent-line);
+  font-family: var(--nm-mono); font-size: 10px; color: var(--nm-accent); white-space: nowrap;
+}
+.nm-token-x {
+  border: none; background: none; color: var(--nm-muted); cursor: pointer;
+  font-size: 11px; line-height: 1; padding: 0 1px;
+}
+.nm-token-x:hover { color: var(--nm-txt); }
+.nm-filter-input {
+  flex: 1 1 auto; min-width: 40px; border: none; outline: none; background: none;
+  font-family: inherit; font-size: 11px; color: var(--nm-txt); padding: 0;
+}
+.nm-filter-input::placeholder { color: var(--nm-faint); }
+.nm-filter-re {
+  flex: none; height: 18px; padding: 0 5px; border-radius: 4px;
+  border: 1px solid transparent; background: transparent; color: var(--nm-faint);
+  font-family: var(--nm-mono); font-size: 10px; cursor: pointer;
   transition: color .14s ease, background .14s ease, border-color .14s ease;
 }
-.nm-search-deep:hover { color: var(--nm-txt); border-color: var(--nm-line-strong); }
-.nm-search-deep.active { color: var(--nm-accent); border-color: var(--nm-accent); background: var(--nm-accent-soft); }
-.nm-search-clear {
-  position: absolute; right: 36px; display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: transparent; color: var(--nm-faint); cursor: pointer; padding: 4px; border-radius: 6px;
-  transition: color .12s ease, background .12s ease;
+.nm-filter-re:hover { color: var(--nm-txt); }
+.nm-filter-re.active { color: var(--nm-accent); background: var(--nm-accent-soft); border-color: var(--nm-accent-line); }
+.nm-kbd {
+  font-family: inherit; font-size: 9.5px; padding: 1px 4px; border-radius: 3px;
+  background: var(--nm-elev); border: 1px solid var(--nm-line); color: var(--nm-faint);
+  white-space: nowrap;
 }
-.nm-search-clear:hover { color: var(--nm-txt); background: var(--nm-elev); }
 
-.nm-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-.nm-actions-sep { width: 1px; height: 20px; background: var(--nm-line-strong); margin: 0 3px; }
-.nm-iconbtn {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-  padding: 6px 10px; border-radius: 9px; border: 1px solid var(--nm-line);
-  background: var(--nm-elev); color: var(--nm-txt); cursor: pointer;
-  transition: background .14s ease, border-color .14s ease, color .14s ease, transform .1s ease;
+.nm-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+/* Toolbar buttons are one shape at two widths — a labelled pill and a square
+   icon — so a row of them lines up whatever mix the panel width allows. */
+.nm-pill {
+  display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px;
+  border-radius: 6px; border: 1px solid var(--nm-line); background: var(--nm-elev);
+  color: var(--nm-muted); font-family: inherit; font-size: 10.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
 }
-.nm-iconbtn:hover { background: var(--nm-elev-hover); border-color: var(--nm-line-strong); }
-.nm-iconbtn:active { transform: scale(.94); }
-.nm-iconbtn:disabled { opacity: .38; cursor: not-allowed; }
-.nm-iconbtn:disabled:hover { background: var(--nm-elev); border-color: var(--nm-line); }
-.nm-iconbtn:disabled:active { transform: none; }
-.nm-iconbtn-sq { width: 30px; height: 30px; padding: 0; justify-content: center; }
-.nm-iconbtn-on { color: var(--nm-accent); border-color: var(--nm-accent); background: var(--nm-accent-soft); }
-.nm-iconbtn-on:hover { background: var(--nm-accent-soft); border-color: var(--nm-accent); }
-.nm-iconbtn-close:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
+.nm-pill:hover { background: var(--nm-elev-hover); color: var(--nm-txt); }
+.nm-pill:disabled { opacity: .38; cursor: not-allowed; }
+.nm-pill:disabled:hover { background: var(--nm-elev); color: var(--nm-muted); }
+.nm-pill-sq { width: 24px; padding: 0; justify-content: center; }
+.nm-pill-txt { color: var(--nm-txt); }
+.nm-pill-caret { color: var(--nm-faint); font-size: 9px; }
+.nm-pill-on { color: var(--nm-accent); border-color: var(--nm-accent-line); background: var(--nm-accent-soft); }
+.nm-pill-on:hover { color: var(--nm-accent); background: var(--nm-accent-soft); }
+/* Preserve log is amber rather than accent-blue when on: it is the one toggle
+   that keeps writing to disk after you walk away, and it should not read as
+   just another selected control. */
+.nm-pill-warn { color: var(--nm-warning); border-color: var(--nm-warning-line); background: var(--nm-warning-soft); }
+.nm-pill-warn:hover { color: var(--nm-warning); background: var(--nm-warning-soft); }
+.nm-pill-close { border-color: transparent; background: none; }
+.nm-pill-close:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
 
-.nm-dockseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: var(--nm-sunken); }
+.nm-dockseg { display: flex; gap: 1px; padding: 2px; border-radius: 7px; border: 1px solid var(--nm-line); background: var(--nm-sunken); }
 .nm-dockbtn {
-  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px;
-  border: none; border-radius: 7px; background: transparent; color: var(--nm-muted); cursor: pointer;
-  transition: background .14s ease, color .14s ease;
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 20px;
+  border: none; border-radius: 5px; background: transparent; color: var(--nm-faint); cursor: pointer;
+  padding: 0; transition: background .14s ease, color .14s ease;
 }
-.nm-dockbtn:hover { color: var(--nm-txt); }
-.nm-dockbtn.active { background: var(--nm-accent-soft); color: var(--nm-accent); box-shadow: inset 0 0 0 1px var(--nm-accent-line); }
+.nm-dockbtn:hover { background: var(--nm-elev-hover); color: var(--nm-txt); }
+.nm-dockbtn.active { background: var(--nm-accent-soft); color: var(--nm-accent); }
 `;
 
-const FILTERS = `
-.nm-filters { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--nm-line); background: var(--nm-bg); flex-shrink: 0; min-width: 0; overflow: hidden; }
-.nm-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; border: 1px solid var(--nm-line); background: var(--nm-sunken); }
-.nm-seg-btn {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
-  padding: 4px 10px; border: none; border-radius: 8px; background: transparent;
-  color: var(--nm-muted); cursor: pointer; transition: background .14s ease, color .14s ease;
+/* ── Sources rail ──────────────────────────────────────────────────────────
+   The four sources are navigation between four different tables, not a filter
+   over one — a vertical rail says that, where four tabs wedged into a toolbar
+   said "four views of the same thing" and competed with the search box for
+   width on every dock.
+
+   It also gives the session totals a home. They were in the status bar,
+   where they were the first thing dropped by the width breakpoints; here they
+   are stacked and legible, and the bar keeps only what it can always show. */
+const RAIL = `
+.nm-rail {
+  flex: none; display: flex; flex-direction: column; min-height: 0;
+  background: var(--nm-surface-2); border-right: 1px solid var(--nm-line);
+  transition: width .18s var(--nm-ease);
 }
-.nm-seg-btn:hover { color: var(--nm-txt); }
-.nm-seg-btn.active { background: var(--nm-surface-2); color: var(--nm-txt); box-shadow: var(--nm-shadow-seg); }
-.nm-seg-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--nm-state-fg); }
-.nm-seg-n { font-size: 10px; font-weight: 700; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
-.nm-seg-btn.active .nm-seg-n { color: var(--nm-muted); }
-.nm-filters-spacer { flex: 1; }
-.nm-shown { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--nm-faint); }
-.nm-summary { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--nm-faint); }
-.nm-paused-pill {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800;
-  letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
-  color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
+.nm-rail-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 6px 12px; }
+.nm-rail-label { font-size: 9px; font-weight: 600; letter-spacing: .14em; color: var(--nm-faint); }
+.nm-rail-collapse {
+  width: 18px; height: 18px; flex: none; display: flex; align-items: center; justify-content: center;
+  border: none; background: none; color: var(--nm-faint); cursor: pointer; border-radius: 4px; padding: 0;
+  transition: background .12s ease, color .12s ease;
 }
+.nm-rail-collapse:hover { background: var(--nm-elev); color: var(--nm-muted); }
+.nm-rail-collapse .nm-ico { transform: rotate(180deg); }
+.nm-rail-mini .nm-rail-collapse .nm-ico { transform: none; }
+.nm-rail-mini .nm-rail-head { justify-content: center; padding: 10px 0 6px; }
+.nm-rail-mini .nm-rail-label, .nm-rail-mini .nm-rail-name,
+.nm-rail-mini .nm-rail-n, .nm-rail-mini .nm-rail-stats, .nm-rail-mini .nm-rail-cmd { display: none; }
+.nm-rail-mini .nm-rail-item { justify-content: center; padding: 0; }
+
+.nm-rail-list { display: flex; flex-direction: column; gap: 1px; padding: 0 6px; }
+.nm-rail-item {
+  position: relative; display: flex; align-items: center; gap: 9px; height: 30px;
+  padding: 0 8px 0 9px; border: none; border-radius: 7px; background: transparent;
+  color: var(--nm-muted); font-family: inherit; font-size: 11.5px; font-weight: 400;
+  cursor: pointer; text-align: left;
+  transition: background .14s ease, color .14s ease;
+}
+.nm-rail-item:hover { background: var(--nm-elev); color: var(--nm-txt); }
+.nm-rail-item.active { background: var(--nm-accent-bg); color: var(--nm-txt); font-weight: 600; }
+/* The icon carries the section's identity colour and glows only while that
+   source is the one you are reading, which is what makes the rail scannable
+   at 52px — where the label is gone and the icon is the whole row. */
+.nm-rail-ico {
+  position: relative; display: flex; flex: none;
+  color: var(--nm-accent-fg); opacity: .7;
+  transition: opacity .14s ease, filter .14s ease;
+}
+.nm-rail-item:hover .nm-rail-ico { opacity: .9; }
+.nm-rail-item.active .nm-rail-ico { opacity: 1; filter: drop-shadow(0 0 6px var(--nm-accent-fg)); }
+/* A source with nothing in it keeps its shape but drops its colour: the icon
+   still says which one it is, without claiming there is traffic to read. */
+.nm-rail-empty .nm-rail-ico { color: var(--nm-faint); opacity: .55; }
+.nm-rail-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm-rail-n {
+  font-family: var(--nm-mono); font-size: 10px; min-width: 20px; text-align: center;
+  padding: 1px 5px; border-radius: 4px; background: var(--nm-elev); color: var(--nm-faint);
+  font-variant-numeric: tabular-nums;
+}
+.nm-rail-item.active .nm-rail-n { background: var(--nm-accent-bg); color: var(--nm-accent-fg); }
+.nm-rail-empty .nm-rail-n { color: var(--nm-faint); }
+/* An open socket or an in-flight fetch, on a source you are not looking at.
+   The ring in the rail's own surface keeps it separable from the icon strokes
+   it sits on. */
+.nm-rail-live {
+  position: absolute; right: -3px; top: -2px; width: 5px; height: 5px;
+  border-radius: 999px; background: var(--nm-success);
+  box-shadow: 0 0 0 2px var(--nm-surface-2);
+  animation: nm-pulse 1.6s ease-in-out infinite;
+}
+
+.nm-rail-stats { margin: 14px 12px 0; padding-top: 12px; border-top: 1px solid var(--nm-line-2); }
+.nm-rail-stats-head { font-size: 9px; font-weight: 600; letter-spacing: .14em; color: var(--nm-faint); margin-bottom: 8px; }
+.nm-rail-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.nm-rail-stat-k { font-size: 10.5px; color: var(--nm-faint); }
+.nm-rail-stat-v { font-family: var(--nm-mono); font-size: 11px; font-weight: 500; color: var(--nm-muted); font-variant-numeric: tabular-nums; }
+.nm-rail-stat-v.nm-hot { color: var(--nm-warning); }
+.nm-rail-stat-v.nm-bad { color: var(--nm-error); }
+.nm-rail-spacer { flex: 1; min-height: 8px; }
+.nm-rail-cmd {
+  display: flex; align-items: center; gap: 7px; margin: 10px; padding: 7px 9px;
+  border-radius: 7px; border: 1px dashed var(--nm-line-strong); background: none;
+  color: var(--nm-faint); font-family: inherit; font-size: 10.5px; cursor: pointer; text-align: left;
+  transition: border-color .14s ease, color .14s ease;
+}
+.nm-rail-cmd:hover { border-color: var(--nm-accent-line); color: var(--nm-muted); }
+.nm-rail-cmd > span { flex: 1; }
 .nm-restoring { font-size: 10.5px; font-weight: 600; color: var(--nm-muted); animation: nm-pulse 1.4s ease-in-out infinite; }
-.nm-persist-pill {
-  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
-  padding: 2px 8px; border-radius: 999px; cursor: pointer;
-  color: var(--nm-accent); background: var(--nm-accent-soft);
-  border: 1px solid var(--nm-accent-line);
-  transition: color .14s ease, background .14s ease, border-color .14s ease;
-}
-.nm-persist-pill:hover { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
 `;
 
 const TABLE = `
 .nm-body { display: flex; flex: 1; min-height: 0; min-width: 0; }
-.nm-body.nm-body-v { flex-direction: column; }
+.nm-body-panes { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.nm-body-panes.nm-body-v { flex-direction: column; }
 /* overflow:hidden at every level of the pane chain. Without it, a table whose
    fixed columns are wider than the pane paints its overflow straight over the
    detail pane instead of being clipped. */
@@ -326,75 +464,144 @@ const TABLE = `
 .nm-split:hover, .nm-split:active { background: var(--nm-accent); }
 .nm-split:hover::after { opacity: 0; }
 
-/* No horizontal scrolling by design: flexible columns use minmax(0, 1fr) and
-   truncate, which removes header/body scroll-sync entirely. */
+/* No horizontal scrolling by design: the one flexible column is
+   minmax(0, 1fr) and truncates, which removes header/body scroll-sync
+   entirely — and lets the header row spend its width on the state filters
+   instead of on labels for columns that never move. */
 .nm-table { display: grid; grid-template-rows: auto 1fr; flex: 1; width: 100%; min-width: 0; min-height: 0; overflow: hidden; }
-/* The grid template is set inline per section and updated by column resizing;
-   only the shared box model lives here. */
-.nm-thead, .nm-trow { display: grid; align-items: center; gap: 8px; padding: 0 10px; min-width: 0; overflow: hidden; }
-.nm-thead {
-  height: 26px; overflow: hidden; font-size: 10px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
-  color: var(--nm-faint); background: var(--nm-surface-2);
+
+/* ── List header ───────────────────────────────────────────────────────────
+   State filters on the left, the two right-hand column labels on the right,
+   in one 30px row. The filters belong here rather than in a bar of their own:
+   they act on this list only, and a separate strip cost 30px of vertical
+   space on a panel that is usually docked short. */
+.nm-list-head {
+  height: 30px; flex: none; display: flex; align-items: center; min-width: 0;
+  padding-left: 8px; background: var(--nm-surface-2);
   border-bottom: 1px solid var(--nm-line); user-select: none;
 }
-.nm-thead > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nm-th-sortable { cursor: pointer; }
-.nm-th-sortable:hover { color: var(--nm-txt); }
-.nm-th-sorted { color: var(--nm-accent); }
-.nm-th-arrow { font-size: 7px; margin-left: 3px; }
+.nm-fchips { display: flex; align-items: center; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.nm-fchip {
+  flex: none; display: flex; align-items: center; gap: 5px; height: 20px; padding: 0 6px;
+  border: 1px solid transparent; border-radius: 5px; background: transparent;
+  color: var(--nm-muted); font-family: inherit; font-size: 10.5px; font-weight: 400;
+  cursor: pointer; white-space: nowrap;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+.nm-fchip:hover { border-color: var(--nm-line-strong); }
+.nm-fchip.active { background: var(--nm-state-bg); border-color: var(--nm-state-fg); color: var(--nm-txt); font-weight: 600; }
+.nm-fchip-dot { width: 5px; height: 5px; flex: none; border-radius: 999px; background: var(--nm-state-fg); }
+.nm-fchip-0 .nm-fchip-dot { background: var(--nm-line-strong); }
+.nm-fchip-n { font-family: var(--nm-mono); font-size: 9.5px; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
+.nm-fchip.active .nm-fchip-n { color: var(--nm-state-fg); }
+
+.nm-list-cols { flex: none; display: grid; grid-template-columns: 52px 88px; align-items: center; padding-left: 8px; }
+.nm-list-col {
+  font-size: 9px; font-weight: 600; letter-spacing: .1em; color: var(--nm-faint);
+  text-align: right; border: none; background: none; font-family: inherit;
+  cursor: pointer; padding: 0 8px 0 0; transition: color .14s ease;
+}
+.nm-list-col:last-child { padding-right: 10px; }
+.nm-list-col:hover { color: var(--nm-muted); }
+.nm-list-col.nm-sorted { color: var(--nm-accent); }
+.nm-sort-arrow { font-size: 7px; margin-left: 3px; }
 
 .nm-tbody { overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; background: var(--nm-bg); }
 
+/* ── Row ───────────────────────────────────────────────────────────────────
+   Five tracks: the selection edge, the cross-source link ticks, one elastic
+   identity column, the status pill and the duration. Everything that used to
+   be its own resizable column (initiator, size, transport, slice) folds into
+   the elastic column's trailing metadata, which shrinks first and disappears
+   before the name does. */
 .nm-trow {
+  display: grid; grid-template-columns: 3px 15px minmax(0, 1fr) 52px 88px;
+  align-items: center; height: var(--nm-row-h); min-width: 0;
   font-size: 11.5px; cursor: pointer; position: relative;
   border-bottom: 1px solid var(--nm-line-2); color: var(--nm-muted);
   transition: background .1s ease;
 }
 .nm-trow:hover { background: var(--nm-elev); }
 .nm-trow.active { background: var(--nm-accent-soft); color: var(--nm-txt); }
-.nm-trow.active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2.5px; background: var(--nm-accent); }
-/* Which of the four worlds a selected row belongs to, reinforced at the row
-   itself and not just the section tab above it. */
-.nm-trow[data-kind="ws"].active { background: var(--nm-c-realtime-soft); }
-.nm-trow[data-kind="ws"].active::before { background: var(--nm-c-realtime); }
-.nm-trow[data-kind="redux"].active { background: var(--nm-c-redux-soft); }
-.nm-trow[data-kind="redux"].active::before { background: var(--nm-c-redux); }
-.nm-trow[data-kind="query"].active { background: var(--nm-c-query-soft); }
-.nm-trow[data-kind="query"].active::before { background: var(--nm-c-query); }
-.nm-trow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An aborted row can never complete; it is kept for the record and reads as
+   past tense. */
+.nm-trow[data-state="aborted"] { opacity: .6; }
 
-.nm-col-name { font-family: var(--nm-mono); color: var(--nm-txt); display: flex; align-items: center; gap: 5px; }
-.nm-col-method { font-size: 10px; font-weight: 800; letter-spacing: .3px; color: var(--nm-accent-fg); }
-.nm-col-init { font-family: var(--nm-mono); font-size: 10.5px; color: var(--nm-faint); }
-.nm-col-size, .nm-col-dur { font-variant-numeric: tabular-nums; text-align: right; font-size: 10.5px; }
-.nm-col-status { display: flex; }
-.nm-col-wf { min-width: 0; overflow: hidden; }
+.nm-row-bar { width: 3px; height: 100%; background: transparent; }
+.nm-trow.active .nm-row-bar { background: var(--nm-accent); }
+/* Which of the four worlds a selected row belongs to, reinforced at the row
+   itself and not just in the rail. */
+.nm-trow[data-kind="ws"].active { background: var(--nm-c-realtime-soft); }
+.nm-trow[data-kind="ws"].active .nm-row-bar { background: var(--nm-c-realtime); }
+.nm-trow[data-kind="redux"].active { background: var(--nm-c-redux-soft); }
+.nm-trow[data-kind="redux"].active .nm-row-bar { background: var(--nm-c-redux); }
+.nm-trow[data-kind="query"].active { background: var(--nm-c-query-soft); }
+.nm-trow[data-kind="query"].active .nm-row-bar { background: var(--nm-c-query); }
+
+/* Cross-source links, as a tick per linked entry in the section's own colour.
+   Two pixels of colour is enough to answer "did this request come from a
+   query?" while scanning, and the chips at the foot of the detail pane say
+   which one. */
+.nm-row-links { display: flex; align-items: center; justify-content: center; gap: 2px; width: 15px; }
+.nm-link-tick { width: 3px; height: 11px; border-radius: 2px; background: var(--nm-accent-fg); opacity: .8; }
+
+.nm-row-main { display: flex; align-items: center; gap: 7px; min-width: 0; padding-right: 8px; }
+.nm-kind {
+  flex: none; width: 34px; text-align: center; padding: 2px 0; border-radius: 3px;
+  font-family: var(--nm-mono); font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  color: var(--nm-accent-fg); background: var(--nm-accent-bg);
+  overflow: hidden; text-overflow: clip; white-space: nowrap;
+}
+.nm-kind-wide { width: 52px; }
+.nm-row-name {
+  flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--nm-mono); font-size: 11.5px; color: var(--nm-txt);
+}
+.nm-trow.active .nm-row-name { font-weight: 600; }
+.nm-trow[data-state="error"] .nm-row-name { color: var(--nm-error); }
+/* Yields its width before the name does — shrink beats the name's basis by
+   four orders of magnitude, so the identity survives to the last pixel. */
+.nm-row-meta {
+  flex: 0 9999 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 10.5px; color: var(--nm-faint);
+}
+.nm-row-status { text-align: right; padding-right: 8px; }
+.nm-row-time { padding-right: 10px; }
+.nm-row-time-v { text-align: right; font-family: var(--nm-mono); font-size: 10.5px; line-height: 12px; color: var(--nm-muted); font-variant-numeric: tabular-nums; }
+.nm-row-time-v.nm-hot { color: var(--nm-warning); }
+/* A duration bar rather than a waterfall lane: at 88px an offset-plus-length
+   bar is unreadable, and "how does this compare to the slowest thing in the
+   session" is the question a list answers better than a timeline. */
+.nm-row-track { height: 2px; margin-top: 3px; border-radius: 1px; background: var(--nm-wf-track); display: flex; justify-content: flex-end; }
+.nm-row-fill { height: 2px; border-radius: 1px; background: var(--nm-state-fg); opacity: .85; }
+.nm-row-fill.nm-wf-live {
+  background-image: linear-gradient(90deg, var(--nm-stripe) 25%, transparent 25%, transparent 50%, var(--nm-stripe) 50%, var(--nm-stripe) 75%, transparent 75%);
+  background-size: 10px 10px; animation: nm-stripe .8s linear infinite;
+}
+@keyframes nm-stripe { from { background-position: 0 0; } to { background-position: 10px 0; } }
 
 .nm-replay-chip {
-  font-size: 9px; font-weight: 800; padding: 0 4px; border-radius: 4px;
-  color: var(--nm-accent); background: var(--nm-accent-soft); flex-shrink: 0;
+  font-size: 9px; font-weight: 800; padding: 0 4px; border-radius: 4px; flex: none;
+  color: var(--nm-accent); background: var(--nm-accent-soft);
 }
 
-.nm-wf-track { position: relative; display: block; width: 100%; height: 8px; border-radius: 3px; background: var(--nm-wf-track); overflow: hidden; }
-.nm-wf-bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: .85; background: var(--nm-state-fg); }
-.nm-wf-live { background-image: linear-gradient(90deg, var(--nm-stripe) 25%, transparent 25%, transparent 50%, var(--nm-stripe) 50%, var(--nm-stripe) 75%, transparent 75%); background-size: 10px 10px; animation: nm-stripe .8s linear infinite; }
-@keyframes nm-stripe { from { background-position: 0 0; } to { background-position: 10px 0; } }
-.nm-wf-inf { position: absolute; right: 1px; top: 50%; transform: translateY(-50%); font-size: 9px; line-height: 1; color: var(--nm-txt); pointer-events: none; }
-
 .nm-status {
-  font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 5px;
-  min-width: 34px; text-align: center;
+  display: inline-flex; align-items: center; justify-content: center; height: 16px;
+  padding: 0 5px; border-radius: 4px; font-family: var(--nm-mono);
+  font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums;
   color: var(--nm-state-fg); background: var(--nm-state-bg);
 }
 
 .nm-load-divider {
-  display: flex; align-items: center; gap: 8px; padding: 0 12px;
-  font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
-  color: var(--nm-faint); background: var(--nm-well);
-  border-top: 1px solid var(--nm-line); border-bottom: 1px solid var(--nm-line);
+  display: flex; align-items: center; gap: 8px; height: var(--nm-row-h); padding: 0 12px 0 20px;
+  font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--nm-faint);
 }
-.nm-load-divider > span { display: inline-flex; align-items: center; gap: 5px; }
-.nm-load-divider::before, .nm-load-divider::after { content: ""; flex: 1; height: 1px; background: var(--nm-line-strong); }
+.nm-load-divider > span { flex: none; display: inline-flex; align-items: center; gap: 5px; }
+.nm-load-divider::after {
+  content: ""; flex: 1; height: 1px;
+  background: repeating-linear-gradient(90deg, var(--nm-line-strong) 0 3px, transparent 3px 7px);
+}
 `;
 
 const DETAIL = `
@@ -404,26 +611,54 @@ const DETAIL = `
   flex: 1; display: flex; flex-direction: column; position: relative;
   min-width: 0; min-height: 0; overflow: hidden; background: var(--nm-surface);
 }
+/* ── Detail head ───────────────────────────────────────────────────────────
+   Two lines: what this is and what you can do to it, then the URL. The
+   identity line stays on one row and truncates, so the action buttons never
+   move as you click down the list — a Replay button that shifts sideways per
+   entry is a Replay button you have to re-aim at every time. */
 .nm-detail-head {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px;
-  border-bottom: 1px solid var(--nm-line); background: var(--nm-surface-2); flex-shrink: 0;
+  flex: none; padding: 8px 10px 7px 12px; border-bottom: 1px solid var(--nm-line-2);
 }
+.nm-detail-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .nm-method {
-  font-size: 10px; font-weight: 800; letter-spacing: .3px; padding: 2px 7px; border-radius: 6px;
+  flex: none; font-family: var(--nm-mono); font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--nm-accent-fg);
   color: var(--nm-accent-fg); background: var(--nm-accent-bg);
 }
-.nm-method-lg { font-size: 11px; padding: 3px 9px; }
+.nm-detail-status {
+  flex: none; font-family: var(--nm-mono); font-size: 10.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 4px;
+  color: var(--nm-state-fg); background: var(--nm-state-bg); font-variant-numeric: tabular-nums;
+}
+.nm-detail-summary {
+  min-width: 0; flex: 1 1 auto; font-size: 11px; color: var(--nm-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums;
+}
 .nm-meta { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--nm-muted); }
 .nm-status-text { color: var(--nm-faint); }
-.nm-curl {
-  display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 11px; font-weight: 600;
-  padding: 4px 9px; border-radius: 7px; border: 1px solid var(--nm-line); background: var(--nm-elev);
-  color: var(--nm-txt); cursor: pointer; transition: background .14s ease, border-color .14s ease;
+/* Detail-head buttons: one primary (the thing this entry can be *made* to do
+   again) and a run of quiet ones. */
+.nm-dbtn {
+  flex: none; display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
+  border-radius: 5px; border: 1px solid var(--nm-line); background: var(--nm-elev);
+  color: var(--nm-muted); font-family: inherit; font-size: 10.5px; cursor: pointer; white-space: nowrap;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
 }
-.nm-curl:hover { background: var(--nm-elev-hover); border-color: var(--nm-line-strong); }
+.nm-dbtn:hover:not(:disabled) { background: var(--nm-elev-hover); color: var(--nm-txt); }
+.nm-dbtn:disabled { opacity: .4; cursor: not-allowed; }
+.nm-dbtn-sq { width: 22px; padding: 0; justify-content: center; }
+.nm-dbtn-mono { font-family: var(--nm-mono); font-size: 10px; }
+.nm-dbtn-primary {
+  padding: 0 9px; font-weight: 600;
+  color: var(--nm-accent); background: var(--nm-accent-soft); border-color: var(--nm-accent-line);
+}
+.nm-dbtn-primary:hover:not(:disabled) { color: var(--nm-accent); background: var(--nm-accent-soft); filter: brightness(1.3); }
+.nm-dbtn-on { color: var(--nm-warning); background: var(--nm-warning-soft); border-color: var(--nm-warning-line); }
+.nm-dbtn-on:hover:not(:disabled) { color: var(--nm-warning); background: var(--nm-warning-soft); }
 .nm-detail-url {
-  width: 100%; font-size: 11.5px; font-family: var(--nm-mono);
-  color: var(--nm-faint); word-break: break-all; user-select: all;
+  margin-top: 6px; font-size: 11px; font-family: var(--nm-mono);
+  color: var(--nm-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  user-select: all;
 }
 
 .nm-notice {
@@ -486,18 +721,56 @@ const DETAIL = `
 /* The rule lives on the wrapper, not the scroller: a border on a masked
    element fades out with the chips, leaving the tab row visibly unfinished at
    both ends. */
-/* flex: 0 0 auto overrides the strip default: the detail pane is a column,
-   where a grow factor would stretch the tab row over the payload below it. */
-.nm-tabrow { flex: 0 0 auto; border-bottom: 1px solid var(--nm-line); }
-.nm-tabs { display: flex; gap: 3px; padding: 7px 10px; }
-.nm-tab {
-  font-size: 11.5px; font-weight: 600; padding: 5px 11px; border: none; background: transparent;
-  color: var(--nm-muted); cursor: pointer; border-radius: 8px; white-space: nowrap;
-  transition: color .14s ease, background .14s ease, box-shadow .14s ease;
+/* ── Tab row ───────────────────────────────────────────────────────────────
+   The tabs and the payload's format switch share one 32px row. They are
+   different questions — which field, and how to render it — but both belong
+   to the pane below them, and two stacked 32px bars over a 200px payload was
+   more chrome than payload.
+
+   The active tab is marked by an underline in the *section's* colour, not by
+   a filled pill: a filled tab competed with the format switch beside it, and
+   the underline carries the source identity for free. */
+.nm-tabrow {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px; height: 32px;
+  padding: 0 10px 0 12px; min-width: 0;
+  background: var(--nm-surface-2); border-bottom: 1px solid var(--nm-line);
 }
-.nm-tab:hover { color: var(--nm-txt); background: var(--nm-elev); }
-.nm-tab.active { color: var(--nm-accent); background: var(--nm-accent-soft); box-shadow: inset 0 0 0 1px var(--nm-accent-line); }
+.nm-tabs { display: flex; align-items: center; gap: 2px; }
+.nm-tab {
+  position: relative; display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px;
+  border: none; background: none; color: var(--nm-muted);
+  font-family: inherit; font-size: 11.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+  transition: color .14s ease, box-shadow .14s ease;
+}
+.nm-tab:hover { color: var(--nm-txt); }
+.nm-tab.active { color: var(--nm-txt); font-weight: 600; box-shadow: inset 0 -2px 0 var(--nm-accent-fg); }
+.nm-tab-n {
+  font-family: var(--nm-mono); font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px;
+  background: var(--nm-elev); color: var(--nm-faint); font-variant-numeric: tabular-nums;
+}
+.nm-tab-aes { background: var(--nm-syn-blob-soft); color: var(--nm-syn-blob); }
 .nm-tab-body { flex: 1; min-height: 0; min-width: 0; overflow: hidden; background: var(--nm-bg); display: flex; flex-direction: column; }
+
+/* ── Linked events ─────────────────────────────────────────────────────────
+   The correlations Blix already knows about — the query that caused a request,
+   the requests a query caused, the original of a replay — as a strip at the
+   foot of the pane. They were buried in a notice above the tabs and in a list
+   inside one tab; a request and the query behind it are one story, and the
+   strip is where you step between them. */
+.nm-linked {
+  flex: none; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px;
+  background: var(--nm-surface-2); border-top: 1px solid var(--nm-line);
+}
+.nm-linked-label { flex: none; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: var(--nm-faint); }
+.nm-linked-chips { display: flex; align-items: center; gap: 6px; }
+.nm-linked-chip {
+  flex: none; display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px;
+  border-radius: 5px; border: 1px solid var(--nm-accent-fg); background: var(--nm-accent-bg);
+  color: var(--nm-accent-fg); font-family: var(--nm-mono); font-size: 10px;
+  cursor: pointer; white-space: nowrap; transition: filter .14s ease;
+}
+.nm-linked-chip:hover { filter: brightness(1.3); }
+.nm-linked-chip::before { content: ""; width: 5px; height: 5px; border-radius: 2px; background: currentColor; flex: none; }
 
 .nm-headers { flex: 1; min-height: 0; overflow: auto; padding: 6px 0 14px; background: var(--nm-bg); }
 .nm-htable { padding: 4px 14px 0; }
@@ -510,6 +783,13 @@ const DETAIL = `
 .nm-kv-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--nm-line-2); }
 .nm-kv-k { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--nm-muted); font-family: var(--nm-mono); word-break: break-word; }
 .nm-kv-v { margin: 0; font-size: 11.5px; color: var(--nm-txt); font-family: var(--nm-mono); word-break: break-all; user-select: all; }
+.nm-tag-masked {
+  display: inline-block; margin-left: 7px; vertical-align: 1px; user-select: none;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  padding: 1px 5px; border-radius: 3px;
+  color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
+}
 
 .nm-stack { margin: 0; padding: 6px 0 0; list-style: none; }
 .nm-stack-frame { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--nm-line-2); font-family: var(--nm-mono); font-size: 11.5px; }
@@ -537,34 +817,38 @@ const DETAIL = `
 .nm-diff-after { color: var(--nm-success); }
 .nm-diff-arrow { color: var(--nm-faint); font-size: 11px; }
 
-/* Query — State tab caused-requests list */
-.nm-caused-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
 `;
 
 const VIEWERS = `
 .nm-json-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.nm-json-toolbar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 6px 12px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
+/* The payload controls render into the tab row when the detail pane offers a
+   slot for them (see PayloadTools in DataView) — tabs and format are both
+   properties of the pane below, and two stacked 32px bars over a short docked
+   payload was more chrome than content. This is the standalone fallback. */
+.nm-json-toolbar { display: flex; align-items: center; gap: 6px; justify-content: flex-end; padding: 5px 10px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
+.nm-tabrow-tools { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; min-width: 0; }
 /* Tertiary information: it yields its space to the controls rather than
    competing for it. The nowrap is the part that matters — as a wrapping flex
    item it once folded "116 B · 10 lines" onto three lines and made the whole
    toolbar twice as tall. */
 .nm-json-size {
-  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--nm-faint);
-  margin-right: auto; min-width: 0; flex-shrink: 1;
+  font-family: var(--nm-mono); font-size: 9.5px; font-variant-numeric: tabular-nums;
+  color: var(--nm-faint); min-width: 0; flex-shrink: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.nm-json-toolbar .nm-json-size { margin-right: auto; }
 
-/* Display-format switch. Sits at the head of the payload toolbar because it
-   changes what the pane below it *is*, unlike Wrap and Copy which act on
-   whatever is already there. */
-.nm-fmt { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
+/* Display-format switch. Leads the payload controls because it changes what
+   the pane below it *is*, unlike Wrap and Copy which act on whatever is
+   already there. */
+.nm-fmt { display: flex; gap: 1px; padding: 2px; border-radius: 6px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
 .nm-fmt-btn {
-  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border: none; border-radius: 6px;
-  background: transparent; color: var(--nm-muted); cursor: pointer;
+  height: 18px; padding: 0 7px; font-size: 10px; font-weight: 400; border: none; border-radius: 4px;
+  background: transparent; color: var(--nm-faint); cursor: pointer; font-family: inherit;
   transition: background .14s ease, color .14s ease;
 }
 .nm-fmt-btn:hover:not(:disabled) { color: var(--nm-txt); }
-.nm-fmt-btn.active { background: var(--nm-surface-2); color: var(--nm-accent); box-shadow: var(--nm-shadow-seg); }
+.nm-fmt-btn.active { background: var(--nm-accent-soft); color: var(--nm-accent); font-weight: 600; }
 /* Table stays visible while unavailable rather than disappearing — a control
    that comes and goes as you click between requests is harder to learn than
    one that is simply dim, and its tooltip explains why. */
@@ -642,11 +926,12 @@ const VIEWERS = `
 .nm-tv-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
 .nm-tv-note { font-size: 10.5px; color: var(--nm-faint); }
 .nm-copy {
-  font-size: 11px; font-weight: 600; padding: 4px 11px; border-radius: 7px; border: 1px solid var(--nm-line);
-  background: var(--nm-elev); color: var(--nm-txt); cursor: pointer;
+  flex: none; height: 20px; padding: 0 7px; font-size: 10px; border-radius: 5px;
+  border: 1px solid var(--nm-line); font-family: inherit;
+  background: var(--nm-elev); color: var(--nm-muted); cursor: pointer; white-space: nowrap;
   transition: background .14s ease, color .14s ease, border-color .14s ease;
 }
-.nm-copy:hover { background: var(--nm-elev-hover); }
+.nm-copy:hover { background: var(--nm-elev-hover); color: var(--nm-txt); }
 .nm-toggle { color: var(--nm-muted); }
 .nm-toggle.active { color: var(--nm-accent); border-color: var(--nm-accent); background: var(--nm-accent-soft); }
 .nm-nowrap { white-space: pre !important; word-break: normal !important; }
@@ -827,22 +1112,39 @@ const MENU = `
 const MISC = `
 .nm-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; height: 100%; padding: 28px 18px; text-align: center; color: var(--nm-faint);
+  gap: 14px; height: 100%; padding: 30px 18px; text-align: center; color: var(--nm-faint);
 }
 .nm-empty-list { height: auto; padding-top: 48px; }
 .nm-tbody > .nm-empty-list { min-height: 100%; }
 .nm-empty-ico {
-  display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px;
-  border-radius: 14px; background: var(--nm-elev); color: var(--nm-muted); margin-bottom: 8px;
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border-radius: 12px; border: 1px solid var(--nm-accent-fg);
+  background: var(--nm-accent-bg); color: var(--nm-accent-fg);
 }
-/* Tinted per-section, so even an empty list reads as "the right kind of
-   empty" rather than a generic placeholder. */
-.nm-empty-ico-network { color: var(--nm-c-network); background: var(--nm-c-network-soft); }
-.nm-empty-ico-realtime { color: var(--nm-c-realtime); background: var(--nm-c-realtime-soft); }
-.nm-empty-ico-redux { color: var(--nm-c-redux); background: var(--nm-c-redux-soft); }
-.nm-empty-ico-query { color: var(--nm-c-query); background: var(--nm-c-query-soft); }
-.nm-empty-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--nm-muted); }
-.nm-empty-sub { margin: 0; font-size: 11.5px; color: var(--nm-faint); max-width: 260px; }
+/* An empty section is where a developer finds out that capture has to be
+   installed where the adapter is *constructed* — so the setup call sits in the
+   empty state itself, one click from the clipboard, rather than in a README. */
+.nm-empty-snippet {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px;
+  background: var(--nm-sunken); border: 1px solid var(--nm-line);
+  font-family: var(--nm-mono); font-size: 10.5px; color: var(--nm-muted);
+  max-width: 100%; overflow: auto; white-space: nowrap;
+}
+.nm-empty-fn { color: var(--nm-syn-bool); }
+.nm-empty-arg { color: var(--nm-syn-str); }
+.nm-empty-punct { color: var(--nm-syn-null); }
+.nm-empty-btn {
+  display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 6px;
+  border: 1px solid var(--nm-accent-line); background: var(--nm-accent-soft); color: var(--nm-accent);
+  font-family: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer;
+  transition: filter .14s ease;
+}
+.nm-empty-btn:hover { filter: brightness(1.3); }
+/* Tinted per-section via data-accent, so even an empty list reads as "the
+   right kind of empty" rather than a generic placeholder. */
+.nm-empty-copy { display: flex; flex-direction: column; gap: 5px; }
+.nm-empty-title { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--nm-txt); }
+.nm-empty-sub { margin: 0; font-size: 11px; line-height: 1.6; color: var(--nm-faint); max-width: 330px; }
 
 .nm-pulse { animation: nm-pulse 1.1s ease-in-out infinite; }
 @keyframes nm-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
@@ -858,11 +1160,18 @@ const MISC = `
 .nm-scroll::-webkit-scrollbar-thumb:hover { background: var(--nm-scroll-thumb-hover); background-clip: content-box; }
 .nm-scroll::-webkit-scrollbar-track { background: transparent; }
 
-.nm-fab:focus-visible, .nm-iconbtn:focus-visible, .nm-seg-btn:focus-visible,
-.nm-tab:focus-visible, .nm-copy:focus-visible, .nm-search-clear:focus-visible,
-.nm-dockbtn:focus-visible, .nm-menu-item:focus-visible, .nm-section:focus-visible {
+.nm-fab:focus-visible, .nm-pill:focus-visible, .nm-capture:focus-visible,
+.nm-fchip:focus-visible, .nm-tab:focus-visible, .nm-copy:focus-visible,
+.nm-dbtn:focus-visible, .nm-dockbtn:focus-visible, .nm-menu-item:focus-visible,
+.nm-rail-item:focus-visible, .nm-rail-cmd:focus-visible, .nm-rail-collapse:focus-visible,
+.nm-linked-chip:focus-visible, .nm-list-col:focus-visible, .nm-statusbar-btn:focus-visible,
+.nm-fmt-btn:focus-visible, .nm-empty-btn:focus-visible {
   outline: 2px solid var(--nm-accent); outline-offset: 2px;
 }
+/* Inset: the filter field clips, and an outline drawn outside the field would
+   be cut at its rounded corners. */
+.nm-filter:focus-within { border-color: var(--nm-accent-line); box-shadow: 0 0 0 3px var(--nm-accent-soft); }
+.nm-palette-item:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 .nm-trow:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 /* Inset, unlike the rest: the slice strip clips its overflow, so an outline
    drawn outside a chip would be sliced off at the strip's edges. */
@@ -870,109 +1179,94 @@ const MISC = `
 
 @media (prefers-reduced-motion: reduce) {
   .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-fab-dock, .nm-fab-ping, .nm-zone,
-  .nm-drag-scrim, .nm-pulse, .nm-wf-live, .nm-menu, .nm-restoring {
+  .nm-drag-scrim, .nm-pulse, .nm-wf-live, .nm-menu, .nm-restoring,
+  .nm-palette, .nm-rail, .nm-rail-live {
     animation: none !important; transition: none !important;
   }
 }
 `;
 
-/* ── Section tabs, status bar, density, resizable columns ─────────────── */
+/* ── Status bar, command palette, density ─────────────────────────────── */
 const LAYOUT = `
-/* Top-level sections: HTTP, realtime, Redux, Query each have their own
-   columns and their own notion of a "row", so they are separate views rather
-   than one mixed table with half the cells empty. Each carries its own icon
-   and identity colour (applied only to the active state, so the inactive row
-   stays quiet and the active one is unambiguous). */
-.nm-sections { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
-.nm-section {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600;
-  padding: 4px 11px 4px 8px; border: none; border-radius: 7px; background: transparent;
-  color: var(--nm-muted); cursor: pointer; transition: background .14s ease, color .14s ease;
-}
-.nm-section-ico { display: inline-flex; opacity: .8; transition: opacity .14s ease; }
-.nm-section:hover { color: var(--nm-txt); }
-.nm-section:hover .nm-section-ico { opacity: 1; }
-.nm-section.active { background: var(--nm-surface); color: var(--nm-txt); box-shadow: var(--nm-shadow-seg); }
-.nm-section.active .nm-section-ico { opacity: 1; }
-.nm-section-n { font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 999px; background: var(--nm-elev); color: var(--nm-faint); font-variant-numeric: tabular-nums; }
-.nm-section-live { width: 6px; height: 6px; border-radius: 999px; background: var(--nm-success); box-shadow: 0 0 0 3px var(--nm-success-soft); }
-
-/* Per-section identity — icon, count badge and active text all pick up the
-   section's colour once it's the active tab. */
-.nm-section-network.active { color: var(--nm-c-network); }
-.nm-section-network.active .nm-section-ico { color: var(--nm-c-network); }
-.nm-section-network.active .nm-section-n { color: var(--nm-c-network); background: var(--nm-c-network-soft); }
-.nm-section-realtime.active { color: var(--nm-c-realtime); }
-.nm-section-realtime.active .nm-section-ico { color: var(--nm-c-realtime); }
-.nm-section-realtime.active .nm-section-n { color: var(--nm-c-realtime); background: var(--nm-c-realtime-soft); }
-.nm-section-redux.active { color: var(--nm-c-redux); }
-.nm-section-redux.active .nm-section-ico { color: var(--nm-c-redux); }
-.nm-section-redux.active .nm-section-n { color: var(--nm-c-redux); background: var(--nm-c-redux-soft); }
-.nm-section-query.active { color: var(--nm-c-query); }
-.nm-section-query.active .nm-section-ico { color: var(--nm-c-query); }
-.nm-section-query.active .nm-section-n { color: var(--nm-c-query); background: var(--nm-c-query-soft); }
-
-/* Status bar — Chrome puts the totals at the bottom, and so do we. */
+/* Status bar — Chrome puts the totals at the bottom, and so do we. The
+   per-source totals moved to the rail, so what is left here is the session
+   as a whole plus the two things you act on: the commands, and the log
+   sitting on disk. */
 .nm-statusbar {
-  display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 0; overflow: hidden;
-  padding: 5px 12px; border-top: 1px solid var(--nm-line);
+  height: 26px; flex: none; display: flex; align-items: center; gap: 12px;
+  min-width: 0; overflow: hidden; padding: 0 10px 0 12px;
+  border-top: 1px solid var(--nm-line);
   background: var(--nm-surface-2); font-size: 10.5px; color: var(--nm-faint);
   font-variant-numeric: tabular-nums;
 }
-.nm-statusbar b { font-weight: 700; color: var(--nm-muted); }
+.nm-statusbar > span { white-space: nowrap; }
+.nm-statusbar b { font-weight: 600; color: var(--nm-muted); }
+.nm-statusbar-mono { font-family: var(--nm-mono); }
+.nm-statusbar-sep { width: 1px; height: 12px; flex: none; background: var(--nm-line); }
 .nm-statusbar-spacer { flex: 1; }
-.nm-statusbar-err { color: var(--nm-error); font-weight: 700; }
+.nm-statusbar-err { display: inline-flex; align-items: center; gap: 5px; color: var(--nm-faint); }
+.nm-statusbar-err::before { content: ""; width: 5px; height: 5px; border-radius: 999px; background: var(--nm-error); }
+.nm-statusbar-err b { color: var(--nm-error); font-weight: 700; }
 .nm-statusbar-btn {
-  border: none; background: transparent; color: var(--nm-faint); cursor: pointer;
-  font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 6px;
+  border: none; background: none; color: var(--nm-faint); cursor: pointer;
+  font-family: inherit; font-size: 10px; border-radius: 4px;
   transition: background .12s ease, color .12s ease;
 }
-.nm-statusbar-btn:hover { color: var(--nm-txt); background: var(--nm-elev); }
-.nm-statusbar-pin { display: inline-flex; align-items: center; gap: 4px; }
+.nm-statusbar-btn:hover { color: var(--nm-muted); }
+.nm-statusbar-pin { color: var(--nm-warning); }
+.nm-statusbar-persisted { font-family: var(--nm-mono); border: 1px solid transparent; }
 /* Armed for a destructive second click — the only thing in the status bar
    allowed to shout. */
-.nm-statusbar-armed { color: var(--nm-error); font-weight: 700; }
-.nm-statusbar-armed:hover { color: var(--nm-error); background: var(--nm-error-soft); }
+.nm-statusbar-armed { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
+.nm-statusbar-armed:hover { color: var(--nm-error); filter: brightness(1.3); }
 
-/* Active-filter chips. */
-.nm-chips { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.nm-chip {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
-  padding: 1px 4px 1px 7px; border-radius: 999px;
-  color: var(--nm-accent); background: var(--nm-accent-soft);
-  border: 1px solid var(--nm-accent-line); font-family: var(--nm-mono);
+/* ── Command palette ───────────────────────────────────────────────────────
+   Everything the panel can do, in one list, reachable from three places that
+   all say the same shortcut. It is also where the controls that the header
+   and the row can no longer afford now live — sorting, density, the per-entry
+   copy formats — so narrowing the chrome costs reach rather than capability. */
+.nm-palette {
+  position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
+  width: min(540px, calc(100% - 48px)); max-height: calc(100% - 140px); z-index: 50;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--nm-surface-3); border: 1px solid var(--nm-line-strong);
+  border-radius: 12px; box-shadow: var(--nm-shadow-sheet);
+  animation: nm-in .16s var(--nm-ease);
 }
-.nm-chip-x { border: none; background: transparent; color: inherit; cursor: pointer; padding: 0 2px; opacity: .65; font-size: 11px; line-height: 1; }
-.nm-chip-x:hover { opacity: 1; }
-
-/* Filter syntax hint row, shown while the search box is focused. */
-.nm-hints { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 5px 12px; border-bottom: 1px solid var(--nm-line); background: var(--nm-bg); }
-.nm-hint {
-  font-size: 10px; font-family: var(--nm-mono); padding: 1px 6px; border-radius: 5px;
-  border: 1px solid var(--nm-line); background: var(--nm-elev); color: var(--nm-muted); cursor: pointer;
-  transition: color .12s ease, border-color .12s ease;
+.nm-palette-head { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-bottom: 1px solid var(--nm-line); flex: none; }
+.nm-palette-ico { display: inline-flex; color: var(--nm-accent); flex: none; }
+.nm-palette-input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font-family: inherit; font-size: 12.5px; color: var(--nm-txt);
 }
-.nm-hint:hover { color: var(--nm-txt); border-color: var(--nm-line-strong); }
-.nm-hint span { color: var(--nm-faint); margin-left: 4px; }
+.nm-palette-input::placeholder { color: var(--nm-faint); }
+.nm-palette-list { flex: 1; min-height: 0; overflow: auto; padding: 6px 0 8px; }
+.nm-palette-group { padding: 9px 14px 4px; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: var(--nm-faint); }
+.nm-palette-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 7px 14px; border: none; border-left: 2px solid transparent; background: none;
+  font-family: inherit; cursor: pointer;
+  transition: background .1s ease, border-color .1s ease;
+}
+.nm-palette-item:disabled { opacity: .4; cursor: not-allowed; }
+.nm-palette-item.active:not(:disabled) { background: var(--nm-accent-soft); border-left-color: var(--nm-accent); }
+.nm-palette-dot { flex: none; width: 6px; height: 6px; border-radius: 2px; background: var(--nm-accent-fg); }
+.nm-palette-label { flex: 1; min-width: 0; font-size: 12px; color: var(--nm-txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-palette-note { flex: none; font-size: 10.5px; color: var(--nm-faint); }
+.nm-palette-key {
+  flex: none; font-family: var(--nm-mono); font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: var(--nm-sunken); border: 1px solid var(--nm-line); color: var(--nm-muted);
+}
+.nm-palette-empty { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--nm-faint); }
+.nm-scrim-full { position: absolute; inset: 0; z-index: 40; background: var(--nm-scrim); }
 
 /* Density — one variable drives both the CSS and the virtualizer arithmetic. */
-.nm-trow, .nm-load-divider { height: var(--nm-row-h); }
 .nm-density-compact { font-size: 11px; }
 .nm-density-comfy .nm-trow { font-size: 12px; }
 
-/* Column resize handles live in the header. */
-.nm-th { position: relative; display: flex; align-items: center; gap: 3px; overflow: hidden; }
-.nm-th-grip {
-  position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize;
-  touch-action: none; z-index: 2;
-}
-.nm-th-grip::after {
-  content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px;
-  background: var(--nm-line-strong); opacity: 0; transition: opacity .14s ease;
-}
-.nm-th-grip:hover::after, .nm-th-grip:active::after { opacity: 1; background: var(--nm-accent); }
-
-/* Pin affordance. */
+/* Pin affordance. Pinned is a state worth seeing while scanning; the control
+   itself only surfaces on hover. */
 .nm-pin {
   border: none; background: transparent; cursor: pointer; padding: 0;
   color: var(--nm-faint); opacity: 0; flex-shrink: 0; display: inline-flex;
@@ -1007,15 +1301,58 @@ const LAYOUT = `
 .nm-timing-network { --nm-phase: var(--nm-c-network); }
 .nm-timing-decrypt { --nm-phase: var(--nm-warning); }
 .nm-timing-seg, .nm-timing-swatch { background: var(--nm-phase); }
-.nm-timing { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
-.nm-timing-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--nm-elev); margin-bottom: 12px; }
-.nm-timing-seg { height: 100%; transition: width .2s ease; }
-.nm-timing-legend { display: flex; flex-direction: column; gap: 6px; }
-.nm-timing-row { display: grid; grid-template-columns: 12px minmax(90px, 140px) 1fr auto; gap: 9px; align-items: center; font-size: 11.5px; }
-.nm-timing-swatch { width: 10px; height: 10px; border-radius: 3px; }
-.nm-timing-label { color: var(--nm-muted); }
-.nm-timing-note { color: var(--nm-faint); font-size: 10.5px; }
-.nm-timing-value { color: var(--nm-txt); font-variant-numeric: tabular-nums; font-weight: 600; }
+.nm-timing { flex: 1; min-height: 0; overflow: auto; padding: 16px 16px 20px; }
+.nm-timing-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.nm-timing-title { font-size: 9px; font-weight: 700; letter-spacing: .14em; color: var(--nm-faint); }
+.nm-timing-total { font-family: var(--nm-mono); font-size: 11px; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
+.nm-timing-total b { color: var(--nm-txt); font-weight: 600; }
+.nm-timing-bar {
+  display: flex; height: 26px; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--nm-line); background: var(--nm-sunken);
+}
+/* The label goes *inside* its own segment. A legend below can say how long
+   each phase took, but only an in-bar number ties the width you are looking
+   at to the duration it represents. */
+.nm-timing-seg {
+  height: 100%; display: flex; align-items: center; justify-content: center;
+  font-family: var(--nm-mono); font-size: 9.5px; font-weight: 700;
+  color: var(--nm-bg); overflow: hidden; white-space: nowrap;
+  transition: width .2s ease;
+}
+.nm-timing-legend { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
+.nm-timing-row {
+  display: grid; grid-template-columns: 14px minmax(90px, 130px) 1fr 70px 46px;
+  gap: 10px; align-items: center; padding: 6px 4px; font-size: 11.5px;
+  border-bottom: 1px solid var(--nm-line-2);
+}
+.nm-timing-swatch { width: 8px; height: 8px; border-radius: 2px; }
+.nm-timing-label { color: var(--nm-txt); }
+.nm-timing-note { color: var(--nm-faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-timing-value { text-align: right; font-family: var(--nm-mono); font-size: 11px; color: var(--nm-muted); font-variant-numeric: tabular-nums; }
+.nm-timing-pct { text-align: right; font-family: var(--nm-mono); font-size: 11px; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
+
+/* "Is 712 ms slow?" is unanswerable on its own and obvious next to the
+   session's median and its worst offender — which the panel already knows.
+   Three bars against one scale, so the comparison is spatial rather than
+   arithmetic. */
+.nm-timing-ctx {
+  margin-top: 18px; padding: 12px 14px; border-radius: 8px;
+  background: var(--nm-surface-2); border: 1px solid var(--nm-line);
+}
+.nm-timing-ctx-head { font-size: 9px; font-weight: 700; letter-spacing: .14em; color: var(--nm-faint); margin-bottom: 10px; }
+.nm-timing-ctx-row { display: grid; grid-template-columns: minmax(80px, 118px) 1fr 62px; gap: 10px; align-items: center; padding: 4px 0; }
+.nm-timing-ctx-k { font-size: 10.5px; color: var(--nm-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-timing-ctx-track { height: 5px; border-radius: 3px; background: var(--nm-wf-track); display: flex; }
+.nm-timing-ctx-fill { height: 5px; border-radius: 3px; background: var(--nm-phase); }
+.nm-timing-ctx-v { text-align: right; font-family: var(--nm-mono); font-size: 10.5px; color: var(--nm-muted); font-variant-numeric: tabular-nums; }
+.nm-timing-this { --nm-phase: var(--nm-accent); }
+.nm-timing-this .nm-timing-ctx-v, .nm-timing-this .nm-timing-ctx-k { color: var(--nm-txt); }
+/* Deliberately colourless — the median is the baseline, not a result.
+   Faint rather than a hairline token: at 5px tall a border colour is
+   indistinguishable from the empty track behind it. */
+.nm-timing-median { --nm-phase: var(--nm-faint); }
+.nm-timing-worst { --nm-phase: var(--nm-warning); }
+.nm-timing-worst .nm-timing-ctx-v { color: var(--nm-warning); }
 
 /* Shortcut cheatsheet. */
 .nm-sheet-scrim { position: fixed; inset: 0; z-index: 2147483646; background: var(--nm-scrim); animation: nm-fade .14s ease-out; }
@@ -1031,10 +1368,13 @@ const LAYOUT = `
 .nm-sheet-grid { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: center; }
 .nm-sheet-group { grid-column: 1 / -1; font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--nm-faint); margin-top: 10px; }
 .nm-sheet-group:first-of-type { margin-top: 0; }
-.nm-kbd {
+/* The sheet's keys are the subject of the page rather than a hint in the
+   corner of a control, so they get the mono face and a little more weight
+   than the shared .nm-kbd. */
+.nm-sheet .nm-kbd {
   display: inline-block; min-width: 20px; text-align: center; font-family: var(--nm-mono);
   font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 5px;
-  border: 1px solid var(--nm-line-strong); background: var(--nm-elev); color: var(--nm-txt);
+  border: 1px solid var(--nm-line-strong); color: var(--nm-txt);
   box-shadow: 0 1px 0 var(--nm-line-strong);
 }
 .nm-sheet-desc { font-size: 11.5px; color: var(--nm-muted); }
@@ -1058,27 +1398,21 @@ const RESPONSIVE = `
 /* Roomy — everything visible. */
 
 @container nm (max-width: 900px) {
-  /* Section tabs keep their counts but lose some padding first. */
-  .nm-section { padding: 4px 8px; }
-  .nm-search-wrap { max-width: 260px; }
+  .nm-filter { max-width: none; }
+  .nm-detail-summary { flex-shrink: 9999; }
 }
 
 @container nm (max-width: 760px) {
-  /* Filter segments collapse to a coloured dot plus its count; the label is
+  /* Filter chips collapse to a coloured dot plus its count; the label is
      redundant once you know the colours, and the counts are the useful part. */
-  .nm-seg-label { display: none; }
-  .nm-seg-btn { padding: 4px 7px; gap: 4px; }
-  .nm-hints { display: none; }
-  .nm-detail-head { gap: 6px; padding: 8px 10px; }
-  .nm-tab { padding: 5px 9px; font-size: 11px; }
+  .nm-fchip-label { display: none; }
+  .nm-fchip { padding: 0 5px; gap: 4px; }
+  .nm-detail-head { padding: 8px 10px 7px 10px; }
+  .nm-tab { padding: 0 6px; font-size: 11px; }
 }
 
 @container nm (max-width: 640px) {
-  .nm-header { gap: 7px; padding: 8px 9px; }
-  .nm-section-label { display: none; }
-  .nm-section { padding: 5px; }
-  .nm-search-wrap { max-width: none; }
-  .nm-chips { display: none; }
+  .nm-header { gap: 7px; padding: 0 6px 0 8px; }
   /* Key/value rows stack rather than squeezing the value into a sliver. */
   .nm-kv-row { grid-template-columns: 1fr; gap: 1px; padding: 5px 0; }
   .nm-kv-k { font-size: 10.5px; }
@@ -1088,9 +1422,6 @@ const RESPONSIVE = `
   /* The timing legend loses its explanatory note column. */
   .nm-timing-row { grid-template-columns: 12px 1fr auto; }
   .nm-timing-note { display: none; }
-}
-
-@container nm (max-width: 640px) {
   /* The controls win the toolbar outright once it is this tight; the byte
      count is the one thing there that nothing depends on. */
   .nm-json-size { display: none; }
@@ -1099,31 +1430,41 @@ const RESPONSIVE = `
 
 @container nm (max-width: 520px) {
   .nm-brand { display: none; }
-  .nm-statusbar { gap: 7px; font-size: 10px; }
-  .nm-detail-url { font-size: 11px; }
-  .nm-tabs { padding: 6px 8px; }
+  .nm-statusbar { gap: 8px; font-size: 10px; }
+  .nm-detail-url { font-size: 10.5px; }
   .nm-htable { padding: 4px 10px 0; }
   .nm-tree { font-size: 11px; }
+  /* Two of the five row tracks are the first to go: the link ticks are a
+     shortcut to something the linked strip still shows, and the duration bar
+     is a comparison the number above it already carries.
+
+     The ticks are collapsed to a zero-width track, never display:none —
+     removing a grid item shifts every later child up one column, which put
+     the name in the 0px track and the duration off the end of the row. */
+  .nm-trow { grid-template-columns: 3px 0 minmax(0, 1fr) 46px 62px; }
+  .nm-row-links { width: 0; overflow: hidden; }
+  .nm-row-track { display: none; }
+  .nm-list-cols { grid-template-columns: 46px 62px; }
 }
 
 /* Very short panels: give the list and detail a usable minimum each and let the
-   toolbar shrink rather than eating the whole panel. */
+   chrome shrink rather than eating the whole panel. */
 @container nm (max-height: 340px) {
-  .nm-filters { display: none; }
   .nm-statusbar { display: none; }
+  .nm-linked { display: none; }
+  .nm-rail-stats { display: none; }
 }
 
 /* Stacked layout — the list sits above the detail. Applied by JS whenever the
    panel is too narrow for a side-by-side split to give both panes their
    minimum, regardless of dock mode. */
-.nm-body.nm-body-v { flex-direction: column; }
-.nm-body.nm-body-v > .nm-list { width: auto !important; max-width: none; }
-.nm-body.nm-body-v > .nm-detail { min-height: 0; }
+.nm-body-panes.nm-body-v > .nm-list { width: auto !important; max-width: none; }
+.nm-body-panes.nm-body-v > .nm-detail { min-height: 0; }
 
 /* Status bar items hide in priority order as space runs out. */
 @container nm (max-width: 820px) { .nm-status-transferred { display: none; } }
 @container nm (max-width: 700px) { .nm-status-slowest { display: none; } }
-@container nm (max-width: 600px) { .nm-status-inflight { display: none; } }
+@container nm (max-width: 600px) { .nm-status-failing { display: none; } }
 @container nm (max-width: 480px) { .nm-status-persisted { display: none; } }
 
 /* The floating panel must never exceed the viewport on a small screen. */
@@ -1140,7 +1481,7 @@ export const MONITOR_STYLES = [
   FAB,
   PANEL,
   HEADER,
-  FILTERS,
+  RAIL,
   TABLE,
   DETAIL,
   VIEWERS,

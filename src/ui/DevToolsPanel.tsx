@@ -42,15 +42,17 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { BlixContext } from "./BlixContext";
+import { CommandPalette, type CommandGroup } from "./components/CommandPalette";
 import { ContextMenu } from "./components/ContextMenu";
 import { DetailPane } from "./components/DetailPane";
 import { Icon, type IconName } from "./components/Icon";
 import { CORNER_STYLE, FabDragPreview, MonitorFab } from "./components/MonitorFab";
 import { MonitorToolbar } from "./components/MonitorToolbar";
-import { RequestTable, columnsFor } from "./components/RequestTable";
+import { RequestTable } from "./components/RequestTable";
 import { ShortcutsSheet } from "./components/ShortcutsSheet";
+import { SourcesRail, SECTION_DEFS } from "./components/SourcesRail";
 import { StatusBar } from "./components/StatusBar";
-import { DENSITY_ROW_H, type Density } from "./constants/ui";
+import { DENSITY_ROW_H, RAIL_W, RAIL_W_MINI, type Density } from "./constants/ui";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ExportMenu, type ExportScope } from "./components/ExportMenu";
 import { ThemeMenu } from "./components/ThemeMenu";
@@ -63,20 +65,6 @@ import {
 
 const DENSITY_ORDER: Density[] = ["compact", "normal", "comfy"];
 
-/** Which top-level section an entry belongs to. */
-function sectionOf(entry: MonitorEntry): Section {
-  switch (entry.kind ?? "http") {
-    case "ws":
-      return "realtime";
-    case "redux":
-      return "redux";
-    case "query":
-      return "query";
-    default:
-      return "network";
-  }
-}
-
 const SECTION_LABEL: Record<Section, string> = {
   network: "Network",
   realtime: "Realtime",
@@ -84,30 +72,48 @@ const SECTION_LABEL: Record<Section, string> = {
   query: "Query",
 };
 
-const EMPTY_COPY: Record<Section, { icon: IconName; title: string; sub: string }> = {
+/**
+ * Empty states, per source.
+ *
+ * Three of the four sources need something installed before they can show
+ * anything, and an empty list is exactly where a developer finds that out —
+ * so the setup call is *in* the empty state, one click from the clipboard,
+ * rather than in a README they would have to know to go looking for. The
+ * caveat is there for the same reason: capture has to be installed where the
+ * adapter or store is constructed, and "module scope, not a component" is the
+ * mistake this panel cannot detect on the developer's behalf.
+ */
+const EMPTY_COPY: Record<
+  Section,
+  { icon: IconName; title: string; sub: string; snippet?: string }
+> = {
   network: {
-    icon: "inbox",
+    icon: "network",
     title: "No requests yet",
-    sub: "Captured requests will appear here.",
+    sub: "Captured requests appear here as the app makes them. If nothing arrives, the axios instance may not be the one Blix is attached to.",
+    snippet: "attachHttp(apiClient)",
   },
   realtime: {
     icon: "bolt",
-    title: "No realtime connections",
-    sub: "Open the conversations screen to bring a socket up.",
+    title: "No realtime traffic yet",
+    sub: "Frames appear once an adapter is tapped. Capture must be installed where the adapter singleton is constructed — module scope, not a component.",
+    snippet: 'tapRealtimeAdapter(adapter, "pusher")',
   },
   redux: {
     icon: "stack",
     title: "No Redux actions yet",
-    sub: "Actions dispatched anywhere in the app will appear here.",
+    sub: "Actions dispatched anywhere in the app appear here, with a bounded diff of what each one changed.",
+    snippet: "middleware: (get) => get().concat(blixMiddleware)",
   },
   query: {
     icon: "database",
     title: "No query activity yet",
-    sub: "Navigate to a screen that fetches or mutates data to see it here.",
+    sub: "Cache lifecycle — fetch, success, invalidate, garbage-collect — appears here once the query client is tapped.",
+    snippet: "tapQueryClient(queryClient)",
   },
 };
 import { copyText, formatBytes } from "./helpers/format";
-import { computeTimelines } from "./helpers/waterfall";
+import { buildLinkGraph, linkedEntries, sectionOf } from "./helpers/entryLinks";
 import { useHostTheme } from "./hooks/useHostTheme";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useDockGeometry } from "./hooks/useDockGeometry";
@@ -119,11 +125,11 @@ import { usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
 import { describeTokens, parseFilter, tokenToRaw } from "./services/filterQuery";
 import { canReplay, replayEntry } from "./services/replayRequest";
+import { toCurl, toFetch } from "./services/snippets";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
 import {
   normalizeDataFormat,
   SECTION_NOUNS,
-  type ColumnId,
   type DataFormat,
   type Section,
   type Sort,
@@ -160,8 +166,8 @@ export default function DevTools() {
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const [deepSearch, setDeepSearch] = useState(
     () => prefsStore.getSnapshot().prefs.deepSearch,
   );
@@ -262,28 +268,14 @@ export default function DevTools() {
   const selection = useMonitorSelection(entries, list.filtered, list.visibleIds);
 
   const rowHeight = DENSITY_ROW_H[density];
-  const virtual = useVirtualRows(list.rows.length, scrollerRef, rowHeight);
+  const virtual = useVirtualRows(list.rows.length, scrollerRef, rowHeight, open);
 
   // One ticker for the whole panel, running only while something is pending.
   const nowAbs = useMonitorClock(list.counts.pending > 0);
-  const timelines = useMemo(
-    () => computeTimelines(list.filtered, nowAbs),
-    [list.filtered, nowAbs],
-  );
 
-  const columns = useMemo(() => columnsFor(section), [section]);
-  const columnWidths = (prefs.columnWidths ?? {}) as Partial<
-    Record<ColumnId, number>
-  >;
-
-  const onResizeColumn = useCallback(
-    (id: ColumnId, width: number) => {
-      savePrefs({
-        columnWidths: { ...(prefsStore.getSnapshot().prefs.columnWidths ?? {}), [id]: width },
-      });
-    },
-    [],
-  );
+  // Cross-source correlation, indexed once per buffer change rather than
+  // re-derived per row — see `helpers/entryLinks.ts`.
+  const links = useMemo(() => buildLinkGraph(entries), [entries]);
 
   const onQuery = useCallback((value: string) => setQuery(value), []);
   const onDeepSearch = useCallback((value: boolean) => {
@@ -300,6 +292,13 @@ export default function DevTools() {
   }, []);
   const onDataFormat = useCallback((next: DataFormat) => {
     savePrefs({ dataFormat: next });
+  }, []);
+  // Read straight from prefs rather than mirroring it in local state: prefs
+  // already re-render this component through `useSyncExternalStore`, and the
+  // mirror only created a second source of truth to keep in step.
+  const railCollapsed = prefs.railCollapsed === true;
+  const onToggleRail = useCallback(() => {
+    savePrefs({ railCollapsed: !prefsStore.getSnapshot().prefs.railCollapsed });
   }, []);
   const onTheme = useCallback((next: ThemePref) => {
     savePrefs({ theme: next });
@@ -334,11 +333,14 @@ export default function DevTools() {
     );
   }, []);
 
+  // The store call is deliberately *outside* the updater. React runs an
+  // updater during the render phase, and `setPaused` emits synchronously to
+  // every `useSyncExternalStore` subscriber — which is a setState from inside
+  // a render, and React says so.
   const togglePause = useCallback(() => {
-    setPaused((p) => {
-      networkMonitor.setPaused(!p);
-      return !p;
-    });
+    const next = !networkMonitor.isPaused;
+    networkMonitor.setPaused(next);
+    setPaused(next);
   }, []);
 
   const togglePin = useCallback((id: string) => networkMonitor.togglePin(id), []);
@@ -394,6 +396,15 @@ export default function DevTools() {
 
       if (!kb.current.open) return;
 
+      // The palette is reachable from anywhere in the panel, including from
+      // inside the filter field — it is the one shortcut that has to work
+      // while typing, since half of what it offers is filter syntax.
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowPalette((p) => !p);
+        return;
+      }
+
       // Something inside the panel already acted on this key. Without this,
       // the payload tree's arrow keys moved the tree *and* stepped the list
       // selection underneath it — which swapped the entry out from under the
@@ -407,7 +418,8 @@ export default function DevTools() {
         // that closes just the menu — without this branch, that listener and
         // this one both fire on the same keypress, and the panel closed
         // underneath the menu the developer was still using.
-        if (showShortcuts) setShowShortcuts(false);
+        if (showPalette) setShowPalette(false);
+        else if (showShortcuts) setShowShortcuts(false);
         else if (kb.current.menuOpen) menu.close();
         else if (menuState) closeMenus();
         else setOpen(false);
@@ -505,7 +517,7 @@ export default function DevTools() {
     // render) would defeat the point of this effect: attach the listener
     // once, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, menuState, closeMenus, onSection, showShortcuts, togglePause, togglePin, menu.close]);
+  }, [dock, menuState, closeMenus, onSection, showShortcuts, showPalette, togglePause, togglePin, menu.close]);
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
@@ -627,19 +639,6 @@ export default function DevTools() {
   const nouns = SECTION_NOUNS[section];
   const pendingLabel =
     section === "realtime" ? "Open" : section === "query" ? "Fetching" : "Pending";
-  // Each filter key doubles as its own `data-state`, so the dot beside a
-  // segment is coloured by the theme rather than by a colour passed in here.
-  const segments: [StateFilter, string, number][] = [
-    ["all", "All", list.counts.all],
-    ["success", "OK", list.counts.success],
-    ["error", "Errors", list.counts.error],
-    ["pending", pendingLabel, list.counts.pending],
-  ];
-  // "Aborted" earns a segment only once there is something in it — it exists
-  // solely for requests restored mid-flight from a previous page load.
-  if (list.counts.aborted > 0) {
-    segments.push(["aborted", "Aborted", list.counts.aborted]);
-  }
 
   const selectedEntry = selection.resolved.entry;
   // The selection can also be "hidden" simply by being in another section,
@@ -673,11 +672,234 @@ export default function DevTools() {
   };
 
   const chips = describeTokens(parsedFilter);
-  const slowestMs = list.filtered.reduce(
-    (max, e) => Math.max(max, e.durationMs ?? 0),
-    0,
+  const removeChip = (index: number) =>
+    setQuery(
+      parsedFilter.tokens
+        .filter((_, i) => i !== index)
+        .map(tokenToRaw)
+        .join(" "),
+    );
+
+  // One pass over the visible durations feeds three consumers: the status bar
+  // and rail totals, the list's duration bars, and the Timing tab's
+  // "is this slow?" comparison.
+  const durations = list.filtered
+    .filter((e) => e.durationMs != null)
+    .map((e) => e as MonitorEntry & { durationMs: number });
+  const slowestEntry = durations.reduce<(MonitorEntry & { durationMs: number }) | null>(
+    (worst, e) => (worst == null || e.durationMs > worst.durationMs ? e : worst),
+    null,
   );
+  const slowestMs = slowestEntry?.durationMs ?? 0;
+  const sortedDurations = durations.map((e) => e.durationMs).sort((a, b) => a - b);
+  const medianMs = sortedDurations.length
+    ? sortedDurations[Math.floor(sortedDurations.length / 2)]
+    : 0;
   const pinnedCount = entries.filter((e) => e.pinned).length;
+  const firstFailing = list.filtered.find((e) => e.state === "error");
+  const linked = selectedEntry ? linkedEntries(selectedEntry.id, links) : [];
+
+  // Below this the labels cost more than they are worth; the rail keeps its
+  // identity dots and hands the width to the list. A developer's own collapse
+  // still wins, and re-widening the panel restores what they chose.
+  const railMini = railCollapsed || (panel.measured && panel.width < 760);
+  const railWidth = railMini ? RAIL_W_MINI : RAIL_W;
+
+  const openPalette = () => setShowPalette(true);
+  const closePalette = () => setShowPalette(false);
+
+  /**
+   * What the palette offers.
+   *
+   * Roughly half of these have no other affordance in the redesigned chrome —
+   * sort order, density, the copy formats — which is the point: the header
+   * spends its width on what you read constantly, and everything you reach for
+   * occasionally is one keystroke away instead of one button each.
+   */
+  const commands: CommandGroup[] = [
+    {
+      name: "SESSION",
+      items: [
+        {
+          id: "pause",
+          label: paused ? "Resume capture" : "Pause capture",
+          key: "Space",
+          accent: "warn",
+          run: togglePause,
+        },
+        {
+          id: "clear",
+          label: "Clear log",
+          note: "pinned entries are kept",
+          key: "⇧C",
+          accent: "danger",
+          run: () => {
+            networkMonitor.clear();
+            selection.clear();
+          },
+        },
+        {
+          id: "preserve",
+          label: prefs.preserveLog ? "Stop preserving the log" : "Preserve log across reloads",
+          note: "writes to IndexedDB",
+          key: "⇧L",
+          accent: "warn",
+          run: () => setPreserveLog(!prefs.preserveLog),
+        },
+        {
+          id: "follow",
+          label: selection.isFollowing ? "Stop following the newest" : "Follow the newest entry",
+          run: selection.toggleFollow,
+        },
+      ],
+    },
+    {
+      name: "SOURCES",
+      items: SECTION_DEFS.map((s) => ({
+        id: `section-${s.id}`,
+        label: `Go to ${s.label}`,
+        note: `${sectionCounts[s.id]}`,
+        key: s.hotkey,
+        accent: s.id,
+        run: () => onSection(s.id),
+      })),
+    },
+    {
+      name: "SELECTED",
+      items: [
+        {
+          id: "replay",
+          label: "Replay request",
+          key: "R",
+          disabled: !selectedEntry || !canReplay(selectedEntry, apiClient).can,
+          run: () => {
+            if (selectedEntry && apiClient) {
+              void replayEntry(selectedEntry, apiClient).catch(() => {});
+            }
+          },
+        },
+        {
+          id: "curl",
+          label: "Copy as cURL",
+          note: "auth masked at capture",
+          disabled: !selectedEntry || (selectedEntry.kind ?? "http") !== "http",
+          run: () => selectedEntry && void copyText(toCurl(selectedEntry)),
+        },
+        {
+          id: "fetch",
+          label: "Copy as fetch",
+          disabled: !selectedEntry || (selectedEntry.kind ?? "http") !== "http",
+          run: () => selectedEntry && void copyText(toFetch(selectedEntry)),
+        },
+        {
+          id: "copy-url",
+          label: "Copy URL",
+          key: "U",
+          disabled: !selectedEntry,
+          run: () =>
+            selectedEntry &&
+            void copyText(`${selectedEntry.baseURL ?? ""}${selectedEntry.url}`),
+        },
+        {
+          id: "pin",
+          label: selectedEntry?.pinned ? "Unpin entry" : "Pin entry",
+          key: "P",
+          disabled: !selectedEntry,
+          run: () => selectedEntry && togglePin(selectedEntry.id),
+        },
+        ...linked.map((other) => ({
+          id: `link-${other.id}`,
+          label: `Jump to linked ${sectionOf(other)} entry`,
+          note: other.url,
+          accent: sectionOf(other),
+          run: () => {
+            onSection(sectionOf(other));
+            selection.pin(other.id);
+          },
+        })),
+      ],
+    },
+    {
+      name: "LIST",
+      items: (
+        [
+          ["time", "newest first"],
+          ["name", "alphabetical"],
+          ["status", "failures together"],
+          ["duration", "slowest first"],
+          ["size", "largest first"],
+        ] as [SortKey, string][]
+      ).map(([key, note]) => ({
+        id: `sort-${key}`,
+        label: `Sort by ${key}`,
+        note: sort.key === key ? `${note} · on` : note,
+        run: () => onSort(key),
+      })),
+    },
+    {
+      name: "FILTER",
+      items: (
+        [
+          ["is:error", "failures only"],
+          ["is:pinned", "pinned only"],
+          ["status:5xx", "server errors"],
+          ["slower-than:500", "over half a second"],
+          ["larger-than:100k", "heavy payloads"],
+          ["has:initiator", "with a call stack"],
+          ["-polling", "exclude a term"],
+        ] as [string, string][]
+      ).map(([token, note]) => ({
+        id: `filter-${token}`,
+        label: token,
+        note,
+        run: () => {
+          setQuery((q) => (q ? `${q.trimEnd()} ${token}` : token));
+          searchRef.current?.focus();
+        },
+      })),
+    },
+    {
+      name: "PANEL",
+      items: [
+        {
+          id: "density",
+          label: "Cycle row density",
+          note: density,
+          key: "⇧D",
+          run: () =>
+            onDensity(
+              DENSITY_ORDER[(DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length],
+            ),
+        },
+        {
+          id: "dock",
+          label: "Cycle dock position",
+          note: dock.mode,
+          run: () =>
+            onMode(dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom"),
+        },
+        {
+          id: "rail",
+          label: railMini ? "Expand the sources rail" : "Collapse the sources rail",
+          run: onToggleRail,
+        },
+        {
+          id: "shortcuts",
+          label: "Keyboard shortcuts",
+          key: "?",
+          run: () => setShowShortcuts(true),
+        },
+        {
+          id: "purge",
+          label: "Purge the saved log",
+          note: persisted.count ? `${persisted.count} on disk` : "nothing saved",
+          accent: "danger",
+          disabled: persisted.count === 0,
+          run: () => void purgeStorage(),
+        },
+      ],
+    },
+  ];
 
   const ui = (
     <div
@@ -739,14 +961,11 @@ export default function DevTools() {
 
           <MonitorToolbar
             dotState={dotState}
-            section={section}
-            onSection={onSection}
-            counts={sectionCounts}
-            live={sectionLive}
             query={query}
             onQuery={onQuery}
             searchRef={searchRef}
-            onSearchFocus={setSearchFocused}
+            chips={chips}
+            onRemoveChip={removeChip}
             deepSearch={deepSearch}
             onDeepSearch={onDeepSearch}
             searching={list.searching}
@@ -754,23 +973,17 @@ export default function DevTools() {
             onTogglePause={togglePause}
             preserveLog={prefs.preserveLog}
             onTogglePreserve={() => setPreserveLog(!prefs.preserveLog)}
-            following={selection.isFollowing}
-            onToggleFollow={selection.toggleFollow}
             onExportMenu={setExportAnchor}
             exportOpen={exportAnchor !== null}
             exportDisabled={entries.length === 0}
             onThemeMenu={setThemeAnchor}
             themeOpen={themeAnchor !== null}
-            compact={panel.compactToolbar}
-            tiny={panel.tinyToolbar}
+            themeLabel={theme.label}
             onMoreMenu={setMoreAnchor}
             moreOpen={moreAnchor !== null}
-            onClear={() => {
-              networkMonitor.clear();
-              selection.clear();
-            }}
-            density={density}
-            onDensity={onDensity}
+            onOpenPalette={openPalette}
+            compact={panel.compactToolbar}
+            tiny={panel.tinyToolbar}
             mode={dock.mode}
             onMode={onMode}
             maximized={dock.maximized}
@@ -779,156 +992,135 @@ export default function DevTools() {
             onPointerDown={dock.startPanelDrag}
           />
 
-          {/* Filter-syntax hints, only while the search box has focus. */}
-          {searchFocused && (
-            <div className="nm-hints">
-              {[
-                ["-token", "exclude"],
-                ["method:post", ""],
-                ["status:5xx", ""],
-                ["is:error", "ok · pending · pinned · replay"],
-                ["type:redux", "http · ws · redux · query"],
-                ["larger-than:10k", ""],
-                ["slower-than:500", ""],
-                ["has:frames", "initiator · error"],
-              ].map(([token, hint]) => (
-                <button
-                  key={token}
-                  className="nm-hint"
-                  // Mousedown, not click: the search input would blur first and
-                  // the hint row would unmount before the click landed.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setQuery((q) => (q ? `${q.trimEnd()} ${token}` : token));
-                    searchRef.current?.focus();
-                  }}
-                >
-                  {token}
-                  {hint && <span>{hint}</span>}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="nm-body">
+            <SourcesRail
+              width={railWidth}
+              mini={railMini}
+              section={section}
+              counts={sectionCounts}
+              live={sectionLive}
+              stats={{
+                captured: entries.length,
+                transferred: list.totalBytes,
+                slowestMs,
+                failing: list.counts.error,
+                persistedLabel:
+                  prefs.preserveLog && hydration === "ready"
+                    ? formatBytes(persisted.bytes)
+                    : hydration === "loading"
+                      ? "restoring…"
+                      : null,
+              }}
+              onSection={onSection}
+              onToggle={onToggleRail}
+              onOpenPalette={openPalette}
+            />
 
-          <div className="nm-filters">
-            <div className="nm-seg" role="tablist">
-              {segments.map(([key, label, n]) => (
-                <button
-                  key={key}
-                  role="tab"
-                  aria-selected={stateFilter === key}
-                  className={`nm-seg-btn${stateFilter === key ? " active" : ""}`}
-                  onClick={() => setStateFilter(key)}
-                >
-                  <span className="nm-seg-dot" data-state={key} />
-                  <span className="nm-seg-label">{label}</span>
-                  <span className="nm-seg-n">{n}</span>
-                </button>
-              ))}
-            </div>
-
-            {chips.length > 0 && (
-              <div className="nm-chips">
-                {chips.map((chip, i) => (
-                  <span className="nm-chip" key={`${chip}-${i}`}>
-                    {chip}
-                    <button
-                      className="nm-chip-x"
-                      title="Remove"
-                      onClick={() =>
-                        setQuery(
-                          parsedFilter.tokens
-                            .filter((_, index) => index !== i)
-                            .map(tokenToRaw)
-                            .join(" "),
-                        )
-                      }
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <span className="nm-filters-spacer" />
-
-            {hydration === "loading" && (
-              <span className="nm-restoring">Restoring saved log…</span>
-            )}
-            {paused && (
-              <span className="nm-paused-pill" title="Capturing is paused">
-                <Icon name="pause" size={10} />
-                Paused
-              </span>
-            )}
-            <span className="nm-shown">
-              {list.filtered.length} / {sectionEntries.length}
-            </span>
-          </div>
-
-          <div className={`nm-body${dock.splitAxis === "y" ? " nm-body-v" : ""}`}>
-            <div
-              className="nm-list"
-              style={
-                dock.splitAxis === "x"
-                  ? { width: dock.splitSize, flexBasis: dock.splitSize }
-                  : { height: dock.splitSize, flexBasis: dock.splitSize }
-              }
-            >
-              <RequestTable
-                rows={list.rows}
-                columns={columns}
-                widths={columnWidths}
-                onResizeColumn={onResizeColumn}
-                timelines={timelines}
-                nowAbs={nowAbs}
-                activeRowId={selection.activeRowId}
-                sort={sort}
-                onSort={onSort}
-                onSelect={selection.pin}
-                onTogglePin={togglePin}
-                onContextMenu={menu.open}
-                virtual={virtual}
-                scrollerRef={scrollerRef}
-                empty={
-                  <div className="nm-empty nm-empty-list">
-                    <span className={`nm-empty-ico nm-empty-ico-${section}`}>
-                      <Icon name={EMPTY_COPY[section].icon} size={26} />
-                    </span>
-                    <p className="nm-empty-title">
-                      {sectionEntries.length === 0
-                        ? EMPTY_COPY[section].title
-                        : "Nothing matches"}
-                    </p>
-                    <p className="nm-empty-sub">
-                      {sectionEntries.length === 0
-                        ? EMPTY_COPY[section].sub
-                        : "Try a different filter or search."}
-                    </p>
-                  </div>
+            <div className={`nm-body-panes${dock.splitAxis === "y" ? " nm-body-v" : ""}`}>
+              <div
+                className="nm-list"
+                style={
+                  dock.splitAxis === "x"
+                    ? { width: dock.splitSize, flexBasis: dock.splitSize }
+                    : { height: dock.splitSize, flexBasis: dock.splitSize }
                 }
+              >
+                <RequestTable
+                  section={section}
+                  rows={list.rows}
+                  counts={list.counts}
+                  stateFilter={stateFilter}
+                  onStateFilter={setStateFilter}
+                  pendingLabel={pendingLabel}
+                  slowestMs={slowestMs}
+                  nowAbs={nowAbs}
+                  activeRowId={selection.activeRowId}
+                  sort={sort}
+                  onSort={onSort}
+                  onSelect={selection.pin}
+                  onTogglePin={togglePin}
+                  onContextMenu={menu.open}
+                  linkTags={links.tags}
+                  virtual={virtual}
+                  scrollerRef={scrollerRef}
+                  empty={
+                    sectionEntries.length === 0 ? (
+                      <div className="nm-empty nm-empty-list">
+                        <span className="nm-empty-ico" data-accent={section}>
+                          <Icon name={EMPTY_COPY[section].icon} size={20} />
+                        </span>
+                        <div className="nm-empty-copy">
+                          <p className="nm-empty-title">{EMPTY_COPY[section].title}</p>
+                          <p className="nm-empty-sub">{EMPTY_COPY[section].sub}</p>
+                        </div>
+                        {EMPTY_COPY[section].snippet && (
+                          <>
+                            <code className="nm-empty-snippet">
+                              {EMPTY_COPY[section].snippet}
+                            </code>
+                            <button
+                              className="nm-empty-btn"
+                              onClick={() =>
+                                void copyText(EMPTY_COPY[section].snippet as string)
+                              }
+                            >
+                              Copy setup snippet
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="nm-empty nm-empty-list">
+                        <span className="nm-empty-ico" data-accent={section}>
+                          <Icon name="search" size={20} />
+                        </span>
+                        <div className="nm-empty-copy">
+                          <p className="nm-empty-title">Nothing matches</p>
+                          <p className="nm-empty-sub">
+                            {sectionEntries.length} {nouns.many} captured in this section.
+                            Try a different filter or search.
+                          </p>
+                        </div>
+                        <button className="nm-empty-btn" onClick={() => setQuery("")}>
+                          Clear the filter
+                        </button>
+                      </div>
+                    )
+                  }
+                />
+              </div>
+
+              <div
+                className={`nm-split${dock.splitAxis === "y" ? " nm-split-v" : ""}`}
+                onPointerDown={dock.startSplit}
+                title="Drag to resize panes"
+              />
+
+              <DetailPane
+                resolved={selection.resolved}
+                hidingLabel={hidingLabel}
+                onReveal={revealSelected}
+                onClearSelection={selection.clear}
+                onTogglePin={togglePin}
+                onSelectEntry={(id) => {
+                  const target = links.byId.get(id);
+                  if (target) onSection(sectionOf(target));
+                  selection.pin(id);
+                }}
+                onMoreMenu={menu.open}
+                linked={linked}
+                timingContext={{
+                  medianMs,
+                  slowest: slowestEntry
+                    ? { ms: slowestEntry.durationMs, url: slowestEntry.url }
+                    : null,
+                }}
+                query={list.normalizedQuery}
+                nouns={nouns}
+                format={dataFormat}
+                onFormat={onDataFormat}
               />
             </div>
-
-            <div
-              className={`nm-split${dock.splitAxis === "y" ? " nm-split-v" : ""}`}
-              onPointerDown={dock.startSplit}
-              title="Drag to resize panes"
-            />
-
-            <DetailPane
-              resolved={selection.resolved}
-              hidingLabel={hidingLabel}
-              onReveal={revealSelected}
-              onClearSelection={selection.clear}
-              onTogglePin={togglePin}
-              onSelectEntry={selection.pin}
-              query={list.normalizedQuery}
-              nouns={nouns}
-              format={dataFormat}
-              onFormat={onDataFormat}
-            />
           </div>
 
           <StatusBar
@@ -937,6 +1129,7 @@ export default function DevTools() {
             noun={nouns.many}
             totalBytes={list.totalBytes}
             slowestMs={slowestMs}
+            failingHint={firstFailing?.url ?? null}
             pinnedCount={pinnedCount}
             persistedLabel={
               prefs.preserveLog && hydration === "ready"
@@ -955,8 +1148,18 @@ export default function DevTools() {
             }}
             onShowErrors={() => setStateFilter("error")}
             onShowPinned={() => setQuery("is:pinned")}
-            onOpenShortcuts={() => setShowShortcuts(true)}
+            onOpenPalette={openPalette}
           />
+
+          {showPalette && (
+            <>
+              {/* Inside the panel, not the root: the root is a zero-sized
+                  anchor for the launcher, so a scrim there would cover
+                  nothing. */}
+              <div className="nm-scrim-full" onClick={closePalette} />
+              <CommandPalette groups={commands} onClose={closePalette} />
+            </>
+          )}
 
           {!dock.maximized && dock.mode === "float" && (
             <div
@@ -990,7 +1193,21 @@ export default function DevTools() {
       )}
 
       {moreAnchor && (
-        <Menu anchor={moreAnchor} width={232} label="More actions">
+        <Menu anchor={moreAnchor} width={236} label="More actions">
+          {/* Clear lives here rather than in the header: it is destructive,
+              it is a keystroke away, and a button beside Export that empties
+              the log is one mis-click nobody wants. */}
+          <MenuItem
+            icon={<Icon name="clear" size={13} />}
+            hint="⇧C"
+            onSelect={() => {
+              networkMonitor.clear();
+              selection.clear();
+              closeMenus();
+            }}
+          >
+            Clear log
+          </MenuItem>
           <MenuItem
             icon={<Icon name="preserve" size={13} />}
             hint={prefs.preserveLog ? "on" : undefined}
@@ -1000,6 +1217,18 @@ export default function DevTools() {
             }}
           >
             Preserve log
+          </MenuItem>
+          <MenuItem
+            icon={<Icon name="clear" size={13} />}
+            danger
+            disabled={persisted.count === 0}
+            hint={persisted.count ? formatBytes(persisted.bytes) : undefined}
+            onSelect={() => {
+              void purgeStorage();
+              closeMenus();
+            }}
+          >
+            Purge saved log
           </MenuItem>
           <MenuItem
             icon={<Icon name="follow" size={13} />}
@@ -1064,6 +1293,16 @@ export default function DevTools() {
           )}
 
           <div className="nm-menu-sep" />
+          <MenuItem
+            icon={<Icon name="search" size={13} />}
+            hint="⌘K"
+            onSelect={() => {
+              closeMenus();
+              openPalette();
+            }}
+          >
+            All commands
+          </MenuItem>
           <MenuItem
             icon={<Icon name="keyboard" size={13} />}
             hint="?"

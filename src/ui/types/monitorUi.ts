@@ -64,18 +64,6 @@ export const SECTION_NOUNS: Record<Section, SectionNouns> = {
 
 export type StateFilter = "all" | MonitorState;
 
-export type ColumnId =
-  | "name"
-  | "status"
-  | "method"
-  | "initiator"
-  | "frames"
-  | "size"
-  | "duration"
-  | "waterfall"
-  /** Redux only: count of changed paths from the action's diff. */
-  | "changes";
-
 export type SortKey = "time" | "name" | "status" | "size" | "duration";
 export type SortDir = "asc" | "desc";
 
@@ -125,12 +113,6 @@ export interface Resolved {
 export type ListRow =
   | { kind: "row"; entry: MonitorEntry }
   | { kind: "divider"; loadId: string; at: number };
-
-/** Shared timeline window for one page-load group. */
-export interface Timeline {
-  t0: number;
-  span: number;
-}
 
 export interface VirtualWindow {
   start: number;

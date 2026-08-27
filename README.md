@@ -3,7 +3,8 @@
 
 An in-app dev-tools panel for React apps. Captures HTTP requests, Redux
 actions, TanStack Query cache events and realtime traffic, and renders them in
-a dockable panel with a waterfall, diffing, replay and HAR/cURL export.
+a dockable panel with cross-source links, diffing, replay and HAR/cURL
+export.
 
 The entire panel is eliminated from production builds — see
 [Production elimination](#production-elimination).
@@ -173,8 +174,8 @@ instance.interceptors.response.use(undefined, (error) =>
 
 The consequence is silent and total: **every non-2xx request stays `pending`
 in the panel for the rest of the session.** No error, no warning, no Failed
-filter. (The 30-second pending cap only bounds the width of the waterfall bar;
-it does not resolve the entry.)
+filter. (The 30-second pending cap only bounds how far the row's duration bar
+grows; it does not resolve the entry.)
 
 Two ways out, and you currently have to choose one:
 
@@ -385,7 +386,7 @@ both. There is no wrong choice here and no silent failure.
 
 What *does* matter is which one your app calls through. Only the proxy's traps
 record a stack, so every request made against the unwrapped instance is still
-captured but arrives with an empty Initiator column. Export the wrapped one and
+captured but arrives with no initiator. Export the wrapped one and
 keep the original private:
 
 ```ts
@@ -401,7 +402,7 @@ The traps cover the callable form (`apiClient(config)`) plus `request`, `get`,
 the `*Form` helpers — pass through unwrapped: still captured, just with no
 initiator stack.
 
-> **Known limitation.** The Initiator column is produced by filtering your own
+> **Known limitation.** The initiator stack is produced by filtering your own
 > HTTP wrapper's frames out of the captured stack, and that filter currently
 > matches a fixed set of module paths rather than deriving them from where
 > `withInitiatorCapture` was called. If your axios module does not sit at one
@@ -601,6 +602,39 @@ structural typing means you just pass your store and client.)
 Passing neither still gives you a fully working capture log; you only lose the
 two features that need a live handle on the app.
 
+### Finding your way around
+
+The panel is one header, one rail and two panes.
+
+**The rail on the left is the four sources** — Network, Realtime, Redux,
+Query. They are not filters over one table: each has its own columns and its
+own notion of a row, so switching source switches the whole view. `1`–`4` jump
+between them, and each keeps its own selection, so stepping to Redux and back
+returns you to the request you were reading. Below the sources it carries the
+session totals, and it collapses to icons — click the chevron, or let a narrow
+dock do it for you.
+
+**The header is the session**, not the entry: whether capture is running, what
+is being filtered out, and where the panel lives. Filter tokens you have
+already applied become chips *inside* the filter field, each removable on its
+own, so `method:post status:5xx` is two things you can undo separately rather
+than one string to re-edit. `.*` widens the search to request and response
+bodies.
+
+**`Ctrl/⌘ K` opens the command palette**, and for several things it is the only
+way in — sort order, row density, dock position, the copy formats, the filter
+syntax. The header spends its width on what you read constantly; everything you
+reach for occasionally lives one keystroke away instead of costing a button
+each. Every row shows its key binding where it has one, so the palette teaches
+its own shortcuts. `?` still opens the full cheatsheet.
+
+**Linked events tie the sources together.** When Blix can see that a query
+caused a request, that a request came from a query, or that one entry is a
+replay of another, the row grows a coloured tick and the foot of the detail
+pane grows a chip you can click to step straight to the other side. The
+relation is observed, never inferred: no tick means *not known*, not
+*unrelated*.
+
 ### Viewing payloads
 
 Every payload pane has a format switch. The choice is remembered, so you pick
@@ -634,7 +668,7 @@ literal rather than a pre-serialized string.
 
 ### Exporting the log
 
-The ◐ toolbar's neighbour, the download button, offers six formats and a scope
+The **Export** button in the header offers six formats and a scope
 toggle — **Shown** (what the current section and filters leave visible) or
 **All**. It defaults to Shown, with both counts on the control, so an export
 says what it will contain before you pick a format.
@@ -653,7 +687,8 @@ placeholder rather than a working token — use **Replay** for a real re-run.
 
 ### Themes
 
-Twelve themes, under the ◐ button in the toolbar:
+Twelve themes, under the theme button in the header — it names the one
+currently applied:
 
 | | Theme | |
 | --- | --- | --- |
@@ -682,7 +717,7 @@ panel's other preferences and survives a reload.
 The panel never inherits your app's styling — it portals outside every stacking
 context and ships its own palettes, so nothing you do to your own theme can
 distort it. Themes are complete rather than partial: every colour the panel
-paints, down to the JSON syntax highlighting and the waterfall bars, comes from
+paints, down to the JSON syntax highlighting and the duration bars, comes from
 the active theme. Each palette is checked against WCAG contrast targets — 4.5:1
 for anything read as text, 3:1 for badges and quiet chrome — which is why a few
 of the ported palettes differ by a shade from the originals in the slots used
@@ -825,15 +860,16 @@ the database is opened only when the panel mounts — see
 while it is off nothing Blix captures reaches IndexedDB — the store is
 actively cleared on every panel mount.
 
-Three ways to toggle it:
+Four ways to toggle it:
 
 | Where | Note |
 | --- | --- |
-| Toolbar button | Hidden in the compact layout |
+| Header button | Keeps its icon at every width; loses its label when the panel is narrow |
 | **⋯ More actions** overflow menu | — |
+| Command palette (`Ctrl/⌘ K`) | Listed as **Preserve log across reloads** / **Stop preserving the log** |
 | `Shift+L` | — |
 
-All three require the panel to be mounted.
+All four require the panel to be mounted.
 
 **Turning it on is retroactive.** The toggle does not mean "from now on".
 Switching it on writes every entry already sitting in the live buffer — the
@@ -874,7 +910,9 @@ that is not one of the four above, it is captured verbatim.
 
 Masking is partial rather than total: for a value longer than 12 characters
 the first 8 and last 4 survive, so you can still tell which token you sent.
-Shorter values are replaced outright.
+Shorter values are replaced outright. The Headers tab tags every masked row
+`MASKED` rather than leaving you to infer it from an ellipsis, and the stored
+value keeps a `(masked)` suffix so every export path carries the fact too.
 
 **Nothing inside a body is redacted.** Request bodies, response bodies, error
 payloads, the encrypted request/response values, Redux payloads and diffs, and
@@ -899,21 +937,27 @@ records or 24 MB of newer traffic push it out, or when you clear it yourself.
 On a low-traffic app with preserve-log left on, a captured token stays in the
 browser profile indefinitely.
 
-To purge, use the persisted-size label in the status bar — the one reading
-`12 saved · 3.4 MB`. It is the control: click once to arm it, at which point
-it changes to `Purge saved log?`, and click again to delete the database.
+Three ways to purge:
+
+| Where | Note |
+| --- | --- |
+| The persisted-size label in the status bar — the one reading `12 saved · 3.4 MB` | The label *is* the control, and it is the only one that asks twice: click once to arm it, at which point it changes to `Purge saved log?`, and click again. It disarms itself after three seconds. Rendered only while preserve-log is on |
+| **⋯ More actions** → **Purge saved log** | Deletes on a single press, with no confirmation |
+| Command palette (`Ctrl/⌘ K`) → **Purge the saved log** | Deletes on a single press, with no confirmation |
+
+The menu and palette entries are disabled when nothing is on disk, but unlike
+the status-bar label they do not depend on preserve-log being on — so a log
+written earlier in the session can still be deleted after you have switched
+the toggle off.
 
 Switching preserve-log **off** also clears the stored entries, so turning it
 off is itself a way to drop everything Blix has written.
 
-Both paths clear the captured entries; Purge additionally deletes the
+Every path clears the captured entries; Purge additionally deletes the
 IndexedDB database itself. **Your panel preferences survive either way** —
 they are mirrored to `localStorage`, and a fresh database is re-seeded from
-that mirror on the next boot. There is no UI or API for clearing them.
-
-**The purge control is only rendered while preserve-log is on**, so once you
-have switched it off there is nothing left in the UI to press. There is no
-programmatic API for either path.
+that mirror on the next boot. There is no UI or API for clearing them, and no
+programmatic API for purging either.
 
 ### Threat model
 

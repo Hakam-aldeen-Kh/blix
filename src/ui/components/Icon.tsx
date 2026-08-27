@@ -33,7 +33,8 @@ export type IconName =
   | "network"
   | "database"
   | "theme"
-  | "check";
+  | "check"
+  | "link";
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   return (
@@ -201,6 +202,12 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
         </>
       )}
       {name === "check" && <path d="M3.2 8.4 6.4 11.6 12.8 4.8" />}
+      {name === "link" && (
+        <>
+          <path d="M6.6 9.4a2.6 2.6 0 0 0 3.9.3l2-2a2.6 2.6 0 0 0-3.7-3.7l-1.1 1.1" />
+          <path d="M9.4 6.6a2.6 2.6 0 0 0-3.9-.3l-2 2a2.6 2.6 0 0 0 3.7 3.7l1.1-1.1" />
+        </>
+      )}
       {name === "database" && (
         <>
           <ellipse cx="8" cy="4.1" rx="5.1" ry="2" />

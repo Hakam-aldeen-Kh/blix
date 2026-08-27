@@ -3,6 +3,7 @@
 /** Dev Tools — the detail pane: request summary plus tabbed payloads. */
 
 import { summarizeInitiator } from "../../capture/monitorInitiator";
+import { MASK_SUFFIX, SENSITIVE_HEADERS } from "../../capture/monitorSerialize";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { useContext, useState, useSyncExternalStore } from "react";
 import { BlixContext } from "../BlixContext";
@@ -10,14 +11,19 @@ import { accentKey } from "../constants/ui";
 import {
   clock,
   copyText,
+  entryStatusLabel,
   formatBytes,
   formatDuration,
   statusText,
 } from "../helpers/format";
+import { linkLabel, sectionOf } from "../helpers/entryLinks";
+import { canActOnQuery, invalidateQuery } from "../services/queryActions";
+import { canRedispatch, redispatchAction } from "../services/reduxActions";
+import { canReplay, replayEntry } from "../services/replayRequest";
 import { toCurl } from "../services/snippets";
 import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
-import { DataView } from "./DataView";
+import { DataView, PayloadToolbarSlot } from "./DataView";
 import { Icon } from "./Icon";
 import { ScrollStrip } from "./ScrollStrip";
 import { MessagesTab } from "./tabs/MessagesTab";
@@ -94,12 +100,28 @@ function HeadersTable({
     <div className="nm-htable">
       <div className="nm-htable-title">{title}</div>
       <dl className="nm-kv">
-        {rows.map(([k, v]) => (
-          <div className="nm-kv-row" key={k}>
-            <dt className="nm-kv-k">{k}</dt>
-            <dd className="nm-kv-v">{v}</dd>
-          </div>
-        ))}
+        {rows.map(([k, v]) => {
+          // Say it, rather than leaving the reader to infer it from an
+          // ellipsis: a truncated bearer token looks exactly like a bearer
+          // token, and copying one out of here and wondering why it 401s is a
+          // whole afternoon. The suffix stays on the stored value for every
+          // export path that has no room for a tag.
+          const masked = SENSITIVE_HEADERS.has(k.toLowerCase());
+          const value = masked && v.endsWith(MASK_SUFFIX) ? v.slice(0, -MASK_SUFFIX.length) : v;
+          return (
+            <div className="nm-kv-row" key={k}>
+              <dt className="nm-kv-k">{k}</dt>
+              <dd className="nm-kv-v">
+                {value}
+                {masked && (
+                  <span className="nm-tag-masked" title="Masked at capture — never the real value">
+                    MASKED
+                  </span>
+                )}
+              </dd>
+            </div>
+          );
+        })}
       </dl>
     </div>
   );
@@ -276,13 +298,10 @@ function ReduxStateTab({
   );
 }
 
-function QueryStateTab({
-  entry,
-  onSelectEntry,
-}: {
-  entry: MonitorEntry;
-  onSelectEntry: (id: string) => void;
-}) {
+/** The cache row's own state. The requests this key caused are *not* here any
+ * more — they are chips in the linked strip at the foot of the pane, where
+ * they read in both directions and don't need a tab to be found. */
+function QueryStateTab({ entry }: { entry: MonitorEntry }) {
   const q = entry.query;
   if (!q) return <div className="nm-empty">— no query metadata —</div>;
 
@@ -318,18 +337,6 @@ function QueryStateTab({
           </span>
         </div>
       )}
-      {!!q.causedIds?.length && (
-        <div className="nm-htable">
-          <div className="nm-htable-title">Requests caused</div>
-          <div className="nm-caused-list">
-            {q.causedIds.map((id) => (
-              <button key={id} className="nm-tree-chip" onClick={() => onSelectEntry(id)}>
-                {id}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -346,13 +353,63 @@ function EmptyDetail({
   return (
     <div className="nm-empty nm-empty-detail">
       <span className="nm-empty-ico">
-        <Icon name="inbox" size={26} />
+        <Icon name="inbox" size={20} />
       </span>
-      <p className="nm-empty-title">{title}</p>
-      <p className="nm-empty-sub">{sub}</p>
+      <div className="nm-empty-copy">
+        <p className="nm-empty-title">{title}</p>
+        <p className="nm-empty-sub">{sub}</p>
+      </div>
       {action}
     </div>
   );
+}
+
+/**
+ * The one-line answer to "what is this and how did it go".
+ *
+ * Everything the head used to spell out in separate `nm-meta` spans, joined
+ * into one truncating line — so the action buttons beside it sit at the same
+ * x for every entry, instead of sliding as the metadata changes shape.
+ */
+function summarize(entry: MonitorEntry): string {
+  const parts: string[] = [];
+  switch (entry.kind ?? "http") {
+    case "ws":
+      parts.push(entry.state === "pending" ? "Open" : "Closed");
+      parts.push(`${entry.frames?.length ?? 0} frames`);
+      break;
+    case "redux": {
+      const diff = entry.redux?.diff;
+      if (diff?.slices.length) parts.push(diff.slices.join(", "));
+      if (entry.redux?.reducerMs != null) {
+        parts.push(`reducer ${formatDuration(entry.redux.reducerMs)}`);
+      }
+      if (diff?.truncated) parts.push("diff truncated");
+      break;
+    }
+    case "query": {
+      const q = entry.query;
+      parts.push(q?.sub === "mutation" ? "Mutation" : "Query");
+      if (q?.status) parts.push(q.status);
+      if (q?.fetchStatus && q.fetchStatus !== "idle") parts.push(q.fetchStatus);
+      if (q) parts.push(`${q.observers} ${q.observers === 1 ? "observer" : "observers"}`);
+      if (q?.gcRemoved) parts.push("removed from cache");
+      break;
+    }
+    default:
+      parts.push(
+        entry.state === "error"
+          ? "Failed"
+          : entry.state === "aborted"
+            ? "Left pending by a previous page load"
+            : statusText(entry.status) || "OK",
+      );
+      if (entry.durationMs != null) parts.push(formatDuration(entry.durationMs));
+      if (entry.sizeBytes != null) parts.push(formatBytes(entry.sizeBytes));
+  }
+  parts.push(clock(entry.at));
+  if (entry.replayCount) parts.push(`replayed ${entry.replayCount}×`);
+  return parts.filter(Boolean).join(" · ");
 }
 
 export function DetailPane({
@@ -362,6 +419,9 @@ export function DetailPane({
   onClearSelection,
   onTogglePin,
   onSelectEntry,
+  onMoreMenu,
+  linked,
+  timingContext,
   query,
   nouns,
   format,
@@ -372,9 +432,16 @@ export function DetailPane({
   onReveal: () => void;
   onClearSelection: () => void;
   onTogglePin: (id: string) => void;
-  /** Pins another entry and switches to it — used by cross-section links
-   * ("Caused by", "Requests caused"). */
+  /** Pins another entry and switches to it — used by the linked-events strip. */
   onSelectEntry: (id: string) => void;
+  /** Opens the entry's context menu from the head's overflow button, so the
+   * full action set stays one click away without a second menu to maintain. */
+  onMoreMenu: (e: React.MouseEvent, entry: MonitorEntry) => void;
+  /** Entries correlated with this one — see `helpers/entryLinks.ts`. */
+  linked: MonitorEntry[];
+  /** Where this entry's duration sits among the ones currently listed. Owned
+   * by the panel, which is the only place that knows the whole set. */
+  timingContext: { medianMs: number; slowest: { ms: number; url: string } | null };
   query: string;
   /** What a row *is* in the active section. The empty states are the one place
    * this pane has to speak before it has an entry to infer the kind from —
@@ -388,6 +455,12 @@ export function DetailPane({
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
+  const [armedId, setArmedId] = useState<string | null>(null);
+  // The tab row lends its trailing half to whatever payload viewer is mounted
+  // below it; see `PayloadToolbarSlot`. State rather than a ref, because the
+  // consumers only learn the node exists when a render tells them so.
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
+  const { store, apiClient } = useContext(BlixContext);
   const entry = resolved.entry;
 
   if (resolved.status === "evicted") {
@@ -430,6 +503,79 @@ export function DetailPane({
   const isHttp = kind === "http";
   const isRedux = kind === "redux";
   const isQuery = kind === "query";
+
+  /**
+   * The one thing this entry can be made to do again.
+   *
+   * Each section has exactly one, and it is the action a developer reaches for
+   * often enough that hunting for it in a right-click menu is the wrong cost —
+   * so it gets the head's only primary button, labelled for what it does here
+   * rather than with a generic "run".
+   *
+   * A realtime connection has no such action: you cannot re-open a socket
+   * frame, and the button is simply absent rather than present-and-dead.
+   */
+  const primary = ((): {
+    label: string;
+    can: boolean;
+    reason?: string;
+    /** True for an action that hits the live backend — see `constants/replay`. */
+    confirm: boolean;
+    run: () => void;
+  } | null => {
+    if (isHttp) {
+      const check = canReplay(entry, apiClient);
+      return {
+        label: "Replay",
+        can: check.can,
+        reason: check.reason,
+        confirm: check.needsConfirm,
+        // A failed replay is captured as its own error row, which is the
+        // useful place to read it — nothing to surface here.
+        run: () => {
+          if (apiClient) void replayEntry(entry, apiClient).catch(() => {});
+        },
+      };
+    }
+    if (isRedux) {
+      const check = canRedispatch(entry, store);
+      return {
+        label: "Re-dispatch",
+        can: check.can,
+        reason: check.reason,
+        confirm: false,
+        run: () => {
+          if (store) redispatchAction(entry, store);
+        },
+      };
+    }
+    if (isQuery) {
+      const check = canActOnQuery(entry);
+      return {
+        label: "Invalidate",
+        can: check.can,
+        reason: check.reason,
+        confirm: false,
+        run: () => invalidateQuery(entry),
+      };
+    }
+    return null;
+  })();
+
+  // Armed by entry id rather than a bare boolean, so clicking away and back
+  // never leaves a different request one click from being re-fired.
+  const armed = armedId === entry.id;
+  const runPrimary = () => {
+    if (!primary?.can) return;
+    if (primary.confirm && !armed) {
+      setArmedId(entry.id);
+      window.setTimeout(() => setArmedId((id) => (id === entry.id ? null : id)), 3000);
+      return;
+    }
+    setArmedId(null);
+    primary.run();
+  };
+
   const tabs = isWs
     ? WS_TABS
     : isRedux
@@ -463,103 +609,101 @@ export function DetailPane({
       )}
 
       <div className="nm-detail-head">
-        <span
-          className="nm-method nm-method-lg"
-          data-accent={accentKey(entry.kind, entry.method)}
-        >
-          {entry.transport ?? entry.method}
-        </span>
-        <span className="nm-status" data-state={entry.state}>
-          {entry.status ?? (entry.state === "aborted" ? "⊘" : "—")}
-        </span>
-        {statusText(entry.status) && (
-          <span className="nm-meta nm-status-text">{statusText(entry.status)}</span>
-        )}
-        {entry.durationMs != null && (
-          <span className="nm-meta">{formatDuration(entry.durationMs)}</span>
-        )}
-        {entry.sizeBytes != null && (
-          <span className="nm-meta">{formatBytes(entry.sizeBytes)}</span>
-        )}
-        <span className="nm-meta">{clock(entry.at)}</span>
-        {entry.state === "aborted" && (
-          <span className="nm-meta nm-status-text">
-            left pending by a previous page load
+        <div className="nm-detail-id">
+          <span className="nm-method" data-accent={accentKey(entry.kind, entry.method)}>
+            {entry.transport ?? entry.method}
           </span>
-        )}
-        <button
-          className={`nm-curl${entry.pinned ? " nm-iconbtn-on" : ""}`}
-          style={{ marginLeft: "auto" }}
-          onClick={() => onTogglePin(entry.id)}
-          title={
-            entry.pinned
-              ? "Unpin — it will be cleared and evicted normally again"
-              : "Pin — keeps this request through Clear and buffer eviction"
-          }
-        >
-          <Icon name="pin" size={13} />
-          <span>{entry.pinned ? "Pinned" : "Pin"}</span>
-        </button>
-        {isHttp && (
+          <span className="nm-detail-status" data-state={entry.state}>
+            {entryStatusLabel(entry)}
+          </span>
+          <span className="nm-detail-summary">{summarize(entry)}</span>
+
+          {primary && (
+            <button
+              className={`nm-dbtn nm-dbtn-primary${armed ? " nm-dbtn-on" : ""}`}
+              onClick={runPrimary}
+              disabled={!primary.can}
+              title={
+                primary.reason ??
+                (primary.confirm
+                  ? "This re-runs a write against the live backend — click twice"
+                  : `${primary.label} (Shift+R)`)
+              }
+            >
+              <Icon name="replay" size={12} />
+              {armed ? "Run write?" : primary.label}
+            </button>
+          )}
           <button
-            className="nm-curl"
-            style={{ marginLeft: 0 }}
-            onClick={copyCurl}
-            title="Copy as cURL"
+            className={`nm-dbtn${entry.pinned ? " nm-dbtn-on" : ""}`}
+            onClick={() => onTogglePin(entry.id)}
+            title={
+              entry.pinned
+                ? "Unpin — it will be cleared and evicted normally again"
+                : "Pin — keeps this entry through Clear and buffer eviction"
+            }
           >
-            <Icon name="terminal" size={13} />
-            <span>{curlCopied ? "Copied" : "cURL"}</span>
+            <Icon name="pin" size={12} />
+            {entry.pinned ? "Pinned" : "Pin"}
           </button>
-        )}
-        <div className="nm-detail-url" title={entry.url}>
+          {isHttp && (
+            <button className="nm-dbtn nm-dbtn-mono" onClick={copyCurl} title="Copy as cURL">
+              <Icon name="terminal" size={12} />
+              {curlCopied ? "Copied" : "cURL"}
+            </button>
+          )}
+          <button
+            className="nm-dbtn nm-dbtn-sq"
+            onClick={(e) => onMoreMenu(e, entry)}
+            aria-label="More actions for this entry"
+            aria-haspopup="menu"
+            title="More actions"
+          >
+            <Icon name="more" size={12} />
+          </button>
+        </div>
+        <div className="nm-detail-url" title={`${entry.baseURL ?? ""}${entry.url}`}>
           {entry.baseURL ?? ""}
           {entry.url}
         </div>
       </div>
 
-      {/* Best-effort correlation from `monitorContext.ts` — shown only on an
-          actual hit. A miss says nothing, rather than claiming "not from a
-          query" when the truth is just "unknown". */}
-      {isHttp && entry.ownerId && (
-        <div className="nm-notice">
-          <span className="nm-notice-txt">
-            Caused by {entry.initiatorKind === "mutation" ? "mutation" : "query"}{" "}
-            <code>{entry.ownerId}</code>
-          </span>
-          <button
-            className="nm-notice-btn"
-            onClick={() => onSelectEntry(entry.ownerId as string)}
-          >
-            Show it
-          </button>
-        </div>
-      )}
-
       {/* Keyed by kind as well as tab: switching from a Redux action to an
           HTTP request swaps the whole set, and the new active tab has to be
           re-revealed even when its id happens to be unchanged. */}
-      <ScrollStrip
-        className="nm-tabs"
-        wrapClassName="nm-tabrow"
-        activeKey={`${kind}:${activeTab}`}
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            data-strip-active={activeTab === t.id}
-            className={`nm-tab${activeTab === t.id ? " active" : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {t.id === "messages" && !!entry.frames?.length && (
-              <span className="nm-section-n">{entry.frames.length}</span>
-            )}
-          </button>
-        ))}
-      </ScrollStrip>
+      <div className="nm-tabrow">
+        <ScrollStrip className="nm-tabs" activeKey={`${kind}:${activeTab}`}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              data-strip-active={activeTab === t.id}
+              data-accent={sectionOf(entry)}
+              className={`nm-tab${activeTab === t.id ? " active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              {t.id === "messages" && !!entry.frames?.length && (
+                <span className="nm-tab-n">{entry.frames.length}</span>
+              )}
+              {t.id === "raw" && <span className="nm-tab-n nm-tab-aes">AES</span>}
+            </button>
+          ))}
+        </ScrollStrip>
+        {/* Filled by whichever payload viewer is mounted below — see
+            `PayloadToolbarSlot`. Empty for Headers, Timing and Initiator, and
+            the row then holds nothing but tabs. */}
+        <div ref={setToolbarSlot} style={{ display: "contents" }} />
+      </div>
 
+      <PayloadToolbarSlot.Provider value={toolbarSlot}>
       <div className="nm-tab-body">
-        {activeTab === "timing" && <TimingTab entry={entry} />}
+        {activeTab === "timing" && (
+          <TimingTab
+            entry={entry}
+            medianMs={timingContext.medianMs}
+            slowest={timingContext.slowest}
+          />
+        )}
         {activeTab === "messages" && (
           <MessagesTab
             entry={entry}
@@ -579,9 +723,7 @@ export function DetailPane({
             onFormat={onFormat}
           />
         )}
-        {activeTab === "queryState" && (
-          <QueryStateTab entry={entry} onSelectEntry={onSelectEntry} />
-        )}
+        {activeTab === "queryState" && <QueryStateTab entry={entry} />}
         {activeTab === "preview" && (
           <DataView
             value={entry.responsePayload ?? entry.error}
@@ -694,6 +836,29 @@ export function DetailPane({
           </div>
         )}
       </div>
+      </PayloadToolbarSlot.Provider>
+
+      {/* The correlations Blix already observed, as one strip you can step
+          through. A request and the query behind it are one story; they used
+          to be told in two places, each in one direction only. */}
+      {linked.length > 0 && (
+        <div className="nm-linked">
+          <span className="nm-linked-label">LINKED</span>
+          <ScrollStrip className="nm-linked-chips" activeKey={entry.id}>
+            {linked.map((other) => (
+              <button
+                key={other.id}
+                className="nm-linked-chip"
+                data-accent={sectionOf(other)}
+                onClick={() => onSelectEntry(other.id)}
+                title={`${sectionOf(other)} — ${other.url}`}
+              >
+                {linkLabel(other)}
+              </button>
+            ))}
+          </ScrollStrip>
+        </div>
+      )}
     </div>
   );
 }

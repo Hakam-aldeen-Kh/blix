@@ -6,6 +6,7 @@
 import type { Corner, MonitorState, Pos } from "../../capture/monitorTypes";
 import { MARGIN } from "../constants/ui";
 import { nearestCorner } from "../hooks/useFabDrag";
+import { Icon } from "./Icon";
 
 /** Fixed-position inline style that docks the badge to a viewport corner. */
 export const CORNER_STYLE: Record<Corner, React.CSSProperties> = {
@@ -42,14 +43,28 @@ export function MonitorFab({
     <button
       className={`nm-fab${docking ? " nm-fab-dock" : ""}`}
       onPointerDown={onPointerDown}
-      title="Dev Tools — click to open, drag to a corner"
+      title="Blix — click to open, drag to a corner"
     >
-      <span className="nm-fab-dot" data-state={dotState}>
-        {pending > 0 && <span className="nm-fab-ping" />}
+      <span className="nm-fab-brand">
+        <span className="nm-fab-dot" data-state={dotState}>
+          {pending > 0 && <span className="nm-fab-ping" />}
+        </span>
+        <span className="nm-fab-label">{BADGE_LABEL}</span>
       </span>
-      <span className="nm-fab-label">{BADGE_LABEL}</span>
-      <span className="nm-fab-count">{total}</span>
-      {errors > 0 && <span className="nm-fab-err">{errors}</span>}
+      <span className="nm-fab-sep" />
+      <span className="nm-fab-stats">
+        <span className="nm-fab-count" title={`${total} captured`}>
+          {total}
+        </span>
+        {errors > 0 && (
+          <span className="nm-fab-err" title={`${errors} failing`}>
+            {errors}
+          </span>
+        )}
+      </span>
+      <span className="nm-fab-grip" aria-hidden>
+        <Icon name="grip" size={13} />
+      </span>
     </button>
   );
 }
@@ -75,9 +90,14 @@ export function FabDragPreview({
         />
       ))}
       <span className="nm-fab nm-fab-ghost" style={{ left: pos.x, top: pos.y }}>
-        <span className="nm-fab-dot" data-state={dotState} />
-        <span className="nm-fab-label">{BADGE_LABEL}</span>
-        <span className="nm-fab-count">{total}</span>
+        <span className="nm-fab-brand">
+          <span className="nm-fab-dot" data-state={dotState} />
+          <span className="nm-fab-label">{BADGE_LABEL}</span>
+        </span>
+        <span className="nm-fab-sep" />
+        <span className="nm-fab-stats">
+          <span className="nm-fab-count">{total}</span>
+        </span>
       </span>
     </>
   );

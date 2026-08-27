@@ -27,7 +27,8 @@
  * formats worth having at the payload level rather than only at export time.
  */
 
-import { useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { copyText, formatBytes } from "../helpers/format";
 import { analyzeFolds } from "../helpers/jsonFold";
 import { asTable } from "../helpers/tabular";
@@ -62,6 +63,20 @@ export interface ExtraFormat {
   /** What Copy produces while this view is showing. */
   copy: () => string;
 }
+
+/**
+ * Where the payload controls should render.
+ *
+ * The detail pane hands down the empty half of its tab row, and the format
+ * switch, byte count, Wrap and Copy go there instead of into a bar of their
+ * own. Tabs and format are different questions — which field, and how to read
+ * it — but both belong to the same pane, and two stacked 32px bars over a
+ * short docked payload was more chrome than content.
+ *
+ * `null` (the default) keeps the standalone toolbar, which is what a payload
+ * viewer rendered anywhere other than the detail pane's tab body needs.
+ */
+export const PayloadToolbarSlot = createContext<HTMLElement | null>(null);
 
 /** Formats whose output is a flat block of text, and so can wrap. */
 const TEXTUAL: DataFormat[] = ["json", "yaml", "text"];
@@ -135,6 +150,7 @@ export function DataView({
 }) {
   const [copied, setCopied] = useState(false);
   const [wrap, setWrap] = useState(true);
+  const toolbarSlot = useContext(PayloadToolbarSlot);
 
   // The stored format may name a view this pane does not offer — "diff" is
   // remembered globally but only the Diff tab can render it. Fall back rather
@@ -248,16 +264,9 @@ export function DataView({
   const lines = jsonLines?.length ?? (body ? body.split("\n").length : 0);
   const isTextual = TEXTUAL.includes(format);
 
-  return (
-    <div className="nm-json-wrap">
-      {/* Navigation sits *above* the presentation controls, not inside them.
-          Crammed into one row it squeezed the size readout into a 40px column
-          that wrapped "116 B · 10 lines" across three lines, and clipped the
-          slice names mid-word — three unrelated jobs competing for one line. */}
-      {children}
-
-      <div className="nm-json-toolbar">
-        <div className="nm-fmt" role="tablist" aria-label="Display format">
+  const tools = (
+    <>
+      <div className="nm-fmt" role="tablist" aria-label="Display format">
           {/* The pane's own view leads: it is the one this tab was designed
               around, and the generic formats are the alternatives to it. */}
           {(extraFormat ? [extraFormat, ...FORMATS] : FORMATS).map((f) => {
@@ -330,7 +339,24 @@ export function DataView({
         >
           {copied ? "✓ Copied" : "Copy"}
         </button>
-      </div>
+    </>
+  );
+
+  return (
+    <div className="nm-json-wrap">
+      {/* Navigation sits *above* the presentation controls, not inside them.
+          Crammed into one row it squeezed the size readout into a 40px column
+          that wrapped "116 B · 10 lines" across three lines, and clipped the
+          slice names mid-word — three unrelated jobs competing for one line. */}
+      {children}
+
+      {/* Into the detail pane's tab row when there is one, into a bar of its
+          own otherwise. */}
+      {toolbarSlot ? (
+        createPortal(<div className="nm-tabrow-tools">{tools}</div>, toolbarSlot)
+      ) : (
+        <div className="nm-json-toolbar">{tools}</div>
+      )}
 
       {format === extraFormat?.id && extraFormat.render()}
       {format === "tree" && (
