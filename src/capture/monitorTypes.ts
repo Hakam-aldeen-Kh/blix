@@ -110,7 +110,7 @@ export interface ReduxActionMeta {
 
 /** Query/mutation only: the cache row's current lifecycle state. Deliberately
  * not folded into `MonitorState` — `MonitorState` drives the shared state
- * filter and waterfall colour, and pending/success/error covers this fine;
+ * filter and row colour, and pending/success/error covers this fine;
  * the richer status (fresh/stale/fetching/removed) lives here instead. */
 export interface QueryMeta {
   sub: "query" | "mutation";
@@ -163,15 +163,14 @@ export interface MonitorEntry {
   /**
    * Start/end as absolute epoch ms (`timeOrigin + startTime`).
    *
-   * The waterfall must use these, never `startTime`/`endTime`: those are
-   * relative to a per-page-load origin, so a persisted entry's `startTime` is
-   * meaningless against the current load's.
+   * Anything comparing two entries in time must use these, never
+   * `startTime`/`endTime`: those are relative to a per-page-load origin, so a
+   * persisted entry's `startTime` is meaningless against the current load's.
    */
   startAbs: number;
   endAbs?: number;
 
-  /** Which page load captured this. Drives the divider rows and the per-load
-   * waterfall timeline. */
+  /** Which page load captured this. Drives the divider rows in the list. */
   loadId: string;
 
   status?: number;
@@ -308,8 +307,10 @@ export interface MonitorPrefs {
 
   /** Active top-level section — `"network"` (HTTP) or `"realtime"` (sockets). */
   section: string;
+  /** Sources rail shown as icons only. A deliberate choice, kept separate from
+   * the automatic collapse a narrow panel applies — re-widening the panel
+   * restores the rail unless the developer collapsed it themselves. */
+  railCollapsed: boolean;
   /** Row height preset: compact | normal | comfy. */
   density: string;
-  /** User-resized column widths, in px, keyed by column id. */
-  columnWidths: Record<string, number>;
 }

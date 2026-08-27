@@ -39,18 +39,29 @@ export function serializeBody(data: unknown): unknown {
 }
 
 /** Sensitive header values are masked so the dev panel never displays a full
- * bearer token / session secret in plaintext. */
-const SENSITIVE_HEADERS = new Set([
+ * bearer token / session secret in plaintext.
+ *
+ * Exported because the panel labels these rows rather than making the reader
+ * infer it from an ellipsis — see the MASKED tag in the Headers tab. Matching
+ * on the name is what lets the tag be right for a short value too, which is
+ * masked to bullets and carries no suffix to detect.
+ */
+export const SENSITIVE_HEADERS: ReadonlySet<string> = new Set([
   "authorization",
   "cookie",
   "set-cookie",
   "x-api-key",
 ]);
 
+/** Appended to a masked value so every *other* consumer — HAR, JSON, NDJSON,
+ * a pasted cURL — carries the fact with it. The panel strips it for display
+ * and shows a tag instead. */
+export const MASK_SUFFIX = " (masked)";
+
 function maskHeaderValue(key: string, value: string): string {
   if (!SENSITIVE_HEADERS.has(key.toLowerCase())) return value;
   if (value.length <= 12) return "••••";
-  return `${value.slice(0, 8)}…${value.slice(-4)} (masked)`;
+  return `${value.slice(0, 8)}…${value.slice(-4)}${MASK_SUFFIX}`;
 }
 
 /**

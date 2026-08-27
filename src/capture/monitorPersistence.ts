@@ -66,7 +66,7 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   dataFormat: "tree",
   section: "network",
   density: "normal",
-  columnWidths: {},
+  railCollapsed: false,
 };
 
 export type HydrationState = "idle" | "loading" | "ready";

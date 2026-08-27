@@ -35,6 +35,18 @@ export function useVirtualRows(
   total: number,
   scrollerRef: React.RefObject<HTMLDivElement | null>,
   rowHeight: number = ROW_H,
+  /**
+   * Whether the scroller is mounted.
+   *
+   * The observer effect below can only attach once the element exists, and the
+   * table is rendered only while the panel is open — so without a dependency
+   * that changes at *that* moment, the effect runs once against a null ref and
+   * never again. The viewport then stays 0 and the window is just the
+   * overscan: open the panel on a buffer that filled up before you opened it
+   * and you get eight rows and a blank column below them, until the next
+   * captured request happens to change `total` and re-derive `recompute`.
+   */
+  active: boolean = true,
 ): UseVirtualRows {
   const scrollTopRef = useRef(0);
   const viewportRef = useRef(0);
@@ -118,7 +130,7 @@ export function useVirtualRows(
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [recompute, scrollerRef]);
+  }, [recompute, scrollerRef, active]);
 
   // The row count changing alters the window even when nothing scrolled.
   useEffect(() => {

@@ -8,20 +8,33 @@
  * slow backend *or* a slow client-side pipeline, and nothing else
  * distinguishes the two. Network time is derived rather than measured — it is
  * whatever the total isn't accounted for by those transform phases.
+ *
+ * The second half answers the question the first half provokes. "712 ms" means
+ * nothing on its own and everything beside the session's median and its worst
+ * offender, both of which the panel already knows — so the comparison is drawn
+ * here rather than left for the reader to do by scrolling the list.
  */
 
 import type { MonitorEntry } from "../../../capture/networkMonitor";
-import { formatDuration } from "../../helpers/format";
+import { formatDuration, requestName } from "../../helpers/format";
 
-export function TimingTab({ entry }: { entry: MonitorEntry }) {
+export function TimingTab({
+  entry,
+  medianMs,
+  slowest,
+}: {
+  entry: MonitorEntry;
+  /** Median duration across what the list currently shows. */
+  medianMs: number;
+  /** The slowest entry in the same set, for the upper bound of the scale. */
+  slowest: { ms: number; url: string } | null;
+}) {
   const total = entry.durationMs;
 
   if (total == null) {
     return (
       <div className="nm-empty">
-        {entry.state === "pending"
-          ? "— still in flight —"
-          : "— no timing captured —"}
+        {entry.state === "pending" ? "— still in flight —" : "— no timing captured —"}
       </div>
     );
   }
@@ -59,16 +72,40 @@ export function TimingTab({ entry }: { entry: MonitorEntry }) {
   const pct = (value: number) => (total > 0 ? (value / total) * 100 : 0);
   const cryptoShare = pct(encrypt + decrypt);
 
+  // One scale for all three context bars, so their lengths are comparable.
+  const ceiling = Math.max(total, medianMs, slowest?.ms ?? 0, 1);
+  const context: { key: string; label: string; ms: number }[] = [
+    { key: "this", label: "This request", ms: total },
+    ...(medianMs > 0
+      ? [{ key: "median", label: "Session median", ms: medianMs }]
+      : []),
+    ...(slowest && slowest.ms > 0
+      ? [{ key: "worst", label: `Slowest (${requestName(slowest.url)})`, ms: slowest.ms }]
+      : []),
+  ];
+
   return (
     <div className="nm-timing nm-scroll">
+      <div className="nm-timing-head">
+        <span className="nm-timing-title">REQUEST TIMELINE</span>
+        <span className="nm-timing-total">
+          total <b>{formatDuration(total)}</b>
+          {cryptoShare >= 25 && ` · ${cryptoShare.toFixed(0)}% in crypto`}
+        </span>
+      </div>
+
       <div className="nm-timing-bar">
         {rows.map((row) => (
           <span
             key={row.key}
             className={`nm-timing-seg nm-timing-${row.key}`}
-            style={{ width: `${pct(row.value)}%` }}
+            // A phase narrower than its label still has to be visible as a
+            // band; below that width it simply carries no text.
+            style={{ width: `${pct(row.value)}%`, minWidth: row.value > 0 ? 3 : 0 }}
             title={`${row.label} — ${formatDuration(row.value)}`}
-          />
+          >
+            {pct(row.value) > 14 ? formatDuration(row.value) : ""}
+          </span>
         ))}
       </div>
 
@@ -78,25 +115,31 @@ export function TimingTab({ entry }: { entry: MonitorEntry }) {
             <span className={`nm-timing-swatch nm-timing-${row.key}`} />
             <span className="nm-timing-label">{row.label}</span>
             <span className="nm-timing-note">{row.note}</span>
-            <span className="nm-timing-value">
-              {formatDuration(row.value)} · {pct(row.value).toFixed(0)}%
-            </span>
+            <span className="nm-timing-value">{formatDuration(row.value)}</span>
+            <span className="nm-timing-pct">{pct(row.value).toFixed(1)}%</span>
           </div>
         ))}
-
-        <div className="nm-timing-row" style={{ marginTop: 8 }}>
-          <span />
-          <span className="nm-timing-label">
-            <strong>Total</strong>
-          </span>
-          <span className="nm-timing-note">
-            {cryptoShare >= 25
-              ? `${cryptoShare.toFixed(0)}% of this request was spent encrypting/decrypting`
-              : ""}
-          </span>
-          <span className="nm-timing-value">{formatDuration(total)}</span>
-        </div>
       </div>
+
+      {context.length > 1 && (
+        <div className="nm-timing-ctx">
+          <div className="nm-timing-ctx-head">IN CONTEXT OF THIS SESSION</div>
+          {context.map((row) => (
+            <div className={`nm-timing-ctx-row nm-timing-${row.key}`} key={row.key}>
+              <span className="nm-timing-ctx-k" title={row.label}>
+                {row.label}
+              </span>
+              <span className="nm-timing-ctx-track">
+                <span
+                  className="nm-timing-ctx-fill"
+                  style={{ width: `${Math.max(2, (row.ms / ceiling) * 100)}%` }}
+                />
+              </span>
+              <span className="nm-timing-ctx-v">{formatDuration(row.ms)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

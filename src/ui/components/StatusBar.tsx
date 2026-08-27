@@ -1,9 +1,19 @@
 "use client";
 
-/** Dev Tools — bottom status bar with the aggregate totals, the way
- * Chrome summarizes a session under its request list. */
+/**
+ * Dev Tools — the bottom status bar.
+ *
+ * The per-source totals moved to the rail, which has room to stack them and
+ * does not drop them at the first breakpoint. What is left here is the session
+ * as a whole plus the two things you *act on* from it: the command palette,
+ * and the log sitting in IndexedDB.
+ *
+ * The failure count is a sentence rather than a number — "2 failing on /Auth"
+ * says where to look, which is the only reason to put failures in a bar you
+ * are not looking at.
+ */
 
-import { formatBytes, formatDuration } from "../helpers/format";
+import { formatBytes, formatDuration, requestName } from "../helpers/format";
 import type { Counts } from "../hooks/useMonitorList";
 import { Icon } from "./Icon";
 
@@ -13,13 +23,14 @@ export function StatusBar({
   noun,
   totalBytes,
   slowestMs,
+  failingHint,
   pinnedCount,
   persistedLabel,
   purgeArmed,
   onPurge,
   onShowErrors,
   onShowPinned,
-  onOpenShortcuts,
+  onOpenPalette,
 }: {
   counts: Counts;
   shown: number;
@@ -28,42 +39,49 @@ export function StatusBar({
   noun: string;
   totalBytes: number;
   slowestMs: number;
+  /** URL of one failing entry, so the count can say where the failures are. */
+  failingHint: string | null;
   pinnedCount: number;
   persistedLabel: string | null;
   purgeArmed: boolean;
   onPurge: () => void;
   onShowErrors: () => void;
   onShowPinned: () => void;
-  onOpenShortcuts: () => void;
+  onOpenPalette: () => void;
 }) {
   return (
     <div className="nm-statusbar">
-      <span>
+      <span className="nm-statusbar-mono">
         <b>{shown}</b>
         {shown !== counts.all && <> of {counts.all}</>} {noun}
       </span>
-      <span className="nm-status-transferred">
+      <span className="nm-statusbar-sep nm-status-transferred" />
+      <span className="nm-statusbar-mono nm-status-transferred">
         <b>{formatBytes(totalBytes)}</b> transferred
       </span>
       {slowestMs > 0 && (
-        <span className="nm-status-slowest">
-          slowest <b>{formatDuration(slowestMs)}</b>
-        </span>
-      )}
-      {counts.pending > 0 && (
-        <span className="nm-status-inflight">
-          <b>{counts.pending}</b> in flight
-        </span>
+        <>
+          <span className="nm-statusbar-sep nm-status-slowest" />
+          <span className="nm-statusbar-mono nm-status-slowest">
+            slowest <b>{formatDuration(slowestMs)}</b>
+          </span>
+        </>
       )}
 
       {counts.error > 0 && (
-        <button
-          className="nm-statusbar-btn nm-statusbar-err"
-          onClick={onShowErrors}
-          title="Filter to errors"
-        >
-          {counts.error} {counts.error === 1 ? "error" : "errors"}
-        </button>
+        <>
+          <span className="nm-statusbar-sep nm-status-failing" />
+          <button
+            className="nm-statusbar-btn nm-statusbar-err nm-status-failing"
+            onClick={onShowErrors}
+            title="Filter to errors"
+          >
+            <b>{counts.error}</b> failing
+            {failingHint && (
+              <span className="nm-statusbar-mono"> on {requestName(failingHint)}</span>
+            )}
+          </button>
+        </>
       )}
       {pinnedCount > 0 && (
         <button
@@ -71,9 +89,6 @@ export function StatusBar({
           onClick={onShowPinned}
           title="Filter to pinned entries"
         >
-          {/* The panel's own pin glyph, not the 📌 emoji this used to carry:
-              an emoji renders in the system font at a size and weight nothing
-              else in the bar shares, and looks different on every platform. */}
           <Icon name="pin" size={11} />
           {pinnedCount} pinned
         </button>
@@ -81,9 +96,12 @@ export function StatusBar({
 
       <span className="nm-statusbar-spacer" />
 
+      <button className="nm-statusbar-btn" onClick={onOpenPalette} title="Command palette">
+        commands <kbd className="nm-kbd">⌘K</kbd>
+      </button>
       {persistedLabel && (
         <button
-          className={`nm-statusbar-btn nm-status-persisted${
+          className={`nm-statusbar-btn nm-statusbar-persisted nm-status-persisted${
             purgeArmed ? " nm-statusbar-armed" : ""
           }`}
           onClick={onPurge}
@@ -96,13 +114,6 @@ export function StatusBar({
           {purgeArmed ? "Purge saved log?" : persistedLabel}
         </button>
       )}
-      <button
-        className="nm-statusbar-btn"
-        onClick={onOpenShortcuts}
-        title="Keyboard shortcuts (?)"
-      >
-        <Icon name="keyboard" size={12} />
-      </button>
     </div>
   );
 }

@@ -12,12 +12,13 @@ export const SHORTCUT_GROUPS: {
     title: "Panel",
     items: [
       { keys: ["Ctrl", "`"], desc: "Open / close the monitor" },
-      { keys: ["Esc"], desc: "Close the panel" },
+      { keys: ["Ctrl", "K"], desc: "Command palette — everything, searchable" },
+      { keys: ["Esc"], desc: "Close the palette, then the panel" },
       { keys: ["?"], desc: "Show this cheatsheet" },
-      { keys: ["1"], desc: "Network section" },
-      { keys: ["2"], desc: "Realtime section" },
-      { keys: ["3"], desc: "Redux section" },
-      { keys: ["4"], desc: "Query section" },
+      { keys: ["1"], desc: "Network source" },
+      { keys: ["2"], desc: "Realtime source" },
+      { keys: ["3"], desc: "Redux source" },
+      { keys: ["4"], desc: "Query source" },
     ],
   },
   {
@@ -80,7 +81,7 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
         onPointerDown={(e) => e.stopPropagation()}
       >
         <button
-          className="nm-iconbtn nm-iconbtn-sq nm-sheet-close"
+          className="nm-pill nm-pill-sq nm-sheet-close"
           onClick={onClose}
           title="Close"
         >
@@ -91,13 +92,17 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
           {/* Not a shortcut, but this sheet is where a developer looks for
               "what else can this thing do", and the theme picker is otherwise
               only discoverable by trying the toolbar icons. */}
-          <div className="nm-sheet-group">Appearance</div>
+          <div className="nm-sheet-group">Where things are</div>
           <div className="nm-sheet-desc nm-sheet-wide">
-            Twelve themes live under the{" "}
+            Sorting, density, the dock, the copy formats and the filter syntax
+            all live in the command palette (<kbd className="nm-kbd">Ctrl</kbd>{" "}
+            <kbd className="nm-kbd">K</kbd>) rather than each having a button —
+            the header keeps only what you read constantly. Twelve themes live
+            under the{" "}
             <span className="nm-inline-ico">
               <Icon name="theme" size={11} />
             </span>{" "}
-            button in the toolbar — hover one to try it on before choosing.
+            button; hover one to try it on before choosing.
           </div>
 
           <div className="nm-sheet-group">Formats</div>

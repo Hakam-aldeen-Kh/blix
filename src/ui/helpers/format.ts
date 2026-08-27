@@ -1,5 +1,6 @@
 /** Dev Tools — display formatting. */
 
+import type { MonitorEntry } from "../../capture/networkMonitor";
 import { STATUS_TEXT } from "../constants/ui";
 
 export const clamp = (n: number, min: number, max: number) =>
@@ -80,6 +81,36 @@ export function formatDuration(ms: number): string {
 export function statusText(status?: number): string {
   if (status == null) return "";
   return STATUS_TEXT[status] ?? "";
+}
+
+/**
+ * The short label in an entry's status pill.
+ *
+ * Shared by the row and the detail head so the two can never disagree — they
+ * did, and a Redux action that read "±14" in the list read "—" one pane over.
+ * Only HTTP has a status code; the other three fill the same slot with the
+ * nearest thing they have, rather than the blank that reads as "unknown" when
+ * the row's own state already says otherwise.
+ */
+export function entryStatusLabel(entry: MonitorEntry): string {
+  switch (entry.kind ?? "http") {
+    case "ws":
+      return entry.state === "pending" ? "open" : "closed";
+    case "redux": {
+      const diff = entry.redux?.diff;
+      const n = diff?.changes.length ?? 0;
+      return n ? `±${n}${diff?.truncated ? "+" : ""}` : "—";
+    }
+    case "query":
+      if (entry.state === "pending") return "•••";
+      if (entry.state === "error") return "ERR";
+      return (entry.query?.status ?? "OK").toUpperCase().slice(0, 4);
+    default:
+      if (entry.state === "pending") return "•••";
+      if (entry.state === "aborted") return "⊘";
+      if (entry.status != null) return String(entry.status);
+      return entry.state === "error" ? "ERR" : "—";
+  }
 }
 
 /** Best-effort copy that resolves to whether it succeeded, so callers can flash
