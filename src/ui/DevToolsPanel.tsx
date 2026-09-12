@@ -19,6 +19,7 @@
  * module only in development, so none of it reaches a production bundle.
  */
 
+import { getActiveDbName, isSharedDefaultDb } from "../capture/monitorConfig";
 import { setInitiatorCapture } from "../capture/monitorInitiator";
 import {
   bootPersistence,
@@ -44,6 +45,7 @@ import { createPortal } from "react-dom";
 import { BlixContext } from "./BlixContext";
 import { CommandPalette, type CommandGroup } from "./components/CommandPalette";
 import { ContextMenu } from "./components/ContextMenu";
+import { DatabasesSheet } from "./components/DatabasesSheet";
 import { DetailPane } from "./components/DetailPane";
 import { Icon, type IconName } from "./components/Icon";
 import { CORNER_STYLE, FabDragPreview, MonitorFab } from "./components/MonitorFab";
@@ -168,6 +170,11 @@ export default function DevTools() {
   const [query, setQuery] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showDatabases, setShowDatabases] = useState(false);
+  /** A purge that did not happen — almost always another tab holding the
+   * database open. Shown rather than swallowed: the three purge controls all
+   * claimed success unconditionally before `destroyDb` observed its request. */
+  const [purgeError, setPurgeError] = useState<string | null>(null);
   const [deepSearch, setDeepSearch] = useState(
     () => prefsStore.getSnapshot().prefs.deepSearch,
   );
@@ -236,6 +243,14 @@ export default function DevTools() {
   useEffect(() => {
     setInitiatorCapture(prefs.captureInitiator !== false);
   }, [prefs.captureInitiator]);
+
+  // The purge notice is informational, not a dialog — it goes away on its own
+  // rather than making the developer dismiss it.
+  useEffect(() => {
+    if (!purgeError) return;
+    const timer = window.setTimeout(() => setPurgeError(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [purgeError]);
 
   // Each section is its own view over the buffer — every kind of traffic has
   // different columns and a different notion of a row. Computed in one pass
@@ -419,6 +434,7 @@ export default function DevTools() {
         // this one both fire on the same keypress, and the panel closed
         // underneath the menu the developer was still using.
         if (showPalette) setShowPalette(false);
+        else if (showDatabases) setShowDatabases(false);
         else if (showShortcuts) setShowShortcuts(false);
         else if (kb.current.menuOpen) menu.close();
         else if (menuState) closeMenus();
@@ -517,7 +533,7 @@ export default function DevTools() {
     // render) would defeat the point of this effect: attach the listener
     // once, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, menuState, closeMenus, onSection, showShortcuts, showPalette, togglePause, togglePin, menu.close]);
+  }, [dock, menuState, closeMenus, onSection, showShortcuts, showPalette, showDatabases, togglePause, togglePin, menu.close]);
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
@@ -708,6 +724,14 @@ export default function DevTools() {
   const openPalette = () => setShowPalette(true);
   const closePalette = () => setShowPalette(false);
 
+  // All three purge controls route through here, so a delete blocked by
+  // another tab is reported the same way wherever it was triggered from.
+  const purge = useCallback(() => {
+    void purgeStorage().then((outcome) => {
+      setPurgeError(outcome.ok ? null : outcome.message);
+    });
+  }, []);
+
   /**
    * What the palette offers.
    *
@@ -895,7 +919,15 @@ export default function DevTools() {
           note: persisted.count ? `${persisted.count} on disk` : "nothing saved",
           accent: "danger",
           disabled: persisted.count === 0,
-          run: () => void purgeStorage(),
+          run: purge,
+        },
+        {
+          id: "databases",
+          label: "Databases on this origin",
+          // The active name is the answer to "am I even looking at my own
+          // app's log?", which is the question that sends a developer here.
+          note: getActiveDbName(),
+          run: () => setShowDatabases(true),
         },
       ],
     },
@@ -1136,10 +1168,13 @@ export default function DevTools() {
                 ? `${persisted.count} saved · ${formatBytes(persisted.bytes)}`
                 : null
             }
+            dbName={getActiveDbName()}
+            dbShared={isSharedDefaultDb()}
+            onShowDatabases={() => setShowDatabases(true)}
             purgeArmed={purgeArmed}
             onPurge={() => {
               if (purgeArmed) {
-                void purgeStorage();
+                purge();
                 setPurgeArmed(false);
               } else {
                 setPurgeArmed(true);
@@ -1159,6 +1194,12 @@ export default function DevTools() {
               <div className="nm-scrim-full" onClick={closePalette} />
               <CommandPalette groups={commands} onClose={closePalette} />
             </>
+          )}
+
+          {purgeError && (
+            <div className="nm-purge-note" role="status">
+              {purgeError}
+            </div>
           )}
 
           {!dock.maximized && dock.mode === "float" && (
@@ -1224,11 +1265,24 @@ export default function DevTools() {
             disabled={persisted.count === 0}
             hint={persisted.count ? formatBytes(persisted.bytes) : undefined}
             onSelect={() => {
-              void purgeStorage();
+              purge();
               closeMenus();
             }}
           >
             Purge saved log
+          </MenuItem>
+          {/* Directly under Purge, because they are the two halves of the same
+              question: this one clears the database you are on, that one shows
+              you every other database this origin is carrying. */}
+          <MenuItem
+            icon={<Icon name="database" size={13} />}
+            hint={isSharedDefaultDb() ? "shared" : undefined}
+            onSelect={() => {
+              setShowDatabases(true);
+              closeMenus();
+            }}
+          >
+            Databases on this origin
           </MenuItem>
           <MenuItem
             icon={<Icon name="follow" size={13} />}
@@ -1325,6 +1379,9 @@ export default function DevTools() {
         />
       )}
       {showShortcuts && <ShortcutsSheet onClose={() => setShowShortcuts(false)} />}
+      {showDatabases && (
+        <DatabasesSheet onClose={() => setShowDatabases(false)} />
+      )}
     </div>
   );
 

@@ -262,10 +262,15 @@ export interface Pos {
  * Everything the panel remembers between sessions.
  *
  * Stored in IndexedDB (`meta.prefs`) as the source of truth, mirrored into
- * `localStorage["nm:prefs"]` purely as a synchronous read cache so the panel
- * can restore its geometry without a frame of flash. The mirror is expendable —
+ * `localStorage["<dbName>:prefs"]` — `blix:checkout:prefs` for
+ * `dbName="checkout"` — purely as a synchronous read cache so the panel can
+ * restore its geometry without a frame of flash. The mirror is expendable —
  * any host that clears web storage wipes it, and the IndexedDB copy silently
  * restores it on next boot.
+ *
+ * Both halves are scoped to the database name: web storage, like IndexedDB, is
+ * origin-scoped, so an unscoped key meant every app on one origin shared one
+ * set of preferences.
  */
 export interface MonitorPrefs {
   /** Bumped on every write; used to reconcile the two copies. */

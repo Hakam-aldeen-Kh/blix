@@ -1219,6 +1219,20 @@ const LAYOUT = `
 /* Armed for a destructive second click — the only thing in the status bar
    allowed to shout. */
 .nm-statusbar-armed { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
+/* Which database this panel is on. Quiet by default — it is a fact, not a
+   warning — and amber only when it is the shared default. */
+.nm-statusbar-db {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--nm-mono); max-width: 240px;
+}
+.nm-statusbar-db-name { overflow: hidden; text-overflow: ellipsis; }
+.nm-statusbar-db-shared { color: var(--nm-warning); }
+.nm-statusbar-db-shared:hover { color: var(--nm-warning); filter: brightness(1.2); }
+.nm-statusbar-db-tag {
+  flex: none; font-size: 9px; font-weight: 700; letter-spacing: .3px;
+  text-transform: uppercase; padding: 1px 4px; border-radius: 4px;
+  background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
+}
 .nm-statusbar-armed:hover { color: var(--nm-error); filter: brightness(1.3); }
 
 /* ── Command palette ───────────────────────────────────────────────────────
@@ -1383,6 +1397,92 @@ const LAYOUT = `
    inside a sentence they need the opposite. */
 .nm-inline-ico { display: inline-flex; vertical-align: -1px; color: var(--nm-txt); }
 .nm-sheet-close { position: absolute; top: 12px; right: 12px; }
+
+/* Databases on this origin. Shares the sheet's shell; the rows are their own
+   thing — a name that can be long, a subdued second line, and one destructive
+   action pinned to the right. */
+/* A purge that did not happen. Inside the panel, above the status bar the
+   developer just clicked, rather than a corner of the viewport. */
+.nm-purge-note {
+  position: absolute; left: 12px; right: 12px; bottom: 34px; z-index: 6;
+  padding: 8px 11px; border-radius: 9px; font-size: 11.5px; line-height: 1.45;
+  color: var(--nm-error); background: var(--nm-error-soft);
+  border: 1px solid var(--nm-error-line); box-shadow: var(--nm-shadow-menu);
+  animation: nm-in .16s var(--nm-ease);
+}
+
+.nm-db-intro { line-height: 1.5; margin-bottom: 12px; }
+.nm-db-intro code, .nm-db-warn code {
+  font-family: var(--nm-mono); font-size: 10.5px;
+  padding: 1px 4px; border-radius: 4px; background: var(--nm-surface-2);
+}
+.nm-db-warn, .nm-db-error {
+  font-size: 11.5px; line-height: 1.5; padding: 9px 11px;
+  border-radius: 9px; margin-bottom: 10px; border: 1px solid var(--nm-line-strong);
+}
+.nm-db-warn { color: var(--nm-muted); background: var(--nm-surface-2); }
+.nm-db-error {
+  color: var(--nm-error); background: var(--nm-error-soft);
+  border-color: var(--nm-error-line);
+}
+.nm-db-list { display: flex; flex-direction: column; gap: 6px; }
+.nm-db-item {
+  border-radius: 9px; border: 1px solid var(--nm-line);
+  background: var(--nm-surface-2); overflow: hidden;
+}
+.nm-db-open { border-color: var(--nm-line-strong); }
+.nm-db-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; }
+.nm-db-ico { color: var(--nm-faint); flex: none; }
+.nm-db-main { min-width: 0; flex: 1; }
+.nm-db-name {
+  display: flex; align-items: center; gap: 6px; font-family: var(--nm-mono);
+  font-size: 11.5px; color: var(--nm-txt); overflow-wrap: anywhere;
+}
+.nm-db-tag {
+  flex: none;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: .3px; text-transform: uppercase; padding: 1px 5px;
+  border-radius: 4px; color: var(--nm-accent);
+  background: var(--nm-accent-soft); border: 1px solid var(--nm-accent-line);
+}
+.nm-db-tag-legacy {
+  color: var(--nm-warning); background: var(--nm-warning-soft);
+  border-color: var(--nm-warning-line);
+}
+.nm-db-note { font-size: 10.5px; color: var(--nm-faint); margin-top: 3px; }
+.nm-db-row .nm-pill { flex: none; }
+.nm-db-armed { color: var(--nm-error); border-color: var(--nm-error-line); }
+
+/* The peek: the newest entries of a database this panel is not using. Denser
+   than the request table and deliberately less capable — it is a read-only
+   snapshot for identifying a log, not a second copy of the list. */
+.nm-db-peek {
+  border-top: 1px solid var(--nm-line); background: var(--nm-sunken);
+  max-height: 260px; overflow: auto; padding: 4px 0;
+}
+.nm-db-peek-msg {
+  padding: 7px 11px; font-size: 10.5px; line-height: 1.45; color: var(--nm-faint);
+}
+.nm-db-peek-row {
+  display: flex; align-items: center; gap: 8px; padding: 3px 11px;
+  font-size: 10.5px; font-family: var(--nm-mono); white-space: nowrap;
+}
+.nm-db-peek-row:hover { background: var(--nm-elev); }
+.nm-db-peek-dot {
+  flex: none; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--nm-accent-fg);
+}
+.nm-db-peek-when { flex: none; color: var(--nm-faint); font-variant-numeric: tabular-nums; }
+.nm-db-peek-method { flex: none; width: 42px; color: var(--nm-muted); font-weight: 600; }
+.nm-db-peek-url {
+  flex: 1; min-width: 0; color: var(--nm-txt);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.nm-db-peek-status {
+  flex: none; color: var(--nm-muted); font-variant-numeric: tabular-nums;
+}
+.nm-db-peek-bad { color: var(--nm-error); }
 `;
 
 const RESPONSIVE = `
@@ -1466,6 +1566,9 @@ const RESPONSIVE = `
 @container nm (max-width: 700px) { .nm-status-slowest { display: none; } }
 @container nm (max-width: 600px) { .nm-status-failing { display: none; } }
 @container nm (max-width: 480px) { .nm-status-persisted { display: none; } }
+/* The database chip keeps its icon and its "shared" warning to the end; only
+   the name, which is the long part, gives up its width. */
+@container nm (max-width: 560px) { .nm-statusbar-db-name { display: none; } }
 
 /* The floating panel must never exceed the viewport on a small screen. */
 .nm-panel.nm-dock-float { max-width: 100vw; max-height: 100vh; }

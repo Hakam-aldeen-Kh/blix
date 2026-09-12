@@ -20,7 +20,12 @@
  * The API is a thin promise wrapper; no dependency is warranted for this much.
  */
 
-import { getActiveDbName, NM_DB_VERSION } from "./monitorConfig";
+import { getActiveDbName, markDbOpened, NM_DB_VERSION } from "./monitorConfig";
+import {
+  deleteDatabaseByName,
+  rememberDatabase,
+  type DeleteOutcome,
+} from "./monitorDatabases";
 import type { PersistedEntry } from "./monitorTypes";
 
 export const ENTRY_STORE = "entries";
@@ -63,9 +68,16 @@ export function openDb(): Promise<IDBDatabase | null> {
       resolve(null);
       return;
     }
+    // Reading the name here is what makes it final: `dbPromise` is memoized,
+    // so this runs once per page load and every later `configureDbName` is a
+    // no-op it can warn about.
+    const name = getActiveDbName();
+    markDbOpened();
+    rememberDatabase(name);
+
     let request: IDBOpenDBRequest;
     try {
-      request = indexedDB.open(getActiveDbName(), NM_DB_VERSION);
+      request = indexedDB.open(name, NM_DB_VERSION);
     } catch {
       resolve(null);
       return;
@@ -229,18 +241,25 @@ export async function putMeta<T>(key: string, value: T): Promise<void> {
   }
 }
 
-/** Nuclear option exposed in the panel's overflow menu. */
-export async function destroyDb(): Promise<void> {
+/**
+ * Nuclear option exposed in the panel's overflow menu.
+ *
+ * Returns the delete's outcome rather than discarding it. The request used to
+ * be fired and never observed, so a delete blocked by another tab holding the
+ * database open looked identical to a successful one — the panel reported the
+ * log purged while it was still on disk.
+ */
+export async function destroyDb(): Promise<DeleteOutcome> {
+  const name = getActiveDbName();
   try {
     const db = await openDb();
     db?.close();
   } catch {
     /* noop */
   }
+  // Cleared before the delete, not after: the next `openDb()` must reconnect
+  // rather than hand out the closed connection, whether or not the delete
+  // itself succeeded.
   dbPromise = null;
-  try {
-    indexedDB.deleteDatabase(getActiveDbName());
-  } catch {
-    /* noop */
-  }
+  return deleteDatabaseByName(name);
 }

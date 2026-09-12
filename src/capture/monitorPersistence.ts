@@ -13,6 +13,7 @@
  */
 
 import {
+  getActiveDbName,
   MAX_ENTRIES,
   MONITOR_ENABLED,
   NM_SCHEMA_VERSION,
@@ -32,12 +33,41 @@ import {
   putMeta,
   type BudgetMeta,
 } from "./monitorStorage";
+import type { DeleteOutcome } from "./monitorDatabases";
 import { truncateForPersist } from "./monitorTruncate";
 import type { MonitorPrefs, PersistedEntry } from "./monitorTypes";
 
-const PREFS_LS_KEY = "nm:prefs";
-/** The four keys this replaced; folded in once, then removed. */
-const LEGACY_KEYS = ["nm:size", "nm:pos", "nm:corner", "nm:listw"] as const;
+/**
+ * The localStorage mirror's key, scoped to the active database.
+ *
+ * A function, not a constant: `configureDbName` may not have run when this
+ * module is first evaluated — `attachHttpMonitor` calls it at module-init time
+ * and `<Blix dbName>` during render, both of which can land after this import
+ * is resolved. A module-level constant would capture `blix:default` and every
+ * project would share one mirror again, which is the exact collision this is
+ * meant to end. Every read and write resolves it at call time instead.
+ *
+ * The IndexedDB half of prefs (`meta.prefs`) needs no equivalent: it already
+ * lives inside the per-project database, so prefixing the database name scoped
+ * it too.
+ */
+function prefsKey(): string {
+  return `${getActiveDbName()}:prefs`;
+}
+
+/**
+ * Keys from before prefs were scoped per project. Removed on first read, never
+ * migrated: their contents are whichever project on this origin wrote last,
+ * so inheriting them would hand one project another's geometry. Each project
+ * starts once from `DEFAULT_PREFS`.
+ */
+const LEGACY_KEYS = [
+  "nm:prefs",
+  "nm:size",
+  "nm:pos",
+  "nm:corner",
+  "nm:listw",
+] as const;
 
 export const DEFAULT_PREFS: MonitorPrefs = {
   rev: 0,
@@ -139,43 +169,31 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
-/** Reads the localStorage mirror, folding in the four legacy geometry keys the
- * first time it runs. Synchronous by design — it feeds a `useState` initializer
- * so the panel never renders at the wrong size and then jumps. */
+/** Reads the localStorage mirror, clearing the pre-scoping keys the first time
+ * it runs. Synchronous by design — it feeds a `useState` initializer so the
+ * panel never renders at the wrong size and then jumps. */
 export function readPrefsSync(): MonitorPrefs {
   if (typeof window === "undefined") return DEFAULT_PREFS;
 
   const stored = safeParse<Partial<MonitorPrefs> | null>(
-    window.localStorage.getItem(PREFS_LS_KEY),
+    window.localStorage.getItem(prefsKey()),
     null,
   );
   if (stored) return { ...DEFAULT_PREFS, ...stored };
 
-  // One-time migration from the pre-v2 keys.
-  const legacy: Partial<MonitorPrefs> = {};
+  // Nothing under this project's key yet. The unscoped keys that may still be
+  // sitting on the origin are *not* read: whatever is in them belongs to
+  // whichever project on this origin wrote last, and adopting it would hand
+  // this project another app's geometry. They are dropped instead, so the
+  // origin ends up with one key per project rather than those plus a pile of
+  // shared ones nothing will ever read again.
   try {
-    const size = safeParse(window.localStorage.getItem("nm:size"), null);
-    const pos = safeParse(window.localStorage.getItem("nm:pos"), null);
-    const corner = safeParse(window.localStorage.getItem("nm:corner"), null);
-    const listW = safeParse(window.localStorage.getItem("nm:listw"), null);
-    if (size || pos) {
-      legacy.float = {
-        ...DEFAULT_PREFS.float,
-        ...(size ? { size: size as MonitorPrefs["float"]["size"] } : {}),
-        ...(pos ? { pos: pos as MonitorPrefs["float"]["pos"] } : {}),
-      };
-      // Someone who had a floating panel keeps it rather than being moved to
-      // the new bottom dock behind their back.
-      legacy.mode = "float";
-    }
-    if (corner) legacy.corner = corner as MonitorPrefs["corner"];
-    if (typeof listW === "number") legacy.splitW = listW;
     LEGACY_KEYS.forEach((k) => window.localStorage.removeItem(k));
   } catch {
     /* privacy mode — defaults are fine */
   }
 
-  return { ...DEFAULT_PREFS, ...legacy };
+  return DEFAULT_PREFS;
 }
 
 let prefsWriteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -188,7 +206,7 @@ export function savePrefs(patch: Partial<MonitorPrefs>): void {
 
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PREFS_LS_KEY, JSON.stringify(prefs));
+    window.localStorage.setItem(prefsKey(), JSON.stringify(prefs));
   } catch {
     /* quota / privacy mode */
   }
@@ -391,12 +409,14 @@ export function getPersistedStats(): BudgetMeta {
   return budget;
 }
 
-export async function purgeStorage(): Promise<void> {
+/** Returns the delete's outcome so a purge blocked by another tab can be shown
+ * to the developer rather than reported as done. */
+export async function purgeStorage(): Promise<DeleteOutcome> {
   dirty.clear();
   pendingDeletes.clear();
   writtenBytes.clear();
   budget = { count: 0, bytes: 0 };
-  await destroyDb();
+  return destroyDb();
 }
 
 let booted = false;
@@ -419,7 +439,7 @@ export async function bootPersistence(): Promise<void> {
   if (stored && stored.rev >= prefs.rev) {
     prefs = { ...DEFAULT_PREFS, ...stored };
     try {
-      window.localStorage.setItem(PREFS_LS_KEY, JSON.stringify(prefs));
+      window.localStorage.setItem(prefsKey(), JSON.stringify(prefs));
     } catch {
       /* noop */
     }

@@ -590,7 +590,7 @@ boundary. That is the reason for the split entry point: import capture from
 | --- | --- |
 | `store` | The **State** tab renders `— Redux store not provided —`, and **Re-dispatch** is disabled with the reason `Redux store not provided`. Everything else works. |
 | `apiClient` | **Replay request** is disabled with the reason `HTTP client not provided`. Everything else works. |
-| `dbName` | Defaults to `"nm-devtools"`. |
+| `dbName` | Falls back to the shared database `blix:default`, and the panel warns in the console. See [`dbName`](#dbname--when-you-need-it). |
 
 `store` and `apiClient` are structurally typed — they need
 `getState`/`subscribe`/`dispatch` and `request` respectively. A redux-toolkit
@@ -733,27 +733,68 @@ when you opt in: **preserve-log is off by default**, and while it is off
 nothing is written to disk. See [Security](#security) for what the toggle does
 and what lands there.
 
-IndexedDB is scoped **per origin**, not per app — so two apps served from the
-same origin (different ports in dev are different origins, but path-based
-routing, multi-zone Next.js setups and anything behind one reverse proxy are
-not) both open `nm-devtools` and interleave their logs into one database.
+**All of Blix's storage is scoped to the origin, not to your app.** That is how
+IndexedDB and `localStorage` both work, and it covers the captured log *and*
+your panel preferences — dock position, theme, density, the preserve-log
+toggle. Two apps served from the same origin (different ports in dev are
+different origins, but path-based routing, multi-zone Next.js setups and
+anything behind one reverse proxy are not) share every one of them: entries
+from one project appear in the other's panel, and whichever you opened last
+decides where the panel is docked.
 
-Give each app its own name to keep them separate:
+`dbName` is how projects on one origin are kept apart. Give each app its own:
 
 ```tsx
-<Blix store={store} apiClient={apiClient} dbName="checkout-devtools" />
+<Blix store={store} apiClient={apiClient} dbName="checkout" />
 ```
 
 You can also set it from the capture side, which is useful when capture starts
 before the panel mounts:
 
 ```ts
-attachHttpMonitor(apiClient, { dbName: "checkout-devtools" });
+attachHttpMonitor(apiClient, { dbName: "checkout" });
 ```
 
 Either call must happen before the database is first opened, which the panel
 does on mount. If both are set, the `<Blix />` prop wins, since render runs
-after module init.
+after module init. A call that arrives after the database is open is ignored —
+Blix does not switch databases at runtime — and says so in the console rather
+than failing quietly.
+
+The name you pass is prefixed: `dbName="checkout"` gives you the database
+`blix:checkout` and the preferences key `blix:checkout:prefs`. Passing an
+already-prefixed name is fine and does not double it. Omitting `dbName`
+entirely gives you `blix:default`, shared with every other app on the origin
+that also omits it — and in development the panel warns once per mount when
+that happens, naming the fix.
+
+Renaming is not a migration: the old database is left where it is rather than
+moved or deleted, and the new one starts empty at default preferences.
+
+#### Databases on this origin
+
+The status bar always shows which database the panel is on. On the shared
+default it turns amber and adds a `shared` tag, which is the visible form of
+the console warning above — click it to open the screen below. The same screen
+is in **⋯ More actions** and in the command palette.
+
+Open the command palette (`Ctrl/⌘ K`) → **Databases on this origin** to see
+every Blix database the origin holds — one per project, plus `nm-devtools`,
+the single unprefixed database that all projects shared before names were
+prefixed. Each row shows an approximate size and can be deleted; the one this
+panel is using is marked and is not deletable from there, since it is open —
+use **Purge saved log** for that.
+
+**Peek** on a row lists the 50 newest entries in that database — time, method,
+URL and status — so you can tell whose log it is before deleting it. It is a
+read-only snapshot: Blix opens the database, reads, and closes it again, so the
+list does not update and there is no detail pane, replay or export. The panel
+itself always stays on its own database; to work with another project's log
+properly, run that project and open the panel there.
+
+The screen enumerates with `indexedDB.databases()`, which Firefox does not
+implement. There it falls back to the databases Blix has itself opened in that
+browser and labels the list as possibly incomplete.
 
 ---
 
@@ -956,8 +997,11 @@ off is itself a way to drop everything Blix has written.
 Every path clears the captured entries; Purge additionally deletes the
 IndexedDB database itself. **Your panel preferences survive either way** —
 they are mirrored to `localStorage`, and a fresh database is re-seeded from
-that mirror on the next boot. There is no UI or API for clearing them, and no
-programmatic API for purging either.
+that mirror on the next boot. Both the database and its mirror key are scoped
+to this project's `dbName`, so a purge affects only the project that ran it and
+cannot restore — or destroy — another project's preferences on the same origin.
+There is no UI or API for clearing them, and no programmatic API for purging
+either.
 
 ### Threat model
 
