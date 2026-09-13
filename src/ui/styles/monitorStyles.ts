@@ -661,6 +661,11 @@ const DETAIL = `
   user-select: all;
 }
 
+/* Why the primary action (Replay, Re-dispatch) is disabled. Text rather than
+   only a tooltip: a disabled button does not reliably show its title. */
+.nm-detail-reason {
+  margin-top: 4px; font-size: 10.5px; line-height: 1.35; color: var(--nm-faint);
+}
 .nm-notice {
   display: flex; align-items: center; gap: 8px; padding: 6px 14px; flex-shrink: 0;
   border-bottom: 1px solid var(--nm-line);

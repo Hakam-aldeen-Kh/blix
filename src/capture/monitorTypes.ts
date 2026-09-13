@@ -230,6 +230,15 @@ export interface MonitorEntry {
   redux?: ReduxActionMeta;
   /** Query only: the cache row's key, status and observer count. */
   query?: QueryMeta;
+  /**
+   * HTTP only: which capture path recorded this request — `attachHttpMonitor`
+   * (`"axios"`) or `attachFetchMonitor` (`"fetch"`). Deliberately not
+   * `transport`, which is realtime-only and is rendered in place of the method.
+   *
+   * Absent on entries captured before this field existed. Absent means
+   * unknown — never read it as "axios".
+   */
+  client?: "axios" | "fetch";
   /** HTTP only: id of the query/mutation entry that caused this request,
    * when it could be determined — see `monitorContext.ts`. Absence means
    * "unknown", never "not caused by a query". */

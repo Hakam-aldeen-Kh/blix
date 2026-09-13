@@ -8,6 +8,7 @@
  *   `status:500`          exact status, or `status:5xx` / `status:4xx`
  *   `is:error`            error | ok | pending | aborted | pinned | replay | running
  *   `type:ws`             http | ws
+ *   `client:fetch`        fetch | axios — which HTTP capture path recorded it
  *   `larger-than:10k`     size threshold — accepts b / k / kb / m / mb
  *   `slower-than:500`     duration in ms, or `slower-than:1.5s`
  *   `has:frames`          frames | initiator | error | replay
@@ -25,6 +26,7 @@ export type FilterField =
   | "status"
   | "is"
   | "type"
+  | "client"
   | "larger-than"
   | "slower-than"
   | "has"
@@ -48,6 +50,7 @@ const FIELDS: Record<string, FilterField> = {
   "status-code": "status",
   is: "is",
   type: "type",
+  client: "client",
   "larger-than": "larger-than",
   larger: "larger-than",
   "slower-than": "slower-than",
@@ -63,6 +66,7 @@ export const FILTER_HINTS: { token: string; hint: string }[] = [
   { token: "status:", hint: "500, 4xx" },
   { token: "is:", hint: "error, pending, pinned, replay" },
   { token: "type:", hint: "http, ws, redux, query" },
+  { token: "client:", hint: "fetch, axios" },
   { token: "larger-than:", hint: "10k, 1mb" },
   { token: "slower-than:", hint: "500, 1.5s" },
   { token: "has:", hint: "frames, initiator, error" },
@@ -212,6 +216,10 @@ function matchToken(
       return matchHas(entry, token.value);
     case "type":
       return (entry.kind ?? "http") === token.value;
+    case "client":
+      // Absent means unknown: an entry captured before `client` existed
+      // matches neither value, so `-client:axios` keeps it rather than guess.
+      return entry.client === token.value;
     case "url":
       return entry.url.toLowerCase().includes(token.value);
     case "larger-than": {

@@ -27,6 +27,20 @@ export function canReplay(
   entry: MonitorEntry,
   apiClient?: HttpClientLike,
 ): ReplayCheck {
+  // Checked first, so a fetch entry gives its real reason rather than a
+  // misleading "HTTP client not provided". Replaying through `fetch` is not a
+  // plumbing problem — Blix doesn't record the call's `credentials`, `mode` or
+  // `cache`, and keeps a JSON body parsed rather than as the bytes that were
+  // sent — so a replay could not promise to be the same request.
+  if (entry.client === "fetch") {
+    return {
+      can: false,
+      reason:
+        "Fetch requests can't be replayed yet — Blix doesn't capture enough of the original call to repeat it faithfully",
+      needsConfirm: false,
+    };
+  }
+
   if (!apiClient) {
     return { can: false, reason: "HTTP client not provided", needsConfirm: false };
   }

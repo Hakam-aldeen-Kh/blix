@@ -11,13 +11,23 @@
  *
  * So `withInitiatorCapture` wraps the axios instance, takes the stack
  * synchronously in the caller's own frame, and stashes it on the config for
- * `beginMonitor` to read.
+ * `beginMonitor` to read. The fetch wrapper needs no such proxy: it *is* the
+ * call site, so it calls `captureFrames` directly.
+ *
+ * ## Why Blix's own frames are dropped by depth
+ *
+ * Both callers know exactly how many of their own frames sit above the caller's
+ * code, and pass that as `skip`. The alternative — recognizing Blix's frames by
+ * module name — does not survive bundling: the published package is a handful
+ * of hashed `dist/chunk-*.js` files, none of them named after the source
+ * module, so in a real install every Blix frame slipped through and the
+ * Initiator column pointed at Blix itself. Do not add module-name rules for
+ * Blix's own code to `NOISE`.
  *
  * The whole module is behind a statically-foldable `NODE_ENV` check at its call
  * site, so it is dead-code-eliminated from production builds.
  */
 
-import type { AxiosInstance, AxiosRequestConfig } from "axios";
 import { MONITOR_ENABLED } from "./monitorConfig";
 import type { InitiatorFrame } from "./monitorTypes";
 
@@ -49,12 +59,21 @@ function tidyPath(file: string): string {
 
 const MAX_FRAMES = 8;
 
-/** Parses, filters and trims a raw `Error.stack` into displayable frames. */
-export function parseStack(stack: string | undefined): InitiatorFrame[] {
+/**
+ * Parses, filters and trims a raw `Error.stack` into displayable frames.
+ *
+ * `skipFrames` drops that many raw frames from the top — after the `Error`
+ * header line, before any filtering — so a caller can remove its own frames by
+ * position rather than by name.
+ */
+export function parseStack(
+  stack: string | undefined,
+  skipFrames = 0,
+): InitiatorFrame[] {
   if (!stack) return [];
   const out: InitiatorFrame[] = [];
 
-  for (const line of stack.split("\n").slice(1)) {
+  for (const line of stack.split("\n").slice(1 + skipFrames)) {
     if (NOISE.some((re) => re.test(line))) continue;
     const match = FRAME_RE.exec(line);
     if (!match) continue;
@@ -93,19 +112,33 @@ export function setInitiatorCapture(on: boolean): void {
   captureEnabled = on;
 }
 
-function captureFrames(): InitiatorFrame[] | undefined {
+/**
+ * The call stack of whoever called into Blix, with Blix's own frames removed.
+ *
+ * `skip` is the number of frames *between this function and the caller's own
+ * code* — the Blix frames that called it. It must be called directly from the
+ * outermost of those frames: an extra helper in between silently shifts every
+ * captured initiator by one.
+ *
+ * - the fetch wrapper calls it from its own body: `skip = 1`
+ * - the axios proxy calls it from `attach`, called from a trap: `skip = 2`
+ *
+ * Exported for the fetch wrapper; not part of the public API.
+ */
+export function captureFrames(skip = 0): InitiatorFrame[] | undefined {
   if (!captureEnabled) return undefined;
   // Next's dev server installs a source-map-aware `prepareStackTrace` and
   // raises the frame limit; capping it is by far the biggest lever on the cost
-  // of this call.
+  // of this call. Raised by the frames about to be skipped, so the caller still
+  // gets the same budget of its own.
   const previousLimit = Error.stackTraceLimit;
   try {
-    Error.stackTraceLimit = 24;
+    Error.stackTraceLimit = 24 + 1 + skip;
     const stack = new Error().stack;
     // Read `.stack` now and drop the Error: retaining the Error would retain
     // its entire closure scope, and 200 buffered entries holding one each is a
-    // real leak.
-    return parseStack(stack);
+    // real leak. `1 +` is this function's own frame.
+    return parseStack(stack, 1 + skip);
   } catch {
     return undefined;
   } finally {
@@ -113,9 +146,29 @@ function captureFrames(): InitiatorFrame[] | undefined {
   }
 }
 
-type ConfigWithInitiator = AxiosRequestConfig & {
-  __monitorInitiator?: InitiatorFrame[];
-};
+/**
+ * What `withInitiatorCapture` needs from an HTTP client — declared
+ * structurally, so axios's types are never imported and an app that only uses
+ * `fetch` never needs axios installed to type-check against Blix.
+ *
+ * `request` is the one entry point every axios-style client has; the verb
+ * helpers are wrapped when present. Method syntax on purpose: method parameters
+ * are compared bivariantly, which is what lets axios's generic, config-typed
+ * signatures satisfy these `unknown`-typed ones without a cast.
+ */
+interface InitiatorCaptureTarget {
+  request(config: unknown): unknown;
+  get?(url: string, config?: unknown): unknown;
+  delete?(url: string, config?: unknown): unknown;
+  head?(url: string, config?: unknown): unknown;
+  post?(url: string, data?: unknown, config?: unknown): unknown;
+  put?(url: string, data?: unknown, config?: unknown): unknown;
+  patch?(url: string, data?: unknown, config?: unknown): unknown;
+}
+
+type ConfigWithInitiator = { __monitorInitiator?: InitiatorFrame[] };
+
+type AnyMethod = (...args: unknown[]) => unknown;
 
 /**
  * Wraps the axios instance so every call site records its own stack.
@@ -124,13 +177,20 @@ type ConfigWithInitiator = AxiosRequestConfig & {
  * `put`, `patch`, `delete` and `head`. Other entry points (`options`, the
  * `*Form` helpers) pass through unwrapped — requests made through them are
  * still captured, they just carry no initiator stack.
+ *
+ * Generic over the instance, so what the caller gets back is its own type —
+ * an `AxiosInstance` stays an `AxiosInstance`, with `get<T>`, `defaults` and
+ * `interceptors` intact — rather than the minimal shape it was checked against.
  */
-export function withInitiatorCapture(instance: AxiosInstance): AxiosInstance {
+export function withInitiatorCapture<T extends InitiatorCaptureTarget>(instance: T): T {
   if (!MONITOR_ENABLED) return instance;
 
-  const attach = <T extends ConfigWithInitiator | undefined>(config: T): T => {
+  // Always called directly from a trap, and always calls `captureFrames`
+  // directly — so the Blix frames above the caller are exactly two: `attach`
+  // and the trap. See `captureFrames`.
+  const attach = <C extends ConfigWithInitiator | undefined>(config: C): C => {
     if (!config) return config;
-    if (!config.__monitorInitiator) config.__monitorInitiator = captureFrames();
+    if (!config.__monitorInitiator) config.__monitorInitiator = captureFrames(2);
     return config;
   };
 
@@ -138,7 +198,7 @@ export function withInitiatorCapture(instance: AxiosInstance): AxiosInstance {
     apply(target, thisArg, args: unknown[]) {
       const [config] = args as [ConfigWithInitiator];
       return Reflect.apply(
-        target as unknown as (...a: unknown[]) => unknown,
+        target as unknown as AnyMethod,
         thisArg,
         [attach(config)],
       );
@@ -149,25 +209,20 @@ export function withInitiatorCapture(instance: AxiosInstance): AxiosInstance {
 
       if (prop === "request") {
         return (config: ConfigWithInitiator) =>
-          (value as typeof instance.request).call(target, attach(config));
+          (value as AnyMethod).call(target, attach(config));
       }
       if (prop === "post" || prop === "put" || prop === "patch") {
         return (url: string, data?: unknown, config?: ConfigWithInitiator) =>
-          (value as typeof instance.post).call(
-            target,
-            url,
-            data,
-            attach(config ?? {}),
-          );
+          (value as AnyMethod).call(target, url, data, attach(config ?? {}));
       }
       if (prop === "get" || prop === "delete" || prop === "head") {
         return (url: string, config?: ConfigWithInitiator) =>
-          (value as typeof instance.get).call(target, url, attach(config ?? {}));
+          (value as AnyMethod).call(target, url, attach(config ?? {}));
       }
 
       return value.bind(target);
     },
   });
 
-  return proxy as AxiosInstance;
+  return proxy;
 }

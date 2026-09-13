@@ -45,8 +45,15 @@ no reason to carry a second build output.
 `react` and `react-dom` (v19) are required. `axios`, `@reduxjs/toolkit` and
 `@tanstack/react-query` are **optional** peers — you only need the ones whose
 capture you actually use. The capture layer is structurally typed against each
-of them and never imports any of them at runtime, so installing Blix does not
-pull a data-fetching or state library into your tree.
+of them and imports none of them — not at runtime, and not in its published
+type declarations — so installing Blix does not pull a data-fetching or state
+library into your tree, and your type-check never goes looking for one.
+
+**axios is optional, and fetch-only apps are fully supported.** An app that
+calls `fetch` directly — the default in a Next.js App Router project — captures
+its HTTP traffic with
+[`attachFetchMonitor`](#http-fetch--attachfetchmonitoroptions) and never needs
+axios installed, not even for types.
 
 ---
 
@@ -74,6 +81,7 @@ it.
 | Function | Where to call it | Timing |
 | --- | --- | --- |
 | `attachHttpMonitor` | after your own interceptors are registered on the instance | module scope |
+| `attachFetchMonitor` | before the first `fetch` you want captured — client-side only | module scope |
 | `createReduxMonitorMiddleware` | in `configureStore`'s `middleware` callback | module scope |
 | `tapRealtimeAdapter` | where the adapter singleton is constructed | module scope |
 | `tapQueryClient` | a `useEffect` in your query provider | see below |
@@ -133,6 +141,12 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
   attachHttpMonitor(apiClient);
 }
 ```
+
+`attachHttpMonitor` is idempotent per instance — a second call on the same
+instance, or on its `withInitiatorCapture` wrapper, does nothing — and it
+returns a disposer that ejects both interceptors, for HMR and tests. A request
+cancelled through an `AbortController` or a `CancelToken` settles as
+**aborted**, not as an error; a timeout is still an error.
 
 #### Factory and lazy-singleton clients
 
@@ -200,6 +214,11 @@ request bodies and correlated errors while also discarding the `AxiosError`.
 #### Encrypted payloads — `captureEncrypted(config, payload)`
 
 *Since 0.3.0.*
+
+> **axios only.** Correlation works through the config object your own
+> interceptor is holding, and `fetch` has no interceptor stage to hold one in,
+> so `captureEncrypted` has no effect on requests captured by
+> [`attachFetchMonitor`](#http-fetch--attachfetchmonitoroptions).
 
 **Entirely optional.** An app that never calls it behaves exactly as it did
 before this API existed, and its panel shows no Encrypted tab at all — the tab
@@ -408,6 +427,124 @@ initiator stack.
 > `withInitiatorCapture` was called. If your axios module does not sit at one
 > of those paths, the top frame reported will be your own wrapper rather than
 > the true call site. There is no option to extend the filter yet.
+
+### HTTP (fetch) — `attachFetchMonitor(options?)`
+
+For requests made with `fetch` directly rather than through axios. It wraps
+`globalThis.fetch`, so it captures **every** `fetch` the page makes — your own
+and any library's or third-party script's — into the same Network section, in
+the same shape, with the same header masking and the same absence of body
+redaction (see [Security](#security)). Its rows show **Client: fetch** in the
+Headers tab, and `client:fetch` filters to them. Each row records the call
+stack of the `fetch` call that made it; no `withInitiatorCapture` is needed.
+
+```ts
+// instrumentation-client.ts (Next.js 15.3+), or the first module your client bundle evaluates
+import { attachFetchMonitor } from "@hakam-aldeen-kh/blix/capture";
+
+if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+  attachFetchMonitor();
+}
+```
+
+**Call it before the first `fetch` you want captured.** There are no
+interceptors to order against, but anything fetched before the wrapper is
+installed is simply not seen. In a Next.js App Router project,
+`instrumentation-client.ts` runs on the client before your application code and
+is the natural place; otherwise, the top of the first module your client bundle
+evaluates.
+
+**Client-side only.** It never patches `fetch` on the server, so Next.js's
+server-side `fetch` and its data cache are untouched — and like every capture
+function, it is a no-op in production.
+
+It returns a **disposer** that restores the original `fetch`, and calling
+`attachFetchMonitor` again while it is installed does nothing. The disposer
+only restores `fetch` while Blix's wrapper is still the current one: if another
+library has wrapped `fetch` since, restoring would silently remove that wrapper
+too, so it leaves `fetch` alone and warns in development instead.
+
+#### Bodies, streams and the size cap
+
+Blix reads bodies from clones, so your code always receives an untouched
+`Request` and `Response`. It never buffers without a limit:
+
+| Situation | What is recorded |
+| --- | --- |
+| `Content-Type: text/event-stream` | status, headers, timing — body not captured, because the stream does not end |
+| `Content-Length` over the cap | status, headers, timing — body not captured, reading never starts |
+| body passes the cap while downloading | status, headers, timing — body not captured, reading abandoned |
+| `no-cors` (opaque) response | status `0` — headers and body not captured, because the browser hides them |
+| request body is a `ReadableStream` | request body not captured — reading it would consume the upload |
+
+A skipped body is recorded as `«body not captured: …»` with the reason, so an
+empty Response tab always means an empty response. The cap applies to request
+and response bodies alike, defaults to **5 MB**, and is set with
+`maxBodyBytes`:
+
+```ts
+attachFetchMonitor({ maxBodyBytes: 1024 * 1024 }); // 1 MB — 0 captures no bodies
+```
+
+The cap is enforced by **counting bytes as they arrive**, not by trusting
+`Content-Length`. That header is the compressed size, and a small gzipped
+response can decode to many times it; a declared length over the cap only lets
+Blix skip without starting. A row's duration runs to the end of the body when
+Blix read it, and to the response headers when it did not.
+
+A non-2xx response is recorded as a failed request with its body under
+**Error**, the same way an axios rejection is. An aborted request settles as
+**aborted**; a network failure or an `AbortSignal.timeout()` settles as an
+error. Either way the original rejection reaches your code untouched.
+
+#### What is left out by default
+
+A development server makes plenty of `fetch` calls of its own, and they would
+bury your requests. These are **not captured by default**:
+
+| Rule | Matches |
+| --- | --- |
+| `"/_next/"` | Next.js assets, HMR updates and Pages Router data requests |
+| `"/__nextjs"` | the Next.js dev overlay — stack frames, source maps, open-in-editor |
+| `/[?&]_rsc=/` | App Router navigations and `<Link>` prefetches |
+| `".hot-update."` | webpack HMR update manifests and chunks |
+| `"/__webpack_hmr"` | webpack-hot-middleware |
+
+A string matches anywhere in the URL's path and query, a regular expression is
+tested against the same string, and a function receives the resolved `URL`.
+Pass an array to **replace** the defaults, or a function to **extend** them:
+
+```ts
+attachFetchMonitor({ ignore: (defaults) => [...defaults, "/api/health"] }); // extend
+attachFetchMonitor({ ignore: [] });                                          // capture everything
+```
+
+**An ignored request is dropped silently** — no row records that it was
+skipped. If a request you expected is missing, check it against this list
+first.
+
+#### Using it alongside axios
+
+Installing both `attachFetchMonitor` and `attachHttpMonitor` is fine. axios's
+default browser adapter is XHR, which the fetch wrapper never sees. If you
+configure axios with `adapter: "fetch"`, one request passes through both — and
+**the axios entry wins**. It was captured on the plaintext side of your
+interceptors, keeps `captureEncrypted` and `withInitiatorCapture`, and can be
+replayed; the fetch wrapper would only see the same request after encryption.
+`attachHttpMonitor` marks each request on its way into axios's fetch adapter,
+and the fetch wrapper skips anything carrying the mark, so every request is
+logged exactly once. The order of the two calls does not matter.
+
+#### What it does not do
+
+- **No replay.** Fetch rows show Replay disabled, with the reason. Blix does
+  not record a call's `credentials`, `mode` or `cache`, or a JSON body as the
+  exact bytes that were sent, so a replay could not promise to be the same
+  request.
+- **No `captureEncrypted`** — see
+  [Encrypted payloads](#encrypted-payloads--captureencryptedconfig-payload).
+- **No timeout.** A request that never answers stays pending, exactly as an
+  axios request does.
 
 ### Redux — `createReduxMonitorMiddleware(options?)`
 
@@ -1050,9 +1187,10 @@ directive, so it stays usable from a server module — which the root entry, by
 virtue of the directive that lets `<Blix />` be rendered from a server
 component, is not.
 
-The `/capture` entry exports `attachHttpMonitor`, `captureEncrypted`,
-`createReduxMonitorMiddleware`, `tapQueryClient`, `tapRealtimeAdapter`,
-`withInitiatorCapture`, and the supporting types (`EncryptedPayload`,
+The `/capture` entry exports `attachHttpMonitor`, `attachFetchMonitor`,
+`captureEncrypted`, `createReduxMonitorMiddleware`, `tapQueryClient`,
+`tapRealtimeAdapter`, `withInitiatorCapture`, and the supporting types
+(`EncryptedPayload`, `FetchMonitorOptions`, `FetchIgnoreRule`,
 `ReduxCaptureOptions`, `RealtimeAdapterLike`, `MonitorEntry`, …).
 
 ---

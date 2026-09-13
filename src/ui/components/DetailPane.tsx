@@ -666,6 +666,12 @@ export function DetailPane({
           {entry.baseURL ?? ""}
           {entry.url}
         </div>
+        {/* Why the primary action is disabled, as text. The button's `title`
+            is not enough on its own: a disabled button does not reliably show
+            its tooltip, so the reason was invisible exactly when it mattered. */}
+        {primary && !primary.can && primary.reason && (
+          <div className="nm-detail-reason">{primary.reason}</div>
+        )}
       </div>
 
       {/* Keyed by kind as well as tab: switching from a Redux action to an
@@ -761,6 +767,11 @@ export function DetailPane({
               rows={[
                 ["Request URL", `${entry.baseURL ?? ""}${entry.url}`],
                 ["Method", entry.method],
+                // Its own row, never in place of the method. Absent on entries
+                // captured before the field existed — unknown, so no row.
+                ...(entry.client
+                  ? ([["Client", entry.client]] as [string, string][])
+                  : []),
                 [
                   "Status",
                   `${entry.status ?? "—"}${

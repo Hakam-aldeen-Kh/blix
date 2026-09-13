@@ -740,6 +740,8 @@ export default function DevTools() {
    * spends its width on what you read constantly, and everything you reach for
    * occasionally is one keystroke away instead of one button each.
    */
+  const replayCheck = selectedEntry ? canReplay(selectedEntry, apiClient) : null;
+
   const commands: CommandGroup[] = [
     {
       name: "SESSION",
@@ -795,7 +797,10 @@ export default function DevTools() {
           id: "replay",
           label: "Replay request",
           key: "R",
-          disabled: !selectedEntry || !canReplay(selectedEntry, apiClient).can,
+          disabled: !replayCheck?.can,
+          // A disabled row with no reason reads as a bug. Fetch entries are the
+          // common case now: replay is axios-only.
+          note: replayCheck && !replayCheck.can ? replayCheck.reason : undefined,
           run: () => {
             if (selectedEntry && apiClient) {
               void replayEntry(selectedEntry, apiClient).catch(() => {});
