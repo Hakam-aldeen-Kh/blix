@@ -683,7 +683,7 @@ import { store } from "@/src/store";
 // that evaluation on the client side of the boundary.
 export default function BlixMount() {
   if (process.env.NODE_ENV !== "development") return null;
-  return <Blix store={store} apiClient={apiClient} dbName="my-app-devtools" />;
+  return <Blix store={store} apiClient={apiClient} dbName="my-app" />;
 }
 ```
 
@@ -1024,6 +1024,11 @@ response body *after* your decryption interceptor. That is the whole point of
 it, and it means the log holds whatever your traffic holds, credentials
 included.
 
+`attachFetchMonitor` widens that to **every `fetch` the page makes**, not only
+your own: an analytics snippet, a chat widget or a library calling `fetch`
+under the hood is captured the same way, bodies included. Use its `ignore`
+option to keep a third party's traffic out of the log.
+
 By default all of that is **in memory only**. Nothing is written to disk, and
 a reload starts clean.
 
@@ -1064,9 +1069,14 @@ With preserve-log on, this is what is kept:
 | HTTP entries — bodies, headers, timings | yes |
 | Realtime frames | yes |
 | The encrypted envelope, if you call `captureEncrypted` | yes |
-| Panel preferences and budget totals | yes — preferences are also mirrored to `localStorage` |
+| Panel preferences and budget totals | yes — preferences are also mirrored to `localStorage` under `blix:<dbName>:prefs` |
 | Redux actions, payloads and diffs | only if you pin the row |
 | Query cache rows | only if you pin the row |
+
+One thing is written regardless of preserve-log: opening the database records
+its name in the origin-wide `localStorage` key `blix:databases`, which is how
+[Databases on this origin](#databases-on-this-origin) finds it in browsers
+without `indexedDB.databases()`. It holds database names and nothing else.
 
 ### What is redacted
 
@@ -1085,6 +1095,10 @@ the clear: `x-auth-token` and `api-key` are the two that most often catch
 people out, and `proxy-authorization`, `x-csrf-token` and
 `x-amz-security-token` are equally uncovered. If your auth travels in a header
 that is not one of the four above, it is captured verbatim.
+
+The same four are masked whichever client made the request, and whatever form
+the headers were passed in: `AxiosHeaders`, a plain object, a `Headers`
+instance or `[name, value]` pairs.
 
 Masking is partial rather than total: for a value longer than 12 characters
 the first 8 and last 4 survive, so you can still tell which token you sent.
@@ -1131,6 +1145,15 @@ the toggle off.
 Switching preserve-log **off** also clears the stored entries, so turning it
 off is itself a way to drop everything Blix has written.
 
+A purge can be **blocked**: IndexedDB will not delete a database that another
+tab still holds open. The panel reports that, naming the database, instead of
+reporting the log purged while it is still on disk. Close the other tabs
+running the app and purge again.
+
+Other projects' databases on the same origin — and the legacy `nm-devtools`
+database that 0.5.x and earlier wrote — are deleted from
+[Databases on this origin](#databases-on-this-origin), not by Purge.
+
 Every path clears the captured entries; Purge additionally deletes the
 IndexedDB database itself. **Your panel preferences survive either way** —
 they are mirrored to `localStorage`, and a fresh database is re-seeded from
@@ -1146,6 +1169,12 @@ IndexedDB is scoped **per origin, not per app**, and it is not encrypted at
 rest. Any script running on that origin can read Blix's database — including
 browser extension content scripts with access to the origin. Whatever you
 capture is readable by whatever you have installed.
+
+A per-project `dbName` does not change that. It keeps projects from mixing
+their logs; it does not isolate them. The panel itself can open another
+project's database on the same origin — **Peek** in
+[Databases on this origin](#databases-on-this-origin) lists its newest URLs,
+methods and statuses — and so can any other script there.
 
 Export and copy move captured data out of the browser entirely:
 
@@ -1171,6 +1200,12 @@ bodies, and it is the artifact most likely to end up attached to a ticket.
   [Redux](#redux--createreduxmonitormiddlewareoptions).
 - **Treat an exported HAR as a credential-bearing file.** Do not attach one to
   a public issue, and do not commit one.
+- **After upgrading from 0.5.x or earlier, delete `nm-devtools`.** Blix no
+  longer reads or writes that database, and it does not delete it for you:
+  anything it holds stays on disk until you remove it from
+  [Databases on this origin](#databases-on-this-origin).
+- **Scope `attachFetchMonitor` with `ignore`** if third-party scripts on the
+  page send data you do not want in the log.
 
 ---
 

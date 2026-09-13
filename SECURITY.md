@@ -19,15 +19,28 @@ configured production build. That would be a real bug.
 ## It captures credentials and personal data by nature
 
 Blix captures full request and response bodies, headers, Redux payloads and
-realtime frames, in plaintext. Header redaction covers exactly four names, and
-nothing inside a body is redacted at all. This is intended behaviour, not a
-defect — a debugger that hid the payload would be useless — but it has a
-practical consequence:
+realtime frames, in plaintext. `attachFetchMonitor` wraps `globalThis.fetch`,
+so once it is installed that includes every `fetch` the page makes — requests
+from third-party scripts and libraries as well as your own. Header redaction
+covers exactly four names, whichever client made the request, and nothing
+inside a body is redacted at all. This is intended behaviour, not a defect — a
+debugger that hid the payload would be useless — but it has a practical
+consequence:
 
 **Treat a captured log, and any exported HAR, as a credential-bearing
 artifact.** A HAR export is a plain JSON file containing decrypted request and
 response bodies. Do not attach one to a public issue, do not commit one, and
 purge the stored log after any session that captured an authentication flow.
+
+A per-project `dbName` keeps projects on one origin apart for convenience, not
+for isolation. Every Blix database on an origin is readable by any script on
+that origin, and the panel's **Databases on this origin** screen will itself
+list, size, peek at and delete the other projects' logs.
+
+**Upgrading from 0.5.x or earlier leaves the old log on disk.** Those versions
+stored everything in one unprefixed database, `nm-devtools`. 0.6.0 neither
+migrates nor deletes it, so anything captured there with preserve-log on stays
+in the browser profile until you remove it from **Databases on this origin**.
 
 [Security](README.md#security) in the README documents exactly what is
 captured, what reaches disk, what is redacted, and how to purge.

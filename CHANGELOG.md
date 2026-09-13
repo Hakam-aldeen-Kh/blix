@@ -5,6 +5,100 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-13
+
+Fetch capture, and storage scoped per project. No public function signature
+narrows, but **the saved log and panel preferences do not carry over**: see
+Upgrading.
+
+### Upgrading
+
+- Databases are now named `blix:<dbName>`, and `blix:default` when no `dbName`
+  is given. The panel opens a new, empty database whether or not you already
+  passed `dbName`. The old `nm-devtools` database is neither migrated nor
+  deleted. It is listed under **Databases on this origin**, where you can peek
+  at it and delete it.
+- Panel preferences start once from the defaults. The unscoped `nm:prefs`
+  `localStorage` key (and the older `nm:size`, `nm:pos`, `nm:corner`,
+  `nm:listw`) are removed on first read rather than adopted, since on a shared
+  origin they held whichever project wrote last.
+
+### Added
+
+- **`attachFetchMonitor(options?)`** in `/capture`, with the
+  `FetchMonitorOptions` and `FetchIgnoreRule` types. It wraps
+  `globalThis.fetch` on the client and records requests in the Network section
+  in the same shape as axios requests, with the same header masking. It reads
+  bodies from clones, so your code gets an untouched `Request` and `Response`.
+  Bodies are capped at 5 MB (`maxBodyBytes`), counted as bytes arrive rather
+  than trusted from `Content-Length`. Event streams, opaque responses and
+  streaming uploads are recorded without a body, and the row says why.
+  Next.js and webpack dev traffic is ignored by default; `ignore` replaces or
+  extends that list. It returns a disposer, and installing it twice does
+  nothing. With axios on its fetch adapter, each request is logged once, as
+  the axios entry. Fetch rows cannot be replayed and do not support
+  `captureEncrypted`.
+- `client` on `MonitorEntry` (`"axios"` | `"fetch"`), shown as a **Client** row
+  in the Headers tab and filterable with `client:fetch` / `client:axios`.
+  Entries captured before this release have no `client` and match neither.
+- **Databases on this origin**, from the command palette, **⋯ More actions** or
+  the status bar. It lists every Blix database on the origin with its
+  approximate size, **Peek** shows a read-only snapshot of a database's 50
+  newest entries, and it deletes any database except the active one. In Firefox,
+  which lacks `indexedDB.databases()`, the list comes from the names Blix has
+  recorded and is labelled as possibly incomplete.
+- The status bar names the active database, turning amber with a `shared` tag
+  on `blix:default`.
+- `attachHttpMonitor` returns a disposer that ejects both interceptors.
+- When Replay is unavailable, the detail pane states the reason as text, and
+  the palette's Replay row carries it as a note. A disabled button does not
+  reliably show its tooltip.
+
+### Changed
+
+- The panel's `localStorage` preferences mirror is keyed per project
+  (`blix:<dbName>:prefs`), so apps on one origin no longer share dock position,
+  theme or the preserve-log toggle.
+- Omitting `dbName` logs a console warning in development, once per mount.
+- A `dbName` set after the database is open is ignored with a console warning.
+  Previously it was accepted, so the live connection stayed on the old
+  database and a later Purge deleted the new, unused name.
+- `attachHttpMonitor` is idempotent per instance, and treats an instance and
+  its `withInitiatorCapture` wrapper as one.
+- An axios request cancelled through `AbortController` or `CancelToken` settles
+  as **aborted** rather than as an error. Timeouts are still errors.
+- The published type declarations no longer import axios.
+  `attachHttpMonitor` and `withInitiatorCapture` accept structurally typed
+  clients, and `withInitiatorCapture` now returns the type it was given, so an
+  `AxiosInstance` stays an `AxiosInstance`. Fetch-only apps type-check without
+  axios installed. axios is still an optional peer dependency.
+
+### Fixed
+
+- In the published package, the Initiator column pointed at Blix's own frames.
+  They were filtered by source module name, which the bundled
+  `dist/chunk-*.js` files do not carry. They are now dropped by stack depth.
+- Calling `attachHttpMonitor` twice on one instance registered two interceptor
+  pairs, so every request left a duplicate entry pending for the rest of the
+  session.
+- A purge blocked by another tab holding the database open was reported as
+  done. The panel now shows the error.
+- Request sizes for `Blob`, `File`, `ArrayBuffer`, typed arrays, `DataView` and
+  `URLSearchParams` bodies. The first three and `URLSearchParams` were measured
+  as 2 bytes, and typed arrays were walked element by element: about 340 ms
+  for a 1 MB `Uint8Array`.
+
+### Security
+
+- Header masking now handles a `Headers` instance and `[name, value]` pairs.
+  The first serialized as `{}`, and the second was walked by index, so
+  `authorization` in either form would have gone through unmasked. Neither form
+  reached the masker in earlier releases, because axios was the only capture
+  path and it normalises headers before its interceptors run. `fetch` accepts
+  both, so the fix ships with `attachFetchMonitor`.
+- `attachFetchMonitor` captures every `fetch` on the page, including those made
+  by third-party scripts. See the README's Security section.
+
 ## [0.5.0] - 2026-08-26
 
 The panel is redesigned. **The runtime API is unchanged** — `<Blix />` and
