@@ -45,8 +45,15 @@ no reason to carry a second build output.
 `react` and `react-dom` (v19) are required. `axios`, `@reduxjs/toolkit` and
 `@tanstack/react-query` are **optional** peers — you only need the ones whose
 capture you actually use. The capture layer is structurally typed against each
-of them and never imports any of them at runtime, so installing Blix does not
-pull a data-fetching or state library into your tree.
+of them and imports none of them — not at runtime, and not in its published
+type declarations — so installing Blix does not pull a data-fetching or state
+library into your tree, and your type-check never goes looking for one.
+
+**axios is optional, and fetch-only apps are fully supported.** An app that
+calls `fetch` directly — the default in a Next.js App Router project — captures
+its HTTP traffic with
+[`attachFetchMonitor`](#http-fetch--attachfetchmonitoroptions) and never needs
+axios installed, not even for types.
 
 ---
 
@@ -74,6 +81,7 @@ it.
 | Function | Where to call it | Timing |
 | --- | --- | --- |
 | `attachHttpMonitor` | after your own interceptors are registered on the instance | module scope |
+| `attachFetchMonitor` | before the first `fetch` you want captured — client-side only | module scope |
 | `createReduxMonitorMiddleware` | in `configureStore`'s `middleware` callback | module scope |
 | `tapRealtimeAdapter` | where the adapter singleton is constructed | module scope |
 | `tapQueryClient` | a `useEffect` in your query provider | see below |
@@ -133,6 +141,12 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
   attachHttpMonitor(apiClient);
 }
 ```
+
+`attachHttpMonitor` is idempotent per instance — a second call on the same
+instance, or on its `withInitiatorCapture` wrapper, does nothing — and it
+returns a disposer that ejects both interceptors, for HMR and tests. A request
+cancelled through an `AbortController` or a `CancelToken` settles as
+**aborted**, not as an error; a timeout is still an error.
 
 #### Factory and lazy-singleton clients
 
@@ -200,6 +214,11 @@ request bodies and correlated errors while also discarding the `AxiosError`.
 #### Encrypted payloads — `captureEncrypted(config, payload)`
 
 *Since 0.3.0.*
+
+> **axios only.** Correlation works through the config object your own
+> interceptor is holding, and `fetch` has no interceptor stage to hold one in,
+> so `captureEncrypted` has no effect on requests captured by
+> [`attachFetchMonitor`](#http-fetch--attachfetchmonitoroptions).
 
 **Entirely optional.** An app that never calls it behaves exactly as it did
 before this API existed, and its panel shows no Encrypted tab at all — the tab
@@ -409,6 +428,124 @@ initiator stack.
 > of those paths, the top frame reported will be your own wrapper rather than
 > the true call site. There is no option to extend the filter yet.
 
+### HTTP (fetch) — `attachFetchMonitor(options?)`
+
+For requests made with `fetch` directly rather than through axios. It wraps
+`globalThis.fetch`, so it captures **every** `fetch` the page makes — your own
+and any library's or third-party script's — into the same Network section, in
+the same shape, with the same header masking and the same absence of body
+redaction (see [Security](#security)). Its rows show **Client: fetch** in the
+Headers tab, and `client:fetch` filters to them. Each row records the call
+stack of the `fetch` call that made it; no `withInitiatorCapture` is needed.
+
+```ts
+// instrumentation-client.ts (Next.js 15.3+), or the first module your client bundle evaluates
+import { attachFetchMonitor } from "@hakam-aldeen-kh/blix/capture";
+
+if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+  attachFetchMonitor();
+}
+```
+
+**Call it before the first `fetch` you want captured.** There are no
+interceptors to order against, but anything fetched before the wrapper is
+installed is simply not seen. In a Next.js App Router project,
+`instrumentation-client.ts` runs on the client before your application code and
+is the natural place; otherwise, the top of the first module your client bundle
+evaluates.
+
+**Client-side only.** It never patches `fetch` on the server, so Next.js's
+server-side `fetch` and its data cache are untouched — and like every capture
+function, it is a no-op in production.
+
+It returns a **disposer** that restores the original `fetch`, and calling
+`attachFetchMonitor` again while it is installed does nothing. The disposer
+only restores `fetch` while Blix's wrapper is still the current one: if another
+library has wrapped `fetch` since, restoring would silently remove that wrapper
+too, so it leaves `fetch` alone and warns in development instead.
+
+#### Bodies, streams and the size cap
+
+Blix reads bodies from clones, so your code always receives an untouched
+`Request` and `Response`. It never buffers without a limit:
+
+| Situation | What is recorded |
+| --- | --- |
+| `Content-Type: text/event-stream` | status, headers, timing — body not captured, because the stream does not end |
+| `Content-Length` over the cap | status, headers, timing — body not captured, reading never starts |
+| body passes the cap while downloading | status, headers, timing — body not captured, reading abandoned |
+| `no-cors` (opaque) response | status `0` — headers and body not captured, because the browser hides them |
+| request body is a `ReadableStream` | request body not captured — reading it would consume the upload |
+
+A skipped body is recorded as `«body not captured: …»` with the reason, so an
+empty Response tab always means an empty response. The cap applies to request
+and response bodies alike, defaults to **5 MB**, and is set with
+`maxBodyBytes`:
+
+```ts
+attachFetchMonitor({ maxBodyBytes: 1024 * 1024 }); // 1 MB — 0 captures no bodies
+```
+
+The cap is enforced by **counting bytes as they arrive**, not by trusting
+`Content-Length`. That header is the compressed size, and a small gzipped
+response can decode to many times it; a declared length over the cap only lets
+Blix skip without starting. A row's duration runs to the end of the body when
+Blix read it, and to the response headers when it did not.
+
+A non-2xx response is recorded as a failed request with its body under
+**Error**, the same way an axios rejection is. An aborted request settles as
+**aborted**; a network failure or an `AbortSignal.timeout()` settles as an
+error. Either way the original rejection reaches your code untouched.
+
+#### What is left out by default
+
+A development server makes plenty of `fetch` calls of its own, and they would
+bury your requests. These are **not captured by default**:
+
+| Rule | Matches |
+| --- | --- |
+| `"/_next/"` | Next.js assets, HMR updates and Pages Router data requests |
+| `"/__nextjs"` | the Next.js dev overlay — stack frames, source maps, open-in-editor |
+| `/[?&]_rsc=/` | App Router navigations and `<Link>` prefetches |
+| `".hot-update."` | webpack HMR update manifests and chunks |
+| `"/__webpack_hmr"` | webpack-hot-middleware |
+
+A string matches anywhere in the URL's path and query, a regular expression is
+tested against the same string, and a function receives the resolved `URL`.
+Pass an array to **replace** the defaults, or a function to **extend** them:
+
+```ts
+attachFetchMonitor({ ignore: (defaults) => [...defaults, "/api/health"] }); // extend
+attachFetchMonitor({ ignore: [] });                                          // capture everything
+```
+
+**An ignored request is dropped silently** — no row records that it was
+skipped. If a request you expected is missing, check it against this list
+first.
+
+#### Using it alongside axios
+
+Installing both `attachFetchMonitor` and `attachHttpMonitor` is fine. axios's
+default browser adapter is XHR, which the fetch wrapper never sees. If you
+configure axios with `adapter: "fetch"`, one request passes through both — and
+**the axios entry wins**. It was captured on the plaintext side of your
+interceptors, keeps `captureEncrypted` and `withInitiatorCapture`, and can be
+replayed; the fetch wrapper would only see the same request after encryption.
+`attachHttpMonitor` marks each request on its way into axios's fetch adapter,
+and the fetch wrapper skips anything carrying the mark, so every request is
+logged exactly once. The order of the two calls does not matter.
+
+#### What it does not do
+
+- **No replay.** Fetch rows show Replay disabled, with the reason. Blix does
+  not record a call's `credentials`, `mode` or `cache`, or a JSON body as the
+  exact bytes that were sent, so a replay could not promise to be the same
+  request.
+- **No `captureEncrypted`** — see
+  [Encrypted payloads](#encrypted-payloads--captureencryptedconfig-payload).
+- **No timeout.** A request that never answers stays pending, exactly as an
+  axios request does.
+
 ### Redux — `createReduxMonitorMiddleware(options?)`
 
 ```ts
@@ -546,7 +683,7 @@ import { store } from "@/src/store";
 // that evaluation on the client side of the boundary.
 export default function BlixMount() {
   if (process.env.NODE_ENV !== "development") return null;
-  return <Blix store={store} apiClient={apiClient} dbName="my-app-devtools" />;
+  return <Blix store={store} apiClient={apiClient} dbName="my-app" />;
 }
 ```
 
@@ -590,7 +727,7 @@ boundary. That is the reason for the split entry point: import capture from
 | --- | --- |
 | `store` | The **State** tab renders `— Redux store not provided —`, and **Re-dispatch** is disabled with the reason `Redux store not provided`. Everything else works. |
 | `apiClient` | **Replay request** is disabled with the reason `HTTP client not provided`. Everything else works. |
-| `dbName` | Defaults to `"nm-devtools"`. |
+| `dbName` | Falls back to the shared database `blix:default`, and the panel warns in the console. See [`dbName`](#dbname--when-you-need-it). |
 
 `store` and `apiClient` are structurally typed — they need
 `getState`/`subscribe`/`dispatch` and `request` respectively. A redux-toolkit
@@ -733,27 +870,68 @@ when you opt in: **preserve-log is off by default**, and while it is off
 nothing is written to disk. See [Security](#security) for what the toggle does
 and what lands there.
 
-IndexedDB is scoped **per origin**, not per app — so two apps served from the
-same origin (different ports in dev are different origins, but path-based
-routing, multi-zone Next.js setups and anything behind one reverse proxy are
-not) both open `nm-devtools` and interleave their logs into one database.
+**All of Blix's storage is scoped to the origin, not to your app.** That is how
+IndexedDB and `localStorage` both work, and it covers the captured log *and*
+your panel preferences — dock position, theme, density, the preserve-log
+toggle. Two apps served from the same origin (different ports in dev are
+different origins, but path-based routing, multi-zone Next.js setups and
+anything behind one reverse proxy are not) share every one of them: entries
+from one project appear in the other's panel, and whichever you opened last
+decides where the panel is docked.
 
-Give each app its own name to keep them separate:
+`dbName` is how projects on one origin are kept apart. Give each app its own:
 
 ```tsx
-<Blix store={store} apiClient={apiClient} dbName="checkout-devtools" />
+<Blix store={store} apiClient={apiClient} dbName="checkout" />
 ```
 
 You can also set it from the capture side, which is useful when capture starts
 before the panel mounts:
 
 ```ts
-attachHttpMonitor(apiClient, { dbName: "checkout-devtools" });
+attachHttpMonitor(apiClient, { dbName: "checkout" });
 ```
 
 Either call must happen before the database is first opened, which the panel
 does on mount. If both are set, the `<Blix />` prop wins, since render runs
-after module init.
+after module init. A call that arrives after the database is open is ignored —
+Blix does not switch databases at runtime — and says so in the console rather
+than failing quietly.
+
+The name you pass is prefixed: `dbName="checkout"` gives you the database
+`blix:checkout` and the preferences key `blix:checkout:prefs`. Passing an
+already-prefixed name is fine and does not double it. Omitting `dbName`
+entirely gives you `blix:default`, shared with every other app on the origin
+that also omits it — and in development the panel warns once per mount when
+that happens, naming the fix.
+
+Renaming is not a migration: the old database is left where it is rather than
+moved or deleted, and the new one starts empty at default preferences.
+
+#### Databases on this origin
+
+The status bar always shows which database the panel is on. On the shared
+default it turns amber and adds a `shared` tag, which is the visible form of
+the console warning above — click it to open the screen below. The same screen
+is in **⋯ More actions** and in the command palette.
+
+Open the command palette (`Ctrl/⌘ K`) → **Databases on this origin** to see
+every Blix database the origin holds — one per project, plus `nm-devtools`,
+the single unprefixed database that all projects shared before names were
+prefixed. Each row shows an approximate size and can be deleted; the one this
+panel is using is marked and is not deletable from there, since it is open —
+use **Purge saved log** for that.
+
+**Peek** on a row lists the 50 newest entries in that database — time, method,
+URL and status — so you can tell whose log it is before deleting it. It is a
+read-only snapshot: Blix opens the database, reads, and closes it again, so the
+list does not update and there is no detail pane, replay or export. The panel
+itself always stays on its own database; to work with another project's log
+properly, run that project and open the panel there.
+
+The screen enumerates with `indexedDB.databases()`, which Firefox does not
+implement. There it falls back to the databases Blix has itself opened in that
+browser and labels the list as possibly incomplete.
 
 ---
 
@@ -846,6 +1024,11 @@ response body *after* your decryption interceptor. That is the whole point of
 it, and it means the log holds whatever your traffic holds, credentials
 included.
 
+`attachFetchMonitor` widens that to **every `fetch` the page makes**, not only
+your own: an analytics snippet, a chat widget or a library calling `fetch`
+under the hood is captured the same way, bodies included. Use its `ignore`
+option to keep a third party's traffic out of the log.
+
 By default all of that is **in memory only**. Nothing is written to disk, and
 a reload starts clean.
 
@@ -886,9 +1069,14 @@ With preserve-log on, this is what is kept:
 | HTTP entries — bodies, headers, timings | yes |
 | Realtime frames | yes |
 | The encrypted envelope, if you call `captureEncrypted` | yes |
-| Panel preferences and budget totals | yes — preferences are also mirrored to `localStorage` |
+| Panel preferences and budget totals | yes — preferences are also mirrored to `localStorage` under `blix:<dbName>:prefs` |
 | Redux actions, payloads and diffs | only if you pin the row |
 | Query cache rows | only if you pin the row |
+
+One thing is written regardless of preserve-log: opening the database records
+its name in the origin-wide `localStorage` key `blix:databases`, which is how
+[Databases on this origin](#databases-on-this-origin) finds it in browsers
+without `indexedDB.databases()`. It holds database names and nothing else.
 
 ### What is redacted
 
@@ -907,6 +1095,10 @@ the clear: `x-auth-token` and `api-key` are the two that most often catch
 people out, and `proxy-authorization`, `x-csrf-token` and
 `x-amz-security-token` are equally uncovered. If your auth travels in a header
 that is not one of the four above, it is captured verbatim.
+
+The same four are masked whichever client made the request, and whatever form
+the headers were passed in: `AxiosHeaders`, a plain object, a `Headers`
+instance or `[name, value]` pairs.
 
 Masking is partial rather than total: for a value longer than 12 characters
 the first 8 and last 4 survive, so you can still tell which token you sent.
@@ -953,11 +1145,23 @@ the toggle off.
 Switching preserve-log **off** also clears the stored entries, so turning it
 off is itself a way to drop everything Blix has written.
 
+A purge can be **blocked**: IndexedDB will not delete a database that another
+tab still holds open. The panel reports that, naming the database, instead of
+reporting the log purged while it is still on disk. Close the other tabs
+running the app and purge again.
+
+Other projects' databases on the same origin — and the legacy `nm-devtools`
+database that 0.5.x and earlier wrote — are deleted from
+[Databases on this origin](#databases-on-this-origin), not by Purge.
+
 Every path clears the captured entries; Purge additionally deletes the
 IndexedDB database itself. **Your panel preferences survive either way** —
 they are mirrored to `localStorage`, and a fresh database is re-seeded from
-that mirror on the next boot. There is no UI or API for clearing them, and no
-programmatic API for purging either.
+that mirror on the next boot. Both the database and its mirror key are scoped
+to this project's `dbName`, so a purge affects only the project that ran it and
+cannot restore — or destroy — another project's preferences on the same origin.
+There is no UI or API for clearing them, and no programmatic API for purging
+either.
 
 ### Threat model
 
@@ -965,6 +1169,12 @@ IndexedDB is scoped **per origin, not per app**, and it is not encrypted at
 rest. Any script running on that origin can read Blix's database — including
 browser extension content scripts with access to the origin. Whatever you
 capture is readable by whatever you have installed.
+
+A per-project `dbName` does not change that. It keeps projects from mixing
+their logs; it does not isolate them. The panel itself can open another
+project's database on the same origin — **Peek** in
+[Databases on this origin](#databases-on-this-origin) lists its newest URLs,
+methods and statuses — and so can any other script there.
 
 Export and copy move captured data out of the browser entirely:
 
@@ -990,6 +1200,12 @@ bodies, and it is the artifact most likely to end up attached to a ticket.
   [Redux](#redux--createreduxmonitormiddlewareoptions).
 - **Treat an exported HAR as a credential-bearing file.** Do not attach one to
   a public issue, and do not commit one.
+- **After upgrading from 0.5.x or earlier, delete `nm-devtools`.** Blix no
+  longer reads or writes that database, and it does not delete it for you:
+  anything it holds stays on disk until you remove it from
+  [Databases on this origin](#databases-on-this-origin).
+- **Scope `attachFetchMonitor` with `ignore`** if third-party scripts on the
+  page send data you do not want in the log.
 
 ---
 
@@ -1006,9 +1222,10 @@ directive, so it stays usable from a server module — which the root entry, by
 virtue of the directive that lets `<Blix />` be rendered from a server
 component, is not.
 
-The `/capture` entry exports `attachHttpMonitor`, `captureEncrypted`,
-`createReduxMonitorMiddleware`, `tapQueryClient`, `tapRealtimeAdapter`,
-`withInitiatorCapture`, and the supporting types (`EncryptedPayload`,
+The `/capture` entry exports `attachHttpMonitor`, `attachFetchMonitor`,
+`captureEncrypted`, `createReduxMonitorMiddleware`, `tapQueryClient`,
+`tapRealtimeAdapter`, `withInitiatorCapture`, and the supporting types
+(`EncryptedPayload`, `FetchMonitorOptions`, `FetchIgnoreRule`,
 `ReduxCaptureOptions`, `RealtimeAdapterLike`, `MonitorEntry`, …).
 
 ---

@@ -27,7 +27,10 @@ export function StatusBar({
   pinnedCount,
   persistedLabel,
   purgeArmed,
+  dbName,
+  dbShared,
   onPurge,
+  onShowDatabases,
   onShowErrors,
   onShowPinned,
   onOpenPalette,
@@ -44,7 +47,12 @@ export function StatusBar({
   pinnedCount: number;
   persistedLabel: string | null;
   purgeArmed: boolean;
+  /** Resolved name of the database this panel is using. */
+  dbName: string;
+  /** True when no `dbName` was given and this is the origin-wide default. */
+  dbShared: boolean;
   onPurge: () => void;
+  onShowDatabases: () => void;
   onShowErrors: () => void;
   onShowPinned: () => void;
   onOpenPalette: () => void;
@@ -98,6 +106,30 @@ export function StatusBar({
 
       <button className="nm-statusbar-btn" onClick={onOpenPalette} title="Command palette">
         commands <kbd className="nm-kbd">⌘K</kbd>
+      </button>
+
+      {/* Which database this panel is reading and writing. Ambient rather than
+          conditional: the answer to "why am I seeing another app's requests?"
+          should be on screen before the question gets asked, not only once
+          something has already gone wrong. It turns amber on the shared
+          default, which is the case where the answer is "you are". */}
+      <button
+        className={`nm-statusbar-btn nm-statusbar-db nm-status-db${
+          dbShared ? " nm-statusbar-db-shared" : ""
+        }`}
+        onClick={onShowDatabases}
+        title={
+          dbShared
+            ? `Writing to the shared default "${dbName}" — every app on this origin uses it, so entries from other projects will appear here. Pass dbName to separate them. Click to see every database on this origin.`
+            : `Writing to "${dbName}". Click to see every Blix database on this origin.`
+        }
+      >
+        <Icon name="database" size={11} />
+        {/* The name is the first thing to go when the bar runs out of room —
+            it is the longest part and the icon still opens the screen that
+            spells it out. The `shared` tag outlives it: it is the warning. */}
+        <span className="nm-statusbar-db-name">{dbName}</span>
+        {dbShared && <span className="nm-statusbar-db-tag">shared</span>}
       </button>
       {persistedLabel && (
         <button

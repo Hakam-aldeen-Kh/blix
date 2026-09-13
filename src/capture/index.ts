@@ -1,4 +1,6 @@
 export { attachHttpMonitor } from "./attachHttp";
+export { attachFetchMonitor } from "./attachFetch";
+export type { FetchMonitorOptions, FetchIgnoreRule } from "./attachFetch";
 export { captureEncrypted } from "./captureEncrypted";
 export type { EncryptedPayload } from "./captureEncrypted";
 export { createReduxMonitorMiddleware } from "./reduxCapture";

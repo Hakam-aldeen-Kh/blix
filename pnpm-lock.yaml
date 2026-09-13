@@ -14,9 +14,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.101.4(react@19.2.8)
-      axios:
-        specifier: ^1.0.0
-        version: 1.19.0
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -27,6 +24,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.4(@types/react@19.2.18)
+      axios:
+        specifier: ^1.19.0
+        version: 1.19.0
       react:
         specifier: ^19.0.0
         version: 19.2.8

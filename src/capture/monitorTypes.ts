@@ -230,6 +230,15 @@ export interface MonitorEntry {
   redux?: ReduxActionMeta;
   /** Query only: the cache row's key, status and observer count. */
   query?: QueryMeta;
+  /**
+   * HTTP only: which capture path recorded this request — `attachHttpMonitor`
+   * (`"axios"`) or `attachFetchMonitor` (`"fetch"`). Deliberately not
+   * `transport`, which is realtime-only and is rendered in place of the method.
+   *
+   * Absent on entries captured before this field existed. Absent means
+   * unknown — never read it as "axios".
+   */
+  client?: "axios" | "fetch";
   /** HTTP only: id of the query/mutation entry that caused this request,
    * when it could be determined — see `monitorContext.ts`. Absence means
    * "unknown", never "not caused by a query". */
@@ -262,10 +271,15 @@ export interface Pos {
  * Everything the panel remembers between sessions.
  *
  * Stored in IndexedDB (`meta.prefs`) as the source of truth, mirrored into
- * `localStorage["nm:prefs"]` purely as a synchronous read cache so the panel
- * can restore its geometry without a frame of flash. The mirror is expendable —
+ * `localStorage["<dbName>:prefs"]` — `blix:checkout:prefs` for
+ * `dbName="checkout"` — purely as a synchronous read cache so the panel can
+ * restore its geometry without a frame of flash. The mirror is expendable —
  * any host that clears web storage wipes it, and the IndexedDB copy silently
  * restores it on next boot.
+ *
+ * Both halves are scoped to the database name: web storage, like IndexedDB, is
+ * origin-scoped, so an unscoped key meant every app on one origin shared one
+ * set of preferences.
  */
 export interface MonitorPrefs {
   /** Bumped on every write; used to reconcile the two copies. */

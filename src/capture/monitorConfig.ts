@@ -30,19 +30,103 @@ export const MONITOR_ENABLED =
  * devtool, and migration code is not worth maintaining. */
 export const NM_SCHEMA_VERSION = 1;
 
+/**
+ * Namespace for every database Blix opens.
+ *
+ * IndexedDB is scoped to the *origin*, not to the app. Several apps served
+ * from one origin — path-based routing, a multi-zone Next.js setup, or simply
+ * five projects taking turns on `localhost:3000` — otherwise share a single
+ * database and interleave their logs. The prefix does two jobs: it keeps each
+ * project's name distinct from the others, and it makes every Blix database
+ * recognizable when enumerating the origin (see `monitorDatabases.ts`), so the
+ * cleanup screen can tell ours apart from the host app's own stores.
+ */
+export const DB_PREFIX = "blix:";
+
+/**
+ * The unprefixed name every Blix install shared before `DB_PREFIX` existed.
+ *
+ * Deliberately not migrated and not deleted on upgrade: it may hold entries
+ * from any number of projects, and picking one to inherit them would be a
+ * guess. It is instead listed as a legacy row by the "Databases on this
+ * origin" screen so it can be purged by hand.
+ */
+export const LEGACY_DB_NAME = "nm-devtools";
+
 /** IndexedDB database name + version. See `monitorStorage.ts` for why IDB and
  * not localStorage. */
-export const NM_DB_NAME = "nm-devtools";
+export const NM_DB_NAME = `${DB_PREFIX}default`;
 export const NM_DB_VERSION = 1;
 
-let _activeDbName = NM_DB_NAME;
-/** Override the IndexedDB database name. Must be called before the first
- * `openDb()` call (i.e. before the panel mounts). Defaults to "nm-devtools". */
-export function configureDbName(name: string): void {
-  _activeDbName = name;
+/**
+ * The one rule turning a caller's `dbName` into a database name.
+ *
+ * Idempotent on purpose — it is applied at both public entry points
+ * (`<Blix dbName>` and `attachHttpMonitor(..., { dbName })`), and a caller who
+ * has read the resolved name back out and passed it in again should not end up
+ * with `blix:blix:checkout`.
+ */
+export function resolveDbName(name?: string | null): string {
+  if (!name) return NM_DB_NAME;
+  return name.startsWith(DB_PREFIX) ? name : `${DB_PREFIX}${name}`;
 }
+
+let _activeDbName = NM_DB_NAME;
+let _dbOpened = false;
+
+/**
+ * Records that `openDb()` has committed to a name.
+ *
+ * Called by `monitorStorage.ts` rather than set here, because the memoized
+ * `dbPromise` there is what actually makes the choice final.
+ */
+export function markDbOpened(): void {
+  _dbOpened = true;
+}
+
+/**
+ * Override the IndexedDB database name, prefixing it. Must be called before
+ * the first `openDb()` call (i.e. before the panel mounts); the resolved name
+ * defaults to `blix:default`.
+ *
+ * A call that arrives after the database is open is ignored rather than
+ * applied: `dbPromise` is memoized, so changing the name at that point would
+ * not move the live connection — it would only misdirect the next
+ * `deleteDatabase`. There is no runtime database-switching mechanism, by
+ * design.
+ */
+export function configureDbName(name: string): void {
+  const resolved = resolveDbName(name);
+  if (_dbOpened && resolved !== _activeDbName) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        `[blix] configureDbName(${JSON.stringify(name)}) had no effect — the ` +
+          `database "${_activeDbName}" is already open, and Blix does not ` +
+          `switch databases at runtime. Requested "${resolved}". Set dbName ` +
+          `before the panel mounts: either <Blix dbName="…" /> or ` +
+          `attachHttpMonitor(client, { dbName: "…" }).`,
+      );
+    }
+    return;
+  }
+  _activeDbName = resolved;
+}
+
 export function getActiveDbName(): string {
   return _activeDbName;
+}
+
+/**
+ * Whether this panel fell back to the shared default — i.e. no `dbName` was
+ * given at either entry point.
+ *
+ * Derived rather than tracked separately: `blix:default` is unreachable via
+ * `resolveDbName` from any caller-supplied name, because anything they pass is
+ * prefixed, and passing `"default"` yields the same database they would have
+ * got anyway. So the name being the default *is* the fact that none was set.
+ */
+export function isSharedDefaultDb(): boolean {
+  return _activeDbName === NM_DB_NAME;
 }
 
 /**

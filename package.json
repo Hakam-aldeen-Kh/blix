@@ -1,6 +1,6 @@
 {
   "name": "@hakam-aldeen-kh/blix",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Dev-tools panel for React apps — HTTP, Redux, Query and Realtime monitoring.",
   "keywords": [
     "devtools",
@@ -95,6 +95,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "axios": "^1.19.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
