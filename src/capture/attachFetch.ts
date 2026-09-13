@@ -297,7 +297,12 @@ function isIgnored(url: URL | null, rules: readonly FetchIgnoreRule[]): boolean 
 
 interface RequestBody {
   payload: unknown;
-  bytes: number;
+  /**
+   * `undefined` when the body lives in a `Request`'s stream: its size is not
+   * known until `readRequestClone` has read it, and the field staying unset on
+   * the entry is how that read knows no response has recorded a size since.
+   */
+  bytes: number | undefined;
   hadFormData: boolean;
   /** Set when the body lives in a `Request`'s stream and is read later. */
   clone: Request | null;
@@ -358,7 +363,8 @@ function planRequestBody(outgoing: Outgoing): RequestBody {
   try {
     // Now, before `fetch` takes the body: afterwards the request is disturbed
     // and `clone()` throws.
-    return { ...none, clone: request.clone() };
+    // Size left unset until the clone is read — see `RequestBody.bytes`.
+    return { ...none, bytes: undefined, clone: request.clone() };
   } catch {
     return { ...none, payload: notCaptured("the request body is locked and could not be cloned") };
   }
@@ -377,20 +383,36 @@ function readRequestClone(
 
   void readCapped(body, cap, retain).then((result) => {
     let requestPayload: unknown;
+    let sizeBytes: number | undefined;
     if (result.kind === "complete") {
       requestPayload = result.bytes
         ? decodeBody(result.bytes, contentType)
         : binarySummary(contentType, result.length);
+      sizeBytes = result.length;
     } else if (result.kind === "over-cap") {
       requestPayload = notCaptured(
         `the request body passed the ${describeBytes(cap)} capture limit`,
       );
+      // A floor, not the body's size: counting stopped at the chunk that
+      // crossed the cap.
+      sizeBytes = result.length;
     } else {
       requestPayload = notCaptured(
         `the request body could not be read (${describeError(result.error)})`,
       );
     }
-    settle(id, { requestPayload });
+
+    // `sizeBytes` holds the request size until the response replaces it with
+    // its own, as on axios entries. This read settles asynchronously and can
+    // land after the response, so it writes only while the field is unset:
+    // `begin` leaves it unset on this path, and every response path that
+    // records a size writes a number, 0 included. Read back from the store
+    // rather than tracked here, so a response that settled first always wins.
+    const unsized = networkMonitor.getById(id)?.sizeBytes === undefined;
+    settle(
+      id,
+      sizeBytes !== undefined && unsized ? { requestPayload, sizeBytes } : { requestPayload },
+    );
   });
 }
 
