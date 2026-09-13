@@ -1,6 +1,6 @@
 {
   "name": "@hakam-aldeen-kh/blix",
-  "version": "0.5.5-local.1",
+  "version": "0.6.0",
   "description": "Dev-tools panel for React apps — HTTP, Redux, Query and Realtime monitoring.",
   "keywords": [
     "devtools",
