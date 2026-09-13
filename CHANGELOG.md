@@ -5,6 +5,45 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-09-13
+
+### Fixed
+
+- `withInitiatorCapture`: a wrapped client threw
+  `TypeError: Cannot create property '__monitorInitiator' on string` on every
+  call that passed a URL string first — `client(url)`, `client(url, config)`,
+  `client.request(url)` and `client.request(url, config)`. The wrapper threw
+  before axios ran, so no promise was returned and a `.catch()` never saw it;
+  only a surrounding `try` did. Present since 0.2.0. Those calls now reach
+  axios as written, with no initiator stack. The wrapper also forwards every
+  argument now — previously it passed on only the first, which is what keeps
+  the `config` in `client(url, config)` now that the call no longer throws.
+- `withInitiatorCapture`: a frozen, sealed or otherwise non-extensible config
+  threw `TypeError: Cannot add property __monitorInitiator, object is not
+  extensible`, through every wrapped method. The request now goes out with no
+  initiator stack.
+- `withInitiatorCapture`: a config object reused across calls, such as a
+  module-level `const options`, reported the stack of the first call that used
+  it for every later request. A config object you wrote now records the call
+  site of each call that passes it.
+- `withInitiatorCapture`: a config axios rebuilt for a retry keeps the original
+  call site. When an auth-refresh or retry interceptor calls
+  `client(error.config)`, the retried request's initiator is the call that made
+  the first attempt, not the interceptor — as in 0.6.0. The previous fix tells
+  the two cases apart by `__monitorId`, which `attachHttpMonitor` stamps only
+  on configs axios built, so this holds when `attachHttpMonitor` is installed
+  on the instance.
+- `withInitiatorCapture`: wrapping a client that is already wrapped returns it
+  unchanged, with a warning in development. Wrap the axios instance once and
+  export the wrapped one.
+- `attachFetchMonitor`: a request body read from a `Request` object, as in
+  `fetch(new Request(url, { body }))`, never set the entry's size. The row
+  showed 0 B while pending, and kept it when the response recorded no size of
+  its own — event streams, opaque responses, network errors and aborts. The
+  size now comes from the bytes read. For a body over `maxBodyBytes` it is the
+  bytes counted before capture stopped, so a lower bound. A size the response
+  has already recorded is never overwritten.
+
 ## [0.6.0] - 2026-09-13
 
 Fetch capture, and storage scoped per project. No public function signature
