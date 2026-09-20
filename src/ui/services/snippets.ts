@@ -10,7 +10,9 @@
  * Both reconstruct from the *plaintext* body and the sanitized headers this
  * panel captured. The captured `Authorization` header is masked, so neither
  * snippet carries a working token — deliberately, and the reason a real re-run
- * should use Replay instead.
+ * should use Replay instead. That holds with the panel set to show
+ * `Authorization` in full: the raw value is never on the entry these read (see
+ * `NetworkMonitor.getAuthorization`).
  */
 
 import type { MonitorEntry } from "../../capture/networkMonitor";

@@ -19,6 +19,7 @@
  * module only in development, so none of it reaches a production bundle.
  */
 
+import { setAuthorizationMasking } from "../capture/monitorAuth";
 import { getActiveDbName, isSharedDefaultDb } from "../capture/monitorConfig";
 import { setInitiatorCapture } from "../capture/monitorInitiator";
 import {
@@ -87,31 +88,51 @@ const SECTION_LABEL: Record<Section, string> = {
  */
 const EMPTY_COPY: Record<
   Section,
-  { icon: IconName; title: string; sub: string; snippet?: string }
+  {
+    icon: IconName;
+    title: string;
+    sub: string;
+    /** Each one must compile against `capture/index.ts` as written — two of
+     * these named exports that did not exist, which is the worst possible
+     * first thing to copy. A `label` names which setup a snippet is for when
+     * there is more than one. */
+    snippets?: { code: string; label?: string }[];
+  }
 > = {
   network: {
     icon: "network",
     title: "No requests yet",
-    sub: "Captured requests appear here as the app makes them. If nothing arrives, the axios instance may not be the one Blix is attached to.",
-    snippet: "attachHttp(apiClient)",
+    sub: "Captured requests appear here as the app makes them. If nothing arrives, Blix may not be attached to the HTTP client this app actually uses.",
+    snippets: [
+      { label: "axios", code: "attachHttpMonitor(apiClient)" },
+      { label: "fetch", code: "attachFetchMonitor()" },
+    ],
   },
   realtime: {
     icon: "bolt",
     title: "No realtime traffic yet",
     sub: "Frames appear once an adapter is tapped. Capture must be installed where the adapter singleton is constructed — module scope, not a component.",
-    snippet: 'tapRealtimeAdapter(adapter, "pusher")',
+    // The wrapped adapter is the return value; a bare call taps nothing.
+    snippets: [{ code: 'const realtime = tapRealtimeAdapter(adapter, "pusher")' }],
   },
   redux: {
     icon: "stack",
     title: "No Redux actions yet",
     sub: "Actions dispatched anywhere in the app appear here, with a bounded diff of what each one changed.",
-    snippet: "middleware: (get) => get().concat(blixMiddleware)",
+    snippets: [
+      {
+        code: "middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(createReduxMonitorMiddleware())",
+      },
+    ],
   },
   query: {
     icon: "database",
     title: "No query activity yet",
     sub: "Cache lifecycle — fetch, success, invalidate, garbage-collect — appears here once the query client is tapped.",
-    snippet: "tapQueryClient(queryClient)",
+    // From an effect, as the README says: under Strict Mode a client created
+    // in a `useState` initializer is created twice, and the tap has to land
+    // on the one React keeps.
+    snippets: [{ code: "useEffect(() => tapQueryClient(queryClient), [queryClient])" }],
   },
 };
 import { copyText, formatBytes } from "./helpers/format";
@@ -243,6 +264,19 @@ export default function DevTools() {
   useEffect(() => {
     setInitiatorCapture(prefs.captureInitiator !== false);
   }, [prefs.captureInitiator]);
+
+  // The same arrangement for `Authorization` masking: the pref is the source
+  // of truth, pushed into the capture layer — which starts masked, so nothing
+  // captured before this effect runs is ever kept in full.
+  const authUnmasked = prefs.maskAuthorization === false;
+  useEffect(() => {
+    setAuthorizationMasking(!authUnmasked);
+  }, [authUnmasked]);
+  const toggleAuthMasking = useCallback(() => {
+    savePrefs({
+      maskAuthorization: prefsStore.getSnapshot().prefs.maskAuthorization === false,
+    });
+  }, []);
 
   // The purge notice is informational, not a dialog — it goes away on its own
   // rather than making the developer dismiss it.
@@ -773,6 +807,17 @@ export default function DevTools() {
           run: () => setPreserveLog(!prefs.preserveLog),
         },
         {
+          id: "mask-auth",
+          label: authUnmasked
+            ? "Mask Authorization values again"
+            : "Show Authorization values in full",
+          note: authUnmasked
+            ? "unmasked now · never exported or saved"
+            : "new requests · never exported or saved",
+          accent: "warn",
+          run: toggleAuthMasking,
+        },
+        {
           id: "follow",
           label: selection.isFollowing ? "Stop following the newest" : "Follow the newest entry",
           run: selection.toggleFollow,
@@ -810,7 +855,7 @@ export default function DevTools() {
         {
           id: "curl",
           label: "Copy as cURL",
-          note: "auth masked at capture",
+          note: "Authorization always masked",
           disabled: !selectedEntry || (selectedEntry.kind ?? "http") !== "http",
           run: () => selectedEntry && void copyText(toCurl(selectedEntry)),
         },
@@ -1090,20 +1135,26 @@ export default function DevTools() {
                           <p className="nm-empty-title">{EMPTY_COPY[section].title}</p>
                           <p className="nm-empty-sub">{EMPTY_COPY[section].sub}</p>
                         </div>
-                        {EMPTY_COPY[section].snippet && (
-                          <>
-                            <code className="nm-empty-snippet">
-                              {EMPTY_COPY[section].snippet}
-                            </code>
-                            <button
-                              className="nm-empty-btn"
-                              onClick={() =>
-                                void copyText(EMPTY_COPY[section].snippet as string)
-                              }
-                            >
-                              Copy setup snippet
-                            </button>
-                          </>
+                        {EMPTY_COPY[section].snippets && (
+                          <div className="nm-empty-setups">
+                            {EMPTY_COPY[section].snippets.map((snippet) => (
+                              <div className="nm-empty-setup" key={snippet.code}>
+                                <code className="nm-empty-snippet">
+                                  {snippet.label && (
+                                    <span className="nm-empty-label">{snippet.label}</span>
+                                  )}
+                                  {snippet.code}
+                                </code>
+                                <button
+                                  className="nm-empty-btn"
+                                  onClick={() => void copyText(snippet.code)}
+                                  aria-label={`Copy the ${snippet.label ?? "setup"} snippet`}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -1156,11 +1207,14 @@ export default function DevTools() {
                 nouns={nouns}
                 format={dataFormat}
                 onFormat={onDataFormat}
+                authUnmasked={authUnmasked}
               />
             </div>
           </div>
 
           <StatusBar
+            authUnmasked={authUnmasked}
+            onMaskAuthorization={toggleAuthMasking}
             counts={list.counts}
             shown={list.filtered.length}
             noun={nouns.many}
@@ -1263,6 +1317,18 @@ export default function DevTools() {
             }}
           >
             Preserve log
+          </MenuItem>
+          {/* Beside Preserve log: the other setting whose "on" is worth being
+              reminded of every time you share your screen. */}
+          <MenuItem
+            icon={<Icon name="check" size={13} />}
+            hint={authUnmasked ? "on" : undefined}
+            onSelect={() => {
+              toggleAuthMasking();
+              closeMenus();
+            }}
+          >
+            Show Authorization in full
           </MenuItem>
           <MenuItem
             icon={<Icon name="clear" size={13} />}

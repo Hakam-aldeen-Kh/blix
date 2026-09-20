@@ -153,7 +153,8 @@ export function ExportMenu({
       </MenuItem>
       <div className="nm-menu-note">
         Every request in order, runnable against another environment.
-        Authorization headers were masked at capture.
+        Authorization headers are always masked — even while the panel shows
+        them in full.
       </div>
     </Menu>
   );

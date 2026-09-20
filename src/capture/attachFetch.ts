@@ -27,6 +27,7 @@
  * holds inside its own interceptor, and `fetch` has no interceptor stage.
  */
 
+import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
 import { captureFrames } from "./monitorInitiator";
@@ -424,22 +425,28 @@ function begin(
   const id = networkMonitor.nextId();
   const body = planRequestBody(outgoing);
   const owner = getOwner();
+  // `outgoing.headers` is still unmasked — see `Outgoing.headers`.
+  const auth = readAuthorization(outgoing.headers, "fetch");
 
-  networkMonitor.start({
-    id,
-    client: "fetch",
-    method: outgoing.method,
-    url: outgoing.url,
-    at: Date.now(),
-    startTime: now(),
-    requestPayload: body.payload,
-    requestHeaders: serializeHeaders(outgoing.headers),
-    sizeBytes: body.bytes,
-    hadFormData: body.hadFormData,
-    initiator,
-    ownerId: owner?.id,
-    initiatorKind: owner?.kind,
-  });
+  networkMonitor.start(
+    {
+      id,
+      client: "fetch",
+      method: outgoing.method,
+      url: outgoing.url,
+      at: Date.now(),
+      startTime: now(),
+      requestPayload: body.payload,
+      requestHeaders: serializeHeaders(outgoing.headers),
+      sizeBytes: body.bytes,
+      hadFormData: body.hadFormData,
+      initiator,
+      ownerId: owner?.id,
+      initiatorKind: owner?.kind,
+      ...(auth.claims ? { authClaims: auth.claims } : {}),
+    },
+    { authorization: auth.raw },
+  );
   if (owner) networkMonitor.linkChild(owner.id, id);
   if (body.clone) readRequestClone(id, body.clone, cap, outgoing.headers);
   return id;

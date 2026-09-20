@@ -277,8 +277,8 @@ export function RequestTable({
     ["error", "Errors", counts.error],
     ["pending", pendingLabel, counts.pending],
   ];
-  // "Aborted" earns a chip only once there is something in it — it exists
-  // solely for requests restored mid-flight from a previous page load.
+  // "Aborted" earns a chip only once there is something in it — a cancelled
+  // request, or one a page reload cut off mid-flight.
   if (counts.aborted > 0) segments.push(["aborted", "Aborted", counts.aborted]);
 
   const header = (key: SortKey, label: string) => (

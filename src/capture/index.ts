@@ -25,6 +25,8 @@ export type {
   ReduxActionMeta,
   QueryMeta,
   InitiatorFrame,
+  JwtClaims,
+  JwtClaimsSource,
   DockMode,
   Corner,
   Size,

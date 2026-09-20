@@ -78,6 +78,18 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
+/** A span of time at the precision a countdown needs: `42s`, `3m 10s`,
+ * `5h 2m`, `12d 4h`. Sign is ignored — the caller says "in" or "ago". */
+export function formatSpan(ms: number): string {
+  const s = Math.floor(Math.abs(ms) / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 export function statusText(status?: number): string {
   if (status == null) return "";
   return STATUS_TEXT[status] ?? "";

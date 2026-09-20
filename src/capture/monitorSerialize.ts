@@ -167,22 +167,31 @@ export function flattenHeaders(headers: unknown): Record<string, string> {
  */
 export function serializeHeaders(headers: unknown): Record<string, string> {
   const out: Record<string, string> = {};
-  if (!headers || typeof headers !== "object") return out;
+  for (const [key, value] of Object.entries(flattenCapturedHeaders(headers))) {
+    out[key] = maskHeaderValue(key, value);
+  }
+  return out;
+}
 
+/**
+ * Any header container, flattened exactly as `serializeHeaders` sees it —
+ * `AxiosHeaders` included — but **unmasked**. For reading one value at the
+ * moment of capture (see `monitorAuth.ts`); what it returns must never be
+ * stored. Passing its result on to `serializeHeaders` masks it as usual.
+ */
+export function flattenCapturedHeaders(headers: unknown): Record<string, string> {
+  if (!headers || typeof headers !== "object") return {};
   try {
     // AxiosHeaders exposes a `.toJSON()`; everything else is flattened as-is.
     const source =
       typeof (headers as { toJSON?: () => unknown }).toJSON === "function"
         ? (headers as { toJSON: () => unknown }).toJSON()
         : headers;
-
-    for (const [key, value] of Object.entries(flattenHeaders(source))) {
-      out[key] = maskHeaderValue(key, value);
-    }
+    return flattenHeaders(source);
   } catch {
-    /* noop — see above */
+    /* noop — see `serializeHeaders` */
+    return {};
   }
-  return out;
 }
 
 /** Above this, `estimateBytes` stops walking and reports the cap. Callers only

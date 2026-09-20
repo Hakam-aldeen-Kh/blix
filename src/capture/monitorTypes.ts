@@ -246,6 +246,52 @@ export interface MonitorEntry {
   /** HTTP only: whether the raw call stack (before NOISE-filtering) passed
    * through `@tanstack/query`, independent of whether `ownerId` resolved. */
   initiatorKind?: "query" | "mutation" | "direct";
+  /** HTTP only: the claims of a JWT in the request's `Authorization` header,
+   * decoded when a `fetch` call is made or when an axios request settles —
+   * `authClaims.source` says which. The token itself is never stored — see
+   * `monitorAuth.ts`. */
+  authClaims?: JwtClaims;
+}
+
+/**
+ * Which capture path decoded a token's claims — what the inspector's note line
+ * reports:
+ *
+ * - `"fetch"`: `attachFetchMonitor`, when the call was made. Those headers are
+ *   final.
+ * - `"axios-settle"`: `attachHttpMonitor`, from the headers axios settled the
+ *   request with.
+ * - `"axios-request"`: `attachHttpMonitor`, from the snapshot taken when the
+ *   request started — kept when the request never settled, settled without a
+ *   config, or was sent with axios's `auth` option.
+ */
+export type JwtClaimsSource = "fetch" | "axios-settle" | "axios-request";
+
+/**
+ * What a JWT claims about itself — decoded, not verified. Only these are kept:
+ * enough to answer "whose token, from where, signed how, and has it expired",
+ * nothing that could be replayed.
+ */
+export interface JwtClaims {
+  /**
+   * From the JOSE header, verbatim — never mapped or normalised here. Absent
+   * when the header had no `alg` or an empty one. Display-only: no value of it
+   * withholds the other claims.
+   */
+  alg?: string;
+  /** The header carried an `alg` that was not a string. The value itself is
+   * not kept: an object or array there is a malformed token, not something to
+   * show. */
+  algNotString?: true;
+  sub?: string;
+  iss?: string;
+  /** Epoch seconds, as in the token. */
+  iat?: number;
+  /** Epoch seconds, as in the token. */
+  exp?: number;
+  /** Which capture path decoded these. Absent only on entries captured before
+   * the field existed. */
+  source?: JwtClaimsSource;
 }
 
 /** Shape written to IndexedDB. Payloads may be truncated relative to the live
@@ -301,6 +347,10 @@ export interface MonitorPrefs {
   followLatest: boolean;
   /** Opt out of call-stack capture when profiling a large burst of requests. */
   captureInitiator: boolean;
+  /** Mask `Authorization` in the panel. Off shows the full value of requests
+   * captured from then on — on screen only: exports, snippets and IndexedDB
+   * keep the masked value. See `monitorAuth.ts`. */
+  maskAuthorization: boolean;
   /** Last pinned request; restored only if the id still resolves. */
   selectedId: string | null;
 

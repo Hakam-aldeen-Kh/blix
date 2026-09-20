@@ -158,7 +158,18 @@ class NetworkMonitor {
     return `${Date.now()}-${this.counter}`;
   }
 
-  start(input: MonitorStartInput): void {
+  /**
+   * Raw `Authorization` values by entry id, held only while masking is off —
+   * see `monitorAuth.ts`.
+   *
+   * Deliberately beside the entries rather than a field on them. Persistence
+   * writes entries and every export reads them, so a value that is never on an
+   * entry cannot reach IndexedDB, a downloaded file or a copied snippet,
+   * however those paths change later. Pruned with the entries in `reindex`.
+   */
+  private authorizations = new Map<string, string>();
+
+  start(input: MonitorStartInput, secrets?: { authorization?: string }): void {
     if (!this.enabled || this.paused) return;
 
     const next: MonitorEntry = {
@@ -176,6 +187,12 @@ class NetworkMonitor {
 
     this.entries = kept;
     this.reindex();
+
+    // After `reindex`, which would otherwise prune it: the newest entry is never
+    // the one evicted, so it is always in the index by now.
+    if (secrets?.authorization !== undefined) {
+      this.authorizations.set(next.id, secrets.authorization);
+    }
 
     if (next.replayOf) this.bumpReplayCount(next.replayOf);
 
@@ -361,10 +378,41 @@ class NetworkMonitor {
     this.emit();
   }
 
+  /** The raw `Authorization` value captured for `id` — only if masking was off
+   * when it was captured and has stayed off since. For the Headers tab alone;
+   * nothing that exports or persists may read it. */
+  getAuthorization(id: string): string | undefined {
+    return this.authorizations.get(id);
+  }
+
+  /**
+   * Replaces the raw `Authorization` held for `id`; `undefined` drops it. For
+   * the settle-time re-read in `attachHttp.ts`, which applies masking as it
+   * stands when the request settles. Ignored for an entry no longer buffered,
+   * so nothing is held for a row that cannot show it.
+   */
+  setAuthorization(id: string, value: string | undefined): void {
+    if (value === undefined) {
+      this.authorizations.delete(id);
+      return;
+    }
+    if (this.index.has(id)) this.authorizations.set(id, value);
+  }
+
+  /** Drops every raw value. Called the moment masking is switched back on. */
+  forgetAuthorizations(): void {
+    this.authorizations.clear();
+  }
+
   private reindex(): void {
     this.index.clear();
     for (let i = 0; i < this.entries.length; i += 1) {
       this.index.set(this.entries[i].id, i);
+    }
+    // Raw values leave with their entries — evicted, cleared, or displaced by
+    // hydration — so none outlives the row that could show it.
+    for (const id of this.authorizations.keys()) {
+      if (!this.index.has(id)) this.authorizations.delete(id);
     }
   }
 
