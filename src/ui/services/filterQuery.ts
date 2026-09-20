@@ -176,7 +176,10 @@ function matchIs(entry: MonitorEntry, value: string): boolean {
     case "replay":
       return Boolean(entry.replayOf);
     case "encrypted":
-      return entry.skipEncryption !== true;
+      // Ciphertext the host actually handed to `captureEncrypted`. Not
+      // "`skipEncryption` unset", which matched every request in an app that
+      // encrypts nothing.
+      return entry.encryptedRequest != null || entry.encryptedResponse != null;
     default:
       return false;
   }

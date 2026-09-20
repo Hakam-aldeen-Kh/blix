@@ -815,6 +815,17 @@ const DETAIL = `
 .nm-jwt-k { color: var(--nm-faint); }
 .nm-jwt-bad, .nm-jwt-chip.nm-jwt-bad { color: var(--nm-error); }
 .nm-jwt-note { padding: 3px 0 1px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; color: var(--nm-faint); }
+/* "no alg" and "not a string" are statements about the header, not values —
+   set apart so they are not read as an algorithm called "no alg". */
+.nm-jwt-muted { color: var(--nm-faint); font-style: italic; }
+.nm-jwt-warn, .nm-jwt-chip.nm-jwt-warn { color: var(--nm-warning); }
+/* alg: none. Amber rather than red: it reports what was sent and what came
+   back, and leaves the verdict to the reader. */
+.nm-jwt-warning {
+  margin: 2px 0 4px; padding: 3px 7px; border-radius: 4px;
+  font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 600;
+  color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
+}
 
 .nm-stack { margin: 0; padding: 6px 0 0; list-style: none; }
 .nm-stack-frame { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--nm-line-2); font-family: var(--nm-mono); font-size: 11.5px; }

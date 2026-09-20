@@ -426,7 +426,7 @@ function begin(
   const body = planRequestBody(outgoing);
   const owner = getOwner();
   // `outgoing.headers` is still unmasked — see `Outgoing.headers`.
-  const auth = readAuthorization(outgoing.headers);
+  const auth = readAuthorization(outgoing.headers, "fetch");
 
   networkMonitor.start(
     {

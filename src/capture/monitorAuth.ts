@@ -8,14 +8,24 @@
  * ever holds a token to decode. Rather than keep one around to make an
  * inspector possible, the claims are read here — at the only moment the value
  * exists — and only they are stored: `exp`, `iat`, `sub`, `iss` and the
- * header's `alg`. The signature is never kept, and neither is the payload as
- * base64, so nothing stored can be pasted back into a request.
+ * header's `alg`, plus which capture path read them. The signature is never
+ * kept, and neither is the payload as base64, so nothing stored can be pasted
+ * back into a request.
  *
- * Decoding is all-or-nothing. Anything that is not a well-formed compact JWS —
- * an opaque bearer token, a JWE, a segment that is not base64url JSON, a claim
- * of the wrong type — yields no claims at all, never a partial parse that would
- * present a guess as a fact. The signature is not verified: Blix has no key,
- * and a devtool that said "valid" would be claiming something it cannot know.
+ * Decoding is all-or-nothing about the token's *shape*. Anything that is not a
+ * well-formed compact JWS — an opaque bearer token, a JWE, a segment that is not
+ * base64url JSON, a payload claim of the wrong type — yields no claims at all,
+ * never a partial parse that would present a guess as a fact.
+ *
+ * **`alg` is the exception, deliberately.** It is display-only here: Blix has
+ * no key and verifies nothing, so no value of it — missing, empty, not a string,
+ * or a string nobody has heard of — is a reason to withhold `exp` or `sub`. It
+ * is recorded as found: the string verbatim, absent when missing or empty, and
+ * for a non-string only the fact that one was there. Turning it into something
+ * readable is the panel's job (`ui/helpers/jwtAlg.ts`), so the entry, IndexedDB
+ * and the exports always carry the raw value. The signature is not verified
+ * either: a devtool that said "valid" would be claiming something it cannot
+ * know.
  *
  * ## Unmasking
  *
@@ -29,7 +39,7 @@
  * wrapper.
  */
 
-import type { JwtClaims } from "./monitorTypes";
+import type { JwtClaims, JwtClaimsSource } from "./monitorTypes";
 import { networkMonitor } from "./networkMonitor";
 
 /** Far longer than any real token. Past it, decoding is not attempted. */
@@ -62,6 +72,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * The claims of a JWT, from a raw header value — `Bearer <token>` or a bare
  * token. `undefined` for anything that is not one, and for any JWT whose
  * `sub`/`iss` is not a string or whose `iat`/`exp` is not a finite number.
+ * Nothing `alg` holds makes it `undefined` — see the module comment.
+ *
+ * The result has no `source`: `readAuthorization` adds the capture path.
  */
 export function decodeJwtClaims(value: string): JwtClaims | undefined {
   try {
@@ -76,9 +89,17 @@ export function decodeJwtClaims(value: string): JwtClaims | undefined {
     if (!isRecord(header) || !isRecord(payload) || !BASE64URL.test(parts[2])) {
       return undefined;
     }
-    if (typeof header.alg !== "string" || header.alg === "") return undefined;
 
-    const claims: JwtClaims = { alg: header.alg };
+    const claims: JwtClaims = {};
+    if (typeof header.alg === "string") {
+      if (header.alg !== "") claims.alg = header.alg;
+    } else if (header.alg !== undefined) {
+      // `null`, a number, an object, an array: a malformed header. Recorded as
+      // having been there, and nothing more — the value is not something to
+      // store or show.
+      claims.algNotString = true;
+    }
+
     for (const key of ["sub", "iss"] as const) {
       const claim = payload[key];
       if (claim === undefined) continue;
@@ -122,16 +143,20 @@ export interface CapturedAuthorization {
 /**
  * Reads `Authorization` from a flattened, still-unmasked header map (see
  * `flattenCapturedHeaders`). Header names are unique case-insensitively there,
- * so the first match is the only one.
+ * so the first match is the only one. `source` is the capture path doing the
+ * reading, recorded on the claims for the inspector's note line.
  */
-export function readAuthorization(headers: Record<string, string>): CapturedAuthorization {
+export function readAuthorization(
+  headers: Record<string, string>,
+  source: JwtClaimsSource,
+): CapturedAuthorization {
   try {
     for (const name of Object.keys(headers)) {
       if (name.toLowerCase() !== "authorization") continue;
       const value = headers[name];
-      const claims = decodeJwtClaims(value);
+      const decoded = decodeJwtClaims(value);
       return {
-        ...(claims ? { claims } : {}),
+        ...(decoded ? { claims: { ...decoded, source } } : {}),
         ...(masking ? {} : { raw: value }),
       };
     }

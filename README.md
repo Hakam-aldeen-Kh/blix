@@ -123,8 +123,8 @@ register last.
 > interceptors become FIFO and the request-side rule flips to "register
 > `attachHttpMonitor` **first**" — while the response-side rule still says
 > last, so the two orders no longer agree and you must pick which leg matters
-> more. Response-interceptor order is unaffected by the flag. Blix does not
-> read this flag and cannot detect the situation.
+> more. Response-interceptor order is unaffected by the flag. Blix warns once,
+> in development, when a request carries the flag set to `false`.
 
 ```ts
 // src/network/axios.ts
@@ -210,6 +210,45 @@ Two ways out, and you currently have to choose one:
 
 From a single `attachHttpMonitor` call you cannot currently have both plaintext
 request bodies and correlated errors while also discarding the `AxiosError`.
+
+#### Response interceptors that unwrap
+
+The same thing happens on the success path. A response interceptor registered
+before Blix that returns something other than the response —
+`(response) => response.data` is the usual one — hands Blix a value with no
+`config` on it, so there is nothing to correlate:
+
+- your request is unaffected: your code receives exactly what your interceptor
+  returned. (Before 0.7.0 Blix threw at this point, and every request on the
+  instance failed.)
+- the entry **stays `pending`** for the rest of the session. Blix does not
+  settle a request it cannot see settle.
+
+Register the unwrapping interceptor **after** `attachHttpMonitor` — response
+interceptors run in registration order, so Blix then sees the full response
+first — or unwrap at the call site instead.
+
+#### Which request headers the panel shows
+
+Blix's request interceptor runs before yours, so when it runs, the headers your
+interceptors add — auth, tracing, signing, locale — do not exist yet, and
+neither does the `Content-Type` axios sets itself. So the panel shows the
+headers the request **settled** with, re-read from the config axios hands back
+with the response or the error, and masked the same way. Until then — and for
+good, for a request that never settles or whose rejection carries no `config` —
+it shows the snapshot taken when the request started. JWT claims follow the same
+rule.
+
+Some headers never appear, because axios's adapter adds them to its own copy of
+the config, past the last point Blix can read:
+
+- **`Authorization: Basic …` from the `auth` option.** When `auth` is set, the
+  panel keeps the `Authorization` it saw when the request started: the settled
+  config still shows whatever your interceptors set, which is not what was
+  sent. Every other header is still taken from the settled config.
+- **The XSRF header** (`X-XSRF-TOKEN` by default).
+- **Headers the browser manages itself** — `Cookie`, `Origin`, `User-Agent` and
+  the like. Chrome's Network tab shows them; JavaScript never sees them.
 
 #### Encrypted payloads — `captureEncrypted(config, payload)`
 
@@ -1120,7 +1159,11 @@ Headers tab is tagged `UNMASKED`.
 
 - It applies to requests captured **after** it is switched on. Earlier entries
   were masked when they were captured — the full value was never kept — and
-  the panel cannot reveal them; their row says so.
+  the panel cannot reveal them; their row says so. An axios request re-reads
+  its headers when it settles (see
+  [Which request headers the panel shows](#which-request-headers-the-panel-shows)),
+  so for one still in flight what counts is the setting at the moment it
+  settles.
 - The full value is held in memory only. It is **never** written to IndexedDB,
   and **every** export and copy path — HAR, JSON, NDJSON, CSV, Markdown, the
   cURL script, **Copy as cURL** and **Copy as fetch** — still carries the
@@ -1132,11 +1175,23 @@ Headers tab is tagged `UNMASKED`.
 
 #### JWT claims
 
-When an `Authorization` value is a JWT, Blix decodes it at capture and keeps
-only `alg`, `sub`, `iss`, `iat` and `exp` — never the token or its signature.
+When an `Authorization` value is a JWT, Blix decodes it — for axios when the
+request settles, for `fetch` when it is made — and keeps only `alg`, `sub`,
+`iss`, `iat` and `exp`, never the token or its signature.
 The **JWT** chip on that row opens them, with the time left until `exp`, in red
 once it has passed. This works with masking on. The signature is not verified,
 and a value that is not a well-formed JWT stores no claims at all. The claims
+say where they were read: when a `fetch` call was made, from the headers an
+axios request settled with, or — for an axios request that never settled, or
+used the `auth` option — when it started.
+
+`alg` is shown but never acted on: a missing, empty or non-string `alg` still
+yields every other claim, and no value of it withholds anything. The XML-DSig
+URIs .NET writes into `alg` — `http://www.w3.org/2001/04/xmldsig-more#hmac-sha256`
+and its HMAC, RSA, RSA-PSS and ECDSA siblings — are shown by name, as
+`HMAC-SHA256 (HS256)`, with the raw value in the tooltip; the entry and the
+exports keep the raw value. An `alg` of `none`, in any letter case, is flagged
+as an unsigned token. The claims
 are part of the entry, so — unlike the token — they are saved with
 preserve-log on and included in the JSON and NDJSON exports.
 

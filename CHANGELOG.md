@@ -5,6 +5,100 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-20
+
+The `Authorization` header, inspectable: what a JWT in it claims, and an opt-in
+switch to show the value itself on screen. Plus a fix for an axios setup that
+made **every request on the instance fail**.
+
+### Added
+
+- **JWT claims.** When an `Authorization` value is a compact JWS, Blix decodes
+  it and keeps `alg`, `sub`, `iss`, `iat` and `exp` on the entry — never the
+  token and never its signature, so nothing stored can be replayed. The **JWT**
+  chip on the `Authorization` row opens them, counting down to `exp` and turning
+  red once it has passed. It works with masking on, which is the default.
+  Decoding is all-or-nothing about the token's shape: an opaque bearer token, a
+  JWE, or a claim of the wrong type stores no claims at all rather than
+  presenting a guess as a fact. The signature is never verified — Blix has no
+  key, and a devtool that said "valid" would be claiming something it cannot
+  know.
+- `alg` is display-only and never withholds anything: a missing, empty or
+  non-string `alg` still yields every other claim. The XML-DSig URIs .NET's
+  `JsonWebTokenHandler` writes there —
+  `http://www.w3.org/2001/04/xmldsig-more#hmac-sha256` and its HMAC, RSA,
+  RSA-PSS and ECDSA siblings — are shown by name, as `HMAC-SHA256 (HS256)`,
+  with the raw value in the tooltip and on a Copy chip; the entry, the database
+  and the exports keep the raw value. An `alg` of `none`, in any letter case,
+  is flagged as an unsigned token, reported as what was sent and what came back
+  rather than as a verdict.
+- The claims say where they were read: when a `fetch` call was made, from the
+  headers an axios request settled with, or — for an axios request that never
+  settled or used the `auth` option — when it started.
+- **Showing `Authorization` in full**, off by default: command palette → **Show
+  Authorization values in full**. It applies to requests captured after it is
+  switched on; earlier entries were masked at capture and cannot be revealed,
+  and their row says so. The raw value is held in memory beside the entries,
+  never on them, so it cannot reach IndexedDB, a downloaded file or a copied
+  snippet: **every** export and copy path — HAR, JSON, NDJSON, CSV, Markdown,
+  the cURL script, Copy as cURL and Copy as fetch — still carries the masked
+  value. The row's own Copy button is the one way to take it. Masking again
+  discards every value held. `cookie`, `set-cookie`, `x-api-key` and realtime
+  connect tokens stay masked regardless.
+- While it is on, the status bar reads **UNMASKED Authorization**, second in
+  the bar and never dropped at a breakpoint — of everything about a session, it
+  is the one fact someone about to screenshot the panel needs to see. Every
+  such row in the Headers tab is tagged `UNMASKED`.
+- `JwtClaims` and `JwtClaimsSource` are exported from `@hakam-aldeen-kh/blix/capture`.
+- A CI workflow: typecheck, build, and two guards on the published bundle —
+  that `process.env.NODE_ENV` survived it (defined away, the panel would ship
+  to every consumer's users) and that `"use client"` is still its first bytes
+  (without it, a React Server Component rendering `<Blix />` fails in Next.js).
+
+### Fixed
+
+- **`attachHttpMonitor` made every request on the instance fail** when a
+  response interceptor registered before it returned something other than a
+  response — `(response) => response.data`, the usual unwrapping interceptor,
+  or a rejection handler returning a normalised domain error. Blix read
+  `.config` straight off that value, which threw inside its own interceptor and
+  rejected the request. Present since 0.2.0. Such a response now passes through
+  untouched; the entry stays `pending`, because Blix does not settle a request
+  it cannot see settle. Register the unwrapping interceptor after
+  `attachHttpMonitor` to get both.
+- **Request headers are now the ones the request went out with.** Blix's
+  request interceptor runs before the host's, so the headers they add — auth,
+  tracing, signing, locale — and the `Content-Type` axios sets itself did not
+  exist yet, and the panel showed a request without them. Headers are now
+  re-read from the config axios settles with, and the request-time snapshot is
+  kept only until then — and for good, for a request that never settles or
+  whose rejection carries no `config`. The body is still the plaintext captured
+  at request time, which is the point of running first.
+  - `Authorization: Basic …` from axios's `auth` option is the exception: the
+    adapter builds it on its own copy of the config, so the settled config
+    shows something that was never sent. That header keeps its request-time
+    value; every other header comes from settle.
+- **`is:encrypted` matched every request** in an app that encrypts nothing: it
+  tested `skipEncryption !== true`, which is unset on an ordinary request. It
+  now requires ciphertext actually handed to `captureEncrypted`. The detail
+  pane's **Encrypted** row followed the same broken rule and read "yes" for
+  those requests; it now reports the evidence, or shows no row at all.
+- The empty-state setup snippets named exports that do not exist —
+  `attachHttp(apiClient)` for `attachHttpMonitor`, and a bare
+  `tapRealtimeAdapter(...)` call that discards the wrapped adapter. Each
+  snippet now compiles as written, with axios and `fetch` shown separately and
+  `tapQueryClient` shown in the effect Strict Mode requires.
+
+### Changed
+
+- In development, Blix warns once when an axios instance sets
+  `transitional.legacyInterceptorReqResOrdering: false`, which puts Blix's
+  request interceptor last and means the Payload tab shows the body after the
+  host's interceptors transformed it. Previously Blix could not detect this at
+  all.
+- The README documents which request headers the panel can and cannot show,
+  and SECURITY.md notes that the raw `Authorization` never leaves memory.
+
 ## [0.6.1] - 2026-09-13
 
 ### Fixed

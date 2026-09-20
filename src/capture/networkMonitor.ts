@@ -385,6 +385,20 @@ class NetworkMonitor {
     return this.authorizations.get(id);
   }
 
+  /**
+   * Replaces the raw `Authorization` held for `id`; `undefined` drops it. For
+   * the settle-time re-read in `attachHttp.ts`, which applies masking as it
+   * stands when the request settles. Ignored for an entry no longer buffered,
+   * so nothing is held for a row that cannot show it.
+   */
+  setAuthorization(id: string, value: string | undefined): void {
+    if (value === undefined) {
+      this.authorizations.delete(id);
+      return;
+    }
+    if (this.index.has(id)) this.authorizations.set(id, value);
+  }
+
   /** Drops every raw value. Called the moment masking is switched back on. */
   forgetAuthorizations(): void {
     this.authorizations.clear();

@@ -2,9 +2,20 @@
  * Blix — HTTP capture entry point.
  *
  * Registers axios interceptors that feed the monitor store with plaintext
- * request/response data. Call once at module-init time, before your app's
- * encryption or auth interceptors, so this interceptor runs last in axios's
- * LIFO request stack and therefore sees the plaintext request body.
+ * request/response data. Call once at module-init time, **after** your app's
+ * own interceptors are registered:
+ *
+ * - axios runs request interceptors in reverse registration order (its
+ *   default, `transitional.legacyInterceptorReqResOrdering: true`), so Blix's
+ *   runs **first** — before any encryption — and sees the plaintext body;
+ * - axios runs response interceptors in registration order, so Blix's runs
+ *   **last** — after any decryption — and sees the decrypted body.
+ *
+ * Running first on the way out has a cost: the headers the host's interceptors
+ * add — auth, tracing, signing — do not exist yet, and neither does axios's own
+ * `Content-Type`. So request headers are captured twice: a snapshot when the
+ * request starts, replaced at settle by a re-read of the config axios settled
+ * with. See `settledRequestSide`.
  *
  * Typed structurally rather than against axios: axios is an optional peer, and
  * an app that only uses `fetch` must be able to type-check Blix without it.
@@ -17,7 +28,7 @@ import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
 import { flattenCapturedHeaders } from "./monitorSerialize";
 import { stampAxiosFetchOptions, stampMonitorId } from "./monitorStamp";
-import type { InitiatorFrame } from "./monitorTypes";
+import type { InitiatorFrame, MonitorEntry } from "./monitorTypes";
 import {
   estimateBytes,
   networkMonitor,
@@ -63,6 +74,9 @@ type MonitoredConfig = {
   baseURL?: string;
   data?: unknown;
   headers?: unknown;
+  /** axios's basic-auth option — see `settledRequestSide`. */
+  auth?: unknown;
+  transitional?: { legacyInterceptorReqResOrdering?: unknown };
   fetchOptions?: unknown;
   skipEncryption?: boolean;
   __monitorId?: string;
@@ -95,6 +109,113 @@ type MonitoredError = {
 const attached = new WeakSet<object>();
 
 /**
+ * The config carried by whatever a response or error handler received, or
+ * `undefined`.
+ *
+ * Host interceptors registered before Blix hand it whatever they returned, and
+ * that is routinely not a response: `(r) => r.data`, a normalised domain error,
+ * `undefined`. Reading `.config` straight off that value used to throw inside
+ * the response interceptor — which rejected every request on the instance.
+ * Callers still wrap this in `try`: a getter on a host object can throw too.
+ */
+function configOf(value: unknown): MonitoredConfig | undefined {
+  if (value === null || typeof value !== "object") return undefined;
+  const config = (value as { config?: unknown }).config;
+  return config !== null && typeof config === "object"
+    ? (config as MonitoredConfig)
+    : undefined;
+}
+
+/** The entry id Blix stamped on `config`, if it is a config Blix saw. */
+function monitorIdOf(config: MonitoredConfig | undefined): string | undefined {
+  const id = config?.__monitorId;
+  return typeof id === "string" && id !== "" ? id : undefined;
+}
+
+function isAuthorizationHeader(name: string): boolean {
+  return name.toLowerCase() === "authorization";
+}
+
+/**
+ * The request's headers — and what its `Authorization` claims — re-read from
+ * the config axios settled with.
+ *
+ * At settle `config.headers` is the same `AxiosHeaders` object Blix read when
+ * the request started: axios builds it once, before any interceptor runs, and
+ * every later interceptor writes into it. So it now carries what the host's
+ * interceptors added and the `Content-Type` axios sets itself, and it is the
+ * truth about the request in a way the request-time snapshot cannot be. The
+ * claims are decoded from it for the same reason, and the raw value kept while
+ * masking is off is replaced from it too — which means masking follows its
+ * state *at settle*.
+ *
+ * **Except `Authorization` when `config.auth` is set.** The adapter turns
+ * `auth` into `Authorization: Basic …` on its own copy of the config, so what
+ * `config.headers` says here was never sent — a confident wrong answer, worse
+ * than an incomplete one. That header keeps its request-time value, claims and
+ * raw value; every other header still comes from settle.
+ *
+ * Headers the adapter adds that way — the XSRF header too — and headers the
+ * browser manages itself are out of reach either way.
+ *
+ * The body is deliberately not re-read: by settle `config.data` is whatever the
+ * host's encryption produced, serialized, and the plaintext captured at request
+ * time is the point.
+ */
+function settledRequestSide(id: string, config: MonitoredConfig): Partial<MonitorEntry> {
+  if (!config.headers || typeof config.headers !== "object") return {};
+  const headers = flattenCapturedHeaders(config.headers);
+
+  if (config.auth) {
+    const others: Record<string, string> = {};
+    for (const [name, value] of Object.entries(headers)) {
+      if (!isAuthorizationHeader(name)) others[name] = value;
+    }
+    const requestHeaders = serializeHeaders(others);
+    // Already masked — it is the stored request-time value.
+    const early = networkMonitor.getById(id)?.requestHeaders ?? {};
+    for (const [name, value] of Object.entries(early)) {
+      if (isAuthorizationHeader(name)) requestHeaders[name] = value;
+    }
+    return { requestHeaders };
+  }
+
+  const auth = readAuthorization(headers, "axios-settle");
+  networkMonitor.setAuthorization(id, auth.raw);
+  // `authClaims` is written even when undefined: a settled request whose
+  // Authorization is gone, or is no longer a JWT, has no claims.
+  return { requestHeaders: serializeHeaders(headers), authClaims: auth.claims };
+}
+
+/** Warned at most once per page: it describes how an instance is configured,
+ * not anything about one request. */
+let warnedInterceptorOrder = false;
+
+/**
+ * Says so, once, when the host has switched axios to running request
+ * interceptors in registration order — which puts Blix's last.
+ *
+ * Only an explicit `false` counts, and that is exact rather than a guess:
+ * axios merges `transitional` key by key over its defaults, so the value on the
+ * config is the one it built the interceptor chain from, and an axios version
+ * that predates the flag reports `undefined` and keeps the reverse order.
+ */
+function warnIfInterceptorOrderFlipped(config: MonitoredConfig): void {
+  if (warnedInterceptorOrder || process.env.NODE_ENV !== "development") return;
+  if (config.transitional?.legacyInterceptorReqResOrdering !== false) return;
+  warnedInterceptorOrder = true;
+  console.warn(
+    "[blix] This axios instance sets transitional.legacyInterceptorReqResOrdering: " +
+      "false, so request interceptors run in registration order and Blix's — " +
+      "registered after yours — now runs last.\n" +
+      "The Payload tab shows the request body after your interceptors have " +
+      "transformed it (ciphertext, if you encrypt), and captureEncrypted calls " +
+      "made from your request interceptors are ignored. See attachHttpMonitor " +
+      "in the README.",
+  );
+}
+
+/**
  * Attaches HTTP-capture interceptors to an axios instance.
  *
  * Call this at module init time (e.g. at the bottom of your `axios.ts`),
@@ -121,6 +242,8 @@ export function attachHttpMonitor(
   const requestId = managers.request.use((config: MonitoredConfig) => {
     if (networkMonitor.isPaused) return config;
     try {
+      warnIfInterceptorOrderFlipped(config);
+
       const id = networkMonitor.nextId();
       config.__monitorId = id;
       // Second, invisible stamp for `captureEncrypted`. Kept separate from
@@ -138,10 +261,11 @@ export function attachHttpMonitor(
         typeof FormData !== "undefined" && config.data instanceof FormData;
       const requestPayload = serializeBody(config.data);
       const owner = getOwner();
-      // Flattened once and unmasked, so `Authorization` can be read before
+      // The request-time snapshot: all a request that never settles will ever
+      // show. Flattened once and unmasked, so `Authorization` can be read before
       // `serializeHeaders` masks it for storage.
       const headers = flattenCapturedHeaders(config.headers);
-      const auth = readAuthorization(headers);
+      const auth = readAuthorization(headers, "axios-request");
 
       networkMonitor.start(
         {
@@ -172,31 +296,40 @@ export function attachHttpMonitor(
     return config;
   });
 
+  // Both handlers hand on exactly what they received, and everything they read
+  // happens inside `try`. A value with no Blix config on it — an unwrapped
+  // `r.data`, a normalised error — leaves the entry as it is: pending, rather
+  // than settled by guesswork.
   const responseId = managers.response.use(
     (response: MonitoredResponse) => {
-      const id = (response.config as MonitoredConfig).__monitorId;
-      if (!id) return response;
       try {
-        const payload = response.data;
-        networkMonitor.update(id, {
-          state: "success",
-          status: response.status,
-          endTime: now(),
-          responsePayload: payload,
-          responseHeaders: serializeHeaders(response.headers),
-          sizeBytes: estimateBytes(payload),
-        });
+        const config = configOf(response);
+        const id = monitorIdOf(config);
+        if (config && id) {
+          const payload = response.data;
+          networkMonitor.update(id, {
+            ...settledRequestSide(id, config),
+            state: "success",
+            status: response.status,
+            endTime: now(),
+            responsePayload: payload,
+            responseHeaders: serializeHeaders(response.headers),
+            sizeBytes: estimateBytes(payload),
+          });
+        }
       } catch {
-        /* noop */
+        /* capture must never break a request */
       }
       return response;
     },
     (error: MonitoredError) => {
-      const id = (error.config as MonitoredConfig | undefined)?.__monitorId;
-      if (id) {
-        try {
+      try {
+        const config = configOf(error);
+        const id = monitorIdOf(config);
+        if (config && id) {
           const payload = error.response?.data ?? error.message;
           networkMonitor.update(id, {
+            ...settledRequestSide(id, config),
             // axios's own `isCancel` is exactly `!!value.__CANCEL__`, set by
             // `CanceledError` for `AbortController` and `CancelToken`
             // cancellation alike — duck-typed because Blix never imports axios
@@ -208,9 +341,9 @@ export function attachHttpMonitor(
             responseHeaders: serializeHeaders(error.response?.headers),
             sizeBytes: estimateBytes(payload),
           });
-        } catch {
-          /* noop */
         }
+      } catch {
+        /* capture must never break a request */
       }
       return Promise.reject(error);
     },

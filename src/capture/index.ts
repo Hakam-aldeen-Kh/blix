@@ -26,6 +26,7 @@ export type {
   QueryMeta,
   InitiatorFrame,
   JwtClaims,
+  JwtClaimsSource,
   DockMode,
   Corner,
   Size,

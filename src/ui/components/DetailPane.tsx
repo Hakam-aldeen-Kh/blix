@@ -756,12 +756,15 @@ export function DetailPane({
                         entry.state === "pending" ? "open" : "closed",
                       ],
                     ] as [string, string][])
-                  : ([
-                      [
-                        "Encrypted",
-                        entry.skipEncryption ? "no (skipped)" : "yes",
-                      ],
-                    ] as [string, string][])),
+                  : // Evidence only. It used to read "yes" for every request
+                    // without `skipEncryption`, which says nothing about whether
+                    // anything was encrypted — so a request with neither piece
+                    // of evidence gets no row rather than a guess.
+                    hasEncrypted(entry)
+                    ? ([["Encrypted", "yes — ciphertext captured"]] as [string, string][])
+                    : entry.skipEncryption
+                      ? ([["Encrypted", "no — request set skipEncryption"]] as [string, string][])
+                      : []),
                 ...(entry.replayOf
                   ? ([["Replay of", entry.replayOf]] as [string, string][])
                   : []),
@@ -770,7 +773,10 @@ export function DetailPane({
             {/* Keyed by entry, so an expanded claims chip does not stay open
                 onto the next request's token. The raw value is read only while
                 masking is off, so masking again hides every full value in the
-                same render — before the effect that discards them has run. */}
+                same render — before the effect that discards them has run.
+                The "never stored" note waits for the request to settle: an
+                axios entry re-reads Authorization then, so a value masked when
+                the request started can still arrive in full. */}
             <HeadersTable
               key={entry.id}
               title="Request Headers"
@@ -780,7 +786,9 @@ export function DetailPane({
                   ? {
                       claims: entry.authClaims,
                       raw: authUnmasked ? networkMonitor.getAuthorization(entry.id) : undefined,
-                      unmasking: authUnmasked,
+                      unmasking: authUnmasked && entry.state !== "pending",
+                      state: entry.state,
+                      status: entry.status,
                     }
                   : undefined
               }

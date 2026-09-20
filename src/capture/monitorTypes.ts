@@ -247,25 +247,51 @@ export interface MonitorEntry {
    * through `@tanstack/query`, independent of whether `ownerId` resolved. */
   initiatorKind?: "query" | "mutation" | "direct";
   /** HTTP only: the claims of a JWT in the request's `Authorization` header,
-   * decoded at capture. The token itself is never stored — see
+   * decoded when a `fetch` call is made or when an axios request settles —
+   * `authClaims.source` says which. The token itself is never stored — see
    * `monitorAuth.ts`. */
   authClaims?: JwtClaims;
 }
 
 /**
- * What a JWT claims about itself — decoded, not verified. Only these five are
- * kept: enough to answer "whose token, from where, and has it expired",
+ * Which capture path decoded a token's claims — what the inspector's note line
+ * reports:
+ *
+ * - `"fetch"`: `attachFetchMonitor`, when the call was made. Those headers are
+ *   final.
+ * - `"axios-settle"`: `attachHttpMonitor`, from the headers axios settled the
+ *   request with.
+ * - `"axios-request"`: `attachHttpMonitor`, from the snapshot taken when the
+ *   request started — kept when the request never settled, settled without a
+ *   config, or was sent with axios's `auth` option.
+ */
+export type JwtClaimsSource = "fetch" | "axios-settle" | "axios-request";
+
+/**
+ * What a JWT claims about itself — decoded, not verified. Only these are kept:
+ * enough to answer "whose token, from where, signed how, and has it expired",
  * nothing that could be replayed.
  */
 export interface JwtClaims {
-  /** From the JOSE header. */
-  alg: string;
+  /**
+   * From the JOSE header, verbatim — never mapped or normalised here. Absent
+   * when the header had no `alg` or an empty one. Display-only: no value of it
+   * withholds the other claims.
+   */
+  alg?: string;
+  /** The header carried an `alg` that was not a string. The value itself is
+   * not kept: an object or array there is a malformed token, not something to
+   * show. */
+  algNotString?: true;
   sub?: string;
   iss?: string;
   /** Epoch seconds, as in the token. */
   iat?: number;
   /** Epoch seconds, as in the token. */
   exp?: number;
+  /** Which capture path decoded these. Absent only on entries captured before
+   * the field existed. */
+  source?: JwtClaimsSource;
 }
 
 /** Shape written to IndexedDB. Payloads may be truncated relative to the live
