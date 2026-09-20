@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      # The consuming app's bundler substitutes NODE_ENV at *its* build time,
+      # which is what drops the panel from production. If our build defined or
+      # replaced it, the panel would ship to every consumer's users.
+      - name: Verify process.env.NODE_ENV survived the build
+        run: |
+          if ! grep -qF 'process.env.NODE_ENV' dist/index.js; then
+            echo "::error file=dist/index.js::process.env.NODE_ENV is missing from dist/index.js — the production guard was defined away at build time"
+            exit 1
+          fi
+
+      # esbuild keeps the directive only at the top of an entry file. Without
+      # it a React Server Component rendering <Blix /> fails in Next.js.
+      - name: Verify the "use client" directive survived the build
+        run: |
+          if [ "$(head -c 12 dist/index.js)" != '"use client"' ]; then
+            echo "::error file=dist/index.js::dist/index.js does not start with \"use client\""
+            exit 1
+          fi

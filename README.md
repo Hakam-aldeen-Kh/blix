@@ -188,8 +188,8 @@ instance.interceptors.response.use(undefined, (error) =>
 
 The consequence is silent and total: **every non-2xx request stays `pending`
 in the panel for the rest of the session.** No error, no warning, no Failed
-filter. (The 30-second pending cap only bounds how far the row's duration bar
-grows; it does not resolve the entry.)
+filter. Nothing times the row out either: its duration keeps counting for as
+long as the page stays open.
 
 Two ways out, and you currently have to choose one:
 
@@ -821,6 +821,8 @@ says what it will contain before you pick a format.
 
 Captured `Authorization` headers are masked, so cURL and fetch output carries a
 placeholder rather than a working token — use **Replay** for a real re-run.
+Every export and snippet stays masked even with Authorization shown in full in
+the panel (see [What is redacted](#what-is-redacted)).
 
 ### Themes
 
@@ -1105,6 +1107,38 @@ the first 8 and last 4 survive, so you can still tell which token you sent.
 Shorter values are replaced outright. The Headers tab tags every masked row
 `MASKED` rather than leaving you to infer it from an ellipsis, and the stored
 value keeps a `(masked)` suffix so every export path carries the fact too.
+
+#### Showing `Authorization` in full
+
+Blix is development-only, and a developer reading their own token on their own
+screen is not the risk — the token leaving the machine is. So masking of
+`authorization`, and only `authorization`, can be switched off: command palette
+→ **Show Authorization values in full**, or **⋯ More actions** → **Show
+Authorization in full**. It is a saved preference, off by default, and while it
+is on the status bar reads **UNMASKED Authorization** and every such row in the
+Headers tab is tagged `UNMASKED`.
+
+- It applies to requests captured **after** it is switched on. Earlier entries
+  were masked when they were captured — the full value was never kept — and
+  the panel cannot reveal them; their row says so.
+- The full value is held in memory only. It is **never** written to IndexedDB,
+  and **every** export and copy path — HAR, JSON, NDJSON, CSV, Markdown, the
+  cURL script, **Copy as cURL** and **Copy as fetch** — still carries the
+  masked value. The row's own **Copy** button is the one way to take the full
+  value.
+- Masking again discards every full value held.
+- `cookie`, `set-cookie`, `x-api-key` and realtime connect tokens stay masked
+  regardless.
+
+#### JWT claims
+
+When an `Authorization` value is a JWT, Blix decodes it at capture and keeps
+only `alg`, `sub`, `iss`, `iat` and `exp` — never the token or its signature.
+The **JWT** chip on that row opens them, with the time left until `exp`, in red
+once it has passed. This works with masking on. The signature is not verified,
+and a value that is not a well-formed JWT stores no claims at all. The claims
+are part of the entry, so — unlike the token — they are saved with
+preserve-log on and included in the JSON and NDJSON exports.
 
 **Nothing inside a body is redacted.** Request bodies, response bodies, error
 payloads, the encrypted request/response values, Redux payloads and diffs, and

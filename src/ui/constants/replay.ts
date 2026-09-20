@@ -57,7 +57,7 @@ export function classifyReplay(url: string): ReplayVerdict {
  * interceptor from current cookies.
  *
  * Replaying the captured headers wholesale would send a **broken** bearer
- * token: `serializeHeaders` masks `Authorization` to `"eyJhbGc…abcd (masked)"`.
+ * token: `serializeHeaders` masks `Authorization` to `"Bearer e…abcd (masked)"`.
  *
  * Routing headers are load-bearing: if the host's interceptor reads one to
  * choose a backend, dropping it silently retargets the request at the wrong

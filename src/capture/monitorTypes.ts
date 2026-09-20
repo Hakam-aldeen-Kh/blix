@@ -246,6 +246,26 @@ export interface MonitorEntry {
   /** HTTP only: whether the raw call stack (before NOISE-filtering) passed
    * through `@tanstack/query`, independent of whether `ownerId` resolved. */
   initiatorKind?: "query" | "mutation" | "direct";
+  /** HTTP only: the claims of a JWT in the request's `Authorization` header,
+   * decoded at capture. The token itself is never stored — see
+   * `monitorAuth.ts`. */
+  authClaims?: JwtClaims;
+}
+
+/**
+ * What a JWT claims about itself — decoded, not verified. Only these five are
+ * kept: enough to answer "whose token, from where, and has it expired",
+ * nothing that could be replayed.
+ */
+export interface JwtClaims {
+  /** From the JOSE header. */
+  alg: string;
+  sub?: string;
+  iss?: string;
+  /** Epoch seconds, as in the token. */
+  iat?: number;
+  /** Epoch seconds, as in the token. */
+  exp?: number;
 }
 
 /** Shape written to IndexedDB. Payloads may be truncated relative to the live
@@ -301,6 +321,10 @@ export interface MonitorPrefs {
   followLatest: boolean;
   /** Opt out of call-stack capture when profiling a large burst of requests. */
   captureInitiator: boolean;
+  /** Mask `Authorization` in the panel. Off shows the full value of requests
+   * captured from then on — on screen only: exports, snippets and IndexedDB
+   * keep the masked value. See `monitorAuth.ts`. */
+  maskAuthorization: boolean;
   /** Last pinned request; restored only if the id still resolves. */
   selectedId: string | null;
 

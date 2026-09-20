@@ -87,6 +87,10 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   deepSearch: false,
   followLatest: false,
   captureInitiator: true,
+  // On, and it stays the default: switching it off only reveals the value on
+  // screen — exports, snippets and this database keep the masked one. See
+  // `monitorAuth.ts`.
+  maskAuthorization: true,
   selectedId: null,
   // Follow the host app, which is what the panel did before it had themes of
   // its own — a developer who never opens the picker sees no change.

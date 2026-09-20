@@ -34,7 +34,13 @@ export function StatusBar({
   onShowErrors,
   onShowPinned,
   onOpenPalette,
+  authUnmasked,
+  onMaskAuthorization,
 }: {
+  /** `Authorization` masking is switched off. A persisted setting, so it is
+   * announced here rather than left for someone to find in a menu. */
+  authUnmasked: boolean;
+  onMaskAuthorization: () => void;
   counts: Counts;
   shown: number;
   /** What a row *is* in the active section — the bar sat under a table of
@@ -63,6 +69,19 @@ export function StatusBar({
         <b>{shown}</b>
         {shown !== counts.all && <> of {counts.all}</>} {noun}
       </span>
+      {/* Second in the bar and never dropped at a breakpoint: of everything
+          about this session, it is the one fact someone about to screenshot
+          the panel needs to see. */}
+      {authUnmasked && (
+        <button
+          className="nm-statusbar-btn nm-statusbar-unmasked"
+          onClick={onMaskAuthorization}
+          title="Authorization values are shown in full for requests captured while this is on. Exports, copied snippets and the saved log still mask them. Click to mask again."
+        >
+          <span className="nm-statusbar-unmasked-tag">unmasked</span>
+          Authorization
+        </button>
+      )}
       <span className="nm-statusbar-sep nm-status-transferred" />
       <span className="nm-statusbar-mono nm-status-transferred">
         <b>{formatBytes(totalBytes)}</b> transferred

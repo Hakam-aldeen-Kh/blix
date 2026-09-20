@@ -795,6 +795,26 @@ const DETAIL = `
   padding: 1px 5px; border-radius: 3px;
   color: var(--nm-warning); background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
 }
+/* Masking off: the one tag on the Headers tab that must not blend in — it
+   marks the row nobody should screenshot without noticing. */
+.nm-tag-unmasked { color: var(--nm-error); background: var(--nm-error-soft); border-color: var(--nm-error-line); }
+/* The value keeps click-to-select-all; the tags, chips and claims beside it
+   must not be swept into the selection with it. */
+.nm-kv-auth { user-select: text; }
+.nm-kv-val { user-select: all; }
+.nm-kv-note {
+  display: block; margin-top: 4px; user-select: none; word-break: normal;
+  font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; color: var(--nm-faint);
+}
+.nm-jwt-chip[aria-expanded="true"] { color: var(--nm-txt); background: var(--nm-elev-hover); }
+.nm-jwt {
+  margin-top: 6px; padding: 4px 8px; border-radius: 6px; user-select: text; word-break: break-word;
+  border: 1px solid var(--nm-line); background: var(--nm-sunken);
+}
+.nm-jwt-row { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
+.nm-jwt-k { color: var(--nm-faint); }
+.nm-jwt-bad, .nm-jwt-chip.nm-jwt-bad { color: var(--nm-error); }
+.nm-jwt-note { padding: 3px 0 1px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; color: var(--nm-faint); }
 
 .nm-stack { margin: 0; padding: 6px 0 0; list-style: none; }
 .nm-stack-frame { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--nm-line-2); font-family: var(--nm-mono); font-size: 11.5px; }
@@ -1145,6 +1165,17 @@ const MISC = `
   transition: filter .14s ease;
 }
 .nm-empty-btn:hover { filter: brightness(1.3); }
+/* One row per setup call — a snippet and its own copy button — so a section
+   offering two (axios and fetch) never makes you guess which one a button
+   copies. */
+.nm-empty-setups { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 100%; }
+.nm-empty-setup { display: flex; align-items: center; gap: 8px; max-width: 100%; }
+.nm-empty-setup .nm-empty-snippet { min-width: 0; }
+.nm-empty-setup .nm-empty-btn { flex: none; }
+.nm-empty-label {
+  flex: none; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 9px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--nm-faint);
+}
 /* Tinted per-section via data-accent, so even an empty list reads as "the
    right kind of empty" rather than a generic placeholder. */
 .nm-empty-copy { display: flex; flex-direction: column; gap: 5px; }
@@ -1239,6 +1270,16 @@ const LAYOUT = `
   background: var(--nm-warning-soft); border: 1px solid var(--nm-warning-line);
 }
 .nm-statusbar-armed:hover { color: var(--nm-error); filter: brightness(1.3); }
+/* Authorization masking is off. Red rather than the database chip's amber:
+   that one means "you may be reading another app's log", this one means "a
+   screenshot of this panel can contain live credentials". */
+.nm-statusbar-unmasked { flex: none; color: var(--nm-error); font-weight: 600; }
+.nm-statusbar-unmasked:hover { color: var(--nm-error); filter: brightness(1.2); }
+.nm-statusbar-unmasked-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase;
+  padding: 1px 4px; border-radius: 4px;
+  background: var(--nm-error-soft); border: 1px solid var(--nm-error-line);
+}
 
 /* ── Command palette ───────────────────────────────────────────────────────
    Everything the panel can do, in one list, reachable from three places that

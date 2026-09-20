@@ -194,8 +194,17 @@ export const ARRAY_CAP = 200;
  * contributes 64 KB and search stays instant. */
 export const SEARCH_INDEX_CAP = 64 * 1024;
 
-/** A pending request stops widening the waterfall window after this long, so a
- * single hung request can't compress every other bar into a sliver. */
+/**
+ * **Currently unused — nothing reads this.** Kept, with this note, so it is not
+ * mistaken for a missed wiring and hooked up to something it was never for.
+ *
+ * It bounded the waterfall column: past this, a pending request stopped
+ * widening the timeline window, so one hung request could not compress every
+ * other bar into a sliver. The waterfall went with the sources-rail redesign
+ * (see `ui/helpers/waterfall.ts`), and the list's duration bar needs no shared
+ * window. It was never a pending-request timeout: nothing settles a request
+ * that never answers, and adding that is a separate design.
+ */
 export const PENDING_WINDOW_CAP_MS = 30_000;
 
 /** `performance.timeOrigin` for this page load. Persisted entries record their

@@ -3,8 +3,8 @@
 /** Dev Tools — the detail pane: request summary plus tabbed payloads. */
 
 import { summarizeInitiator } from "../../capture/monitorInitiator";
-import { MASK_SUFFIX, SENSITIVE_HEADERS } from "../../capture/monitorSerialize";
-import type { MonitorEntry } from "../../capture/networkMonitor";
+import { networkMonitor, type MonitorEntry } from "../../capture/networkMonitor";
+import { HeadersTable } from "./HeadersTable";
 import { useContext, useState, useSyncExternalStore } from "react";
 import { BlixContext } from "../BlixContext";
 import { accentKey } from "../constants/ui";
@@ -87,45 +87,6 @@ const QUERY_TABS: { id: Tab; label: string }[] = [
   { id: "queryState", label: "State" },
   { id: "messages", label: "Timeline" },
 ];
-
-function HeadersTable({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: [string, string][];
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <div className="nm-htable">
-      <div className="nm-htable-title">{title}</div>
-      <dl className="nm-kv">
-        {rows.map(([k, v]) => {
-          // Say it, rather than leaving the reader to infer it from an
-          // ellipsis: a truncated bearer token looks exactly like a bearer
-          // token, and copying one out of here and wondering why it 401s is a
-          // whole afternoon. The suffix stays on the stored value for every
-          // export path that has no room for a tag.
-          const masked = SENSITIVE_HEADERS.has(k.toLowerCase());
-          const value = masked && v.endsWith(MASK_SUFFIX) ? v.slice(0, -MASK_SUFFIX.length) : v;
-          return (
-            <div className="nm-kv-row" key={k}>
-              <dt className="nm-kv-k">{k}</dt>
-              <dd className="nm-kv-v">
-                {value}
-                {masked && (
-                  <span className="nm-tag-masked" title="Masked at capture — never the real value">
-                    MASKED
-                  </span>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </div>
-  );
-}
 
 /** What a slice holds, for the chip's tooltip — a rough sense of its size
  * without having to open it. */
@@ -401,7 +362,9 @@ function summarize(entry: MonitorEntry): string {
         entry.state === "error"
           ? "Failed"
           : entry.state === "aborted"
-            ? "Left pending by a previous page load"
+            ? // Two causes land here — a cancel, and a request a reload cut
+              // off mid-flight — and the entry does not record which.
+              "Aborted — cancelled, or cut off by a page reload"
             : statusText(entry.status) || "OK",
       );
       if (entry.durationMs != null) parts.push(formatDuration(entry.durationMs));
@@ -426,7 +389,10 @@ export function DetailPane({
   nouns,
   format,
   onFormat,
+  authUnmasked,
 }: {
+  /** `Authorization` masking is switched off — see `capture/monitorAuth.ts`. */
+  authUnmasked: boolean;
   resolved: Resolved;
   hidingLabel: string;
   onReveal: () => void;
@@ -801,9 +767,23 @@ export function DetailPane({
                   : []),
               ]}
             />
+            {/* Keyed by entry, so an expanded claims chip does not stay open
+                onto the next request's token. The raw value is read only while
+                masking is off, so masking again hides every full value in the
+                same render — before the effect that discards them has run. */}
             <HeadersTable
+              key={entry.id}
               title="Request Headers"
               rows={Object.entries(entry.requestHeaders ?? {})}
+              authorization={
+                isHttp
+                  ? {
+                      claims: entry.authClaims,
+                      raw: authUnmasked ? networkMonitor.getAuthorization(entry.id) : undefined,
+                      unmasking: authUnmasked,
+                    }
+                  : undefined
+              }
             />
             <HeadersTable
               title="Response Headers"

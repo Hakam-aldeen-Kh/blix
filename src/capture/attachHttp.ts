@@ -12,8 +12,10 @@
  * No-op when `process.env.NODE_ENV !== "development"`.
  */
 
+import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
+import { flattenCapturedHeaders } from "./monitorSerialize";
 import { stampAxiosFetchOptions, stampMonitorId } from "./monitorStamp";
 import type { InitiatorFrame } from "./monitorTypes";
 import {
@@ -136,25 +138,33 @@ export function attachHttpMonitor(
         typeof FormData !== "undefined" && config.data instanceof FormData;
       const requestPayload = serializeBody(config.data);
       const owner = getOwner();
+      // Flattened once and unmasked, so `Authorization` can be read before
+      // `serializeHeaders` masks it for storage.
+      const headers = flattenCapturedHeaders(config.headers);
+      const auth = readAuthorization(headers);
 
-      networkMonitor.start({
-        id,
-        client: "axios",
-        method: (config.method ?? "post").toUpperCase(),
-        url: config.url ?? "",
-        baseURL: config.baseURL,
-        at: Date.now(),
-        startTime: now(),
-        requestPayload,
-        requestHeaders: serializeHeaders(config.headers),
-        sizeBytes: estimateBytes(requestPayload),
-        skipEncryption: config.skipEncryption === true,
-        hadFormData,
-        replayOf: config.__monitorReplayOf,
-        initiator: config.__monitorInitiator,
-        ownerId: owner?.id,
-        initiatorKind: owner?.kind,
-      });
+      networkMonitor.start(
+        {
+          id,
+          client: "axios",
+          method: (config.method ?? "post").toUpperCase(),
+          url: config.url ?? "",
+          baseURL: config.baseURL,
+          at: Date.now(),
+          startTime: now(),
+          requestPayload,
+          requestHeaders: serializeHeaders(headers),
+          sizeBytes: estimateBytes(requestPayload),
+          skipEncryption: config.skipEncryption === true,
+          hadFormData,
+          replayOf: config.__monitorReplayOf,
+          initiator: config.__monitorInitiator,
+          ownerId: owner?.id,
+          initiatorKind: owner?.kind,
+          ...(auth.claims ? { authClaims: auth.claims } : {}),
+        },
+        { authorization: auth.raw },
+      );
       if (owner) networkMonitor.linkChild(owner.id, id);
     } catch {
       /* capture must never break a request */

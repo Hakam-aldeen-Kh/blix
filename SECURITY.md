@@ -23,7 +23,9 @@ realtime frames, in plaintext. `attachFetchMonitor` wraps `globalThis.fetch`,
 so once it is installed that includes every `fetch` the page makes — requests
 from third-party scripts and libraries as well as your own. Header redaction
 covers exactly four names, whichever client made the request, and nothing
-inside a body is redacted at all. This is intended behaviour, not a defect — a
+inside a body is redacted at all. The panel can be set to show `authorization`
+in full on your own screen; that raw value is held in memory only, and exports,
+copied snippets and the saved log still carry the masked one. This is intended behaviour, not a defect — a
 debugger that hid the payload would be useless — but it has a practical
 consequence:
 
