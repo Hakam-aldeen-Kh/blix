@@ -377,4 +377,24 @@ export interface MonitorPrefs {
   railCollapsed: boolean;
   /** Row height preset: compact | normal | comfy. */
   density: string;
+
+  /**
+   * Row columns the developer has switched off, comma-joined.
+   *
+   * A list rather than a set of booleans so a column added later defaults to
+   * visible without a migration: anything not named here is on. A plain
+   * string for the same reason as `theme` — this module stays free of any
+   * dependency on the UI layer, and the panel is what knows the column ids.
+   */
+  hiddenColumns: string;
+
+  /**
+   * The launcher badge's corner radius: sharp | soft | pill.
+   *
+   * The one radius in the panel that is not fixed by the design, because the
+   * launcher is the only surface that sits on the host app's page rather than
+   * inside the panel's own chrome — and what looks right there depends on the
+   * app it is floating over. A plain string, like the three settings above it.
+   */
+  fabRadius: string;
 }

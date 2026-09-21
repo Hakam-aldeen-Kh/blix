@@ -99,8 +99,17 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   // for "what is in here?" — the other formats answer narrower questions.
   dataFormat: "tree",
   section: "network",
-  density: "normal",
+  // The 26px step. The redesign is an argument for density — the mockups are
+  // drawn at 26 and the extra rows are the reason anyone opens a devtool —
+  // and the other two steps are one menu item away for anyone who disagrees.
+  density: "compact",
   railCollapsed: false,
+  // Every column on. What a narrow pane drops is a separate question, and
+  // answered by the layout rather than stored here.
+  hiddenColumns: "",
+  // Matches every other control in the panel. The other two are there for a
+  // host app whose own language is rounder than this one's.
+  fabRadius: "sharp",
 };
 
 export type HydrationState = "idle" | "loading" | "ready";

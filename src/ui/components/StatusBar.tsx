@@ -1,21 +1,53 @@
 "use client";
 
 /**
- * Dev Tools — the bottom status bar.
+ * Dev Tools — the status bar.
  *
- * The per-source totals moved to the rail, which has room to stack them and
- * does not drop them at the first breakpoint. What is left here is the session
- * as a whole plus the two things you *act on* from it: the command palette,
- * and the log sitting in IndexedDB.
+ * All monospace, all tabular, separators a `/`. The per-source totals moved to
+ * the sidebar, which has room to stack them; what is left is the session as a
+ * whole plus the things you *act on* from it.
  *
- * The failure count is a sentence rather than a number — "2 failing on /Auth"
- * says where to look, which is the only reason to put failures in a bar you
- * are not looking at.
+ * The failure count is a sentence and a link — "9 failing on getBacklog" says
+ * where to look, and clicking it applies the filter. A count you cannot act on
+ * is a count you learn to ignore.
  */
 
 import { formatBytes, formatDuration, requestName } from "../helpers/format";
 import type { Counts } from "../hooks/useMonitorList";
 import { Icon } from "./Icon";
+
+/**
+ * One segment of the bar, with the separator that precedes it.
+ *
+ * The separator belongs to the segment rather than standing between two of
+ * them, because the width breakpoints hide segments — and a free-standing
+ * separator has no way to know that what followed it is gone. The bar used to
+ * collapse to a row of orphan slashes.
+ */
+function Seg({
+  className,
+  first,
+  children,
+}: {
+  className?: string;
+  /** No leading separator: it opens its group. */
+  first?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className={`nm-statusbar-seg${className ? ` ${className}` : ""}`}>
+      {!first && (
+        <span className="nm-statusbar-sep" aria-hidden>
+          /
+        </span>
+      )}
+      {/* One wrapper, so the content stays a single flex item. Left bare, each
+          text node became its own item and flex trimmed the spaces between
+          them: "24 of 24 requests" rendered as "24of24requests". */}
+      <span className="nm-statusbar-seg-body">{children}</span>
+    </span>
+  );
+}
 
 export function StatusBar({
   counts,
@@ -26,6 +58,7 @@ export function StatusBar({
   failingHint,
   pinnedCount,
   persistedLabel,
+  persistedCount,
   purgeArmed,
   dbName,
   dbShared,
@@ -52,10 +85,9 @@ export function StatusBar({
   failingHint: string | null;
   pinnedCount: number;
   persistedLabel: string | null;
+  persistedCount: number;
   purgeArmed: boolean;
-  /** Resolved name of the database this panel is using. */
   dbName: string;
-  /** True when no `dbName` was given and this is the origin-wide default. */
   dbShared: boolean;
   onPurge: () => void;
   onShowDatabases: () => void;
@@ -65,106 +97,126 @@ export function StatusBar({
 }) {
   return (
     <div className="nm-statusbar">
-      <span className="nm-statusbar-mono">
-        <b>{shown}</b>
-        {shown !== counts.all && <> of {counts.all}</>} {noun}
-      </span>
-      {/* Second in the bar and never dropped at a breakpoint: of everything
-          about this session, it is the one fact someone about to screenshot
-          the panel needs to see. */}
-      {authUnmasked && (
-        <button
-          className="nm-statusbar-btn nm-statusbar-unmasked"
-          onClick={onMaskAuthorization}
-          title="Authorization values are shown in full for requests captured while this is on. Exports, copied snippets and the saved log still mask them. Click to mask again."
-        >
-          <span className="nm-statusbar-unmasked-tag">unmasked</span>
-          Authorization
-        </button>
-      )}
-      <span className="nm-statusbar-sep nm-status-transferred" />
-      <span className="nm-statusbar-mono nm-status-transferred">
-        <b>{formatBytes(totalBytes)}</b> transferred
-      </span>
-      {slowestMs > 0 && (
-        <>
-          <span className="nm-statusbar-sep nm-status-slowest" />
-          <span className="nm-statusbar-mono nm-status-slowest">
-            slowest <b>{formatDuration(slowestMs)}</b>
-          </span>
-        </>
-      )}
+      {/* Left: what the session is. Ordered by how often it is the reason you
+          looked, which is also the order the breakpoints take them away in —
+          in reverse. */}
+      <div className="nm-statusbar-group">
+        <Seg first>
+          <b>{shown}</b> of <b>{counts.all}</b> {noun}
+        </Seg>
 
-      {counts.error > 0 && (
-        <>
-          <span className="nm-statusbar-sep nm-status-failing" />
-          <button
-            className="nm-statusbar-btn nm-statusbar-err nm-status-failing"
-            onClick={onShowErrors}
-            title="Filter to errors"
-          >
-            <b>{counts.error}</b> failing
-            {failingHint && (
-              <span className="nm-statusbar-mono"> on {requestName(failingHint)}</span>
-            )}
-          </button>
-        </>
-      )}
-      {pinnedCount > 0 && (
-        <button
-          className="nm-statusbar-btn nm-statusbar-pin"
-          onClick={onShowPinned}
-          title="Filter to pinned entries"
-        >
-          <Icon name="pin" size={11} />
-          {pinnedCount} pinned
-        </button>
-      )}
+        <Seg className="nm-status-transferred">
+          <b>{formatBytes(totalBytes)}</b> transferred
+        </Seg>
+
+        {slowestMs > 0 && (
+          <Seg className="nm-status-slowest">
+            slowest <b>{formatDuration(slowestMs)}</b>
+          </Seg>
+        )}
+
+        {counts.error > 0 && (
+          <Seg className="nm-status-failing">
+            <button
+              type="button"
+              className="nm-statusbar-btn nm-statusbar-err"
+              onClick={onShowErrors}
+              title="Filter to errors"
+            >
+              <b>{counts.error}</b> failing
+              {failingHint && <> on {requestName(failingHint)}</>}
+            </button>
+          </Seg>
+        )}
+
+        {/* Never dropped at a breakpoint: of everything about this session it
+            is the one fact someone about to screenshot the panel needs. */}
+        {authUnmasked && (
+          <Seg>
+            <button
+              type="button"
+              className="nm-statusbar-btn nm-statusbar-unmasked"
+              onClick={onMaskAuthorization}
+              title="Authorization values are shown in full for requests captured while this is on. Exports, copied snippets and the saved log still mask them. Click to mask again."
+            >
+              <span className="nm-statusbar-unmasked-tag">unmasked</span>
+              Authorization
+            </button>
+          </Seg>
+        )}
+
+        {pinnedCount > 0 && (
+          <Seg className="nm-status-pinned">
+            <button
+              type="button"
+              className="nm-statusbar-btn nm-statusbar-pin"
+              onClick={onShowPinned}
+              title="Go to the pinned entry"
+            >
+              <Icon name="pin" size={10} />
+              {pinnedCount} pinned
+            </button>
+          </Seg>
+        )}
+      </div>
 
       <span className="nm-statusbar-spacer" />
 
-      <button className="nm-statusbar-btn" onClick={onOpenPalette} title="Command palette">
-        commands <kbd className="nm-kbd">⌘K</kbd>
-      </button>
+      {/* Right: where the session is being kept. This group is the one that
+          shrinks — the database name ellipsises rather than the bar clipping
+          it, because a name cut off mid-word answers nothing. */}
+      <div className="nm-statusbar-group nm-statusbar-right">
+        <Seg first className="nm-status-commands">
+          <button
+            type="button"
+            className="nm-statusbar-btn"
+            onClick={onOpenPalette}
+            title="Command palette"
+          >
+            commands ⌘K
+          </button>
+        </Seg>
 
-      {/* Which database this panel is reading and writing. Ambient rather than
-          conditional: the answer to "why am I seeing another app's requests?"
-          should be on screen before the question gets asked, not only once
-          something has already gone wrong. It turns amber on the shared
-          default, which is the case where the answer is "you are". */}
-      <button
-        className={`nm-statusbar-btn nm-statusbar-db nm-status-db${
-          dbShared ? " nm-statusbar-db-shared" : ""
-        }`}
-        onClick={onShowDatabases}
-        title={
-          dbShared
-            ? `Writing to the shared default "${dbName}" — every app on this origin uses it, so entries from other projects will appear here. Pass dbName to separate them. Click to see every database on this origin.`
-            : `Writing to "${dbName}". Click to see every Blix database on this origin.`
-        }
-      >
-        <Icon name="database" size={11} />
-        {/* The name is the first thing to go when the bar runs out of room —
-            it is the longest part and the icon still opens the screen that
-            spells it out. The `shared` tag outlives it: it is the warning. */}
-        <span className="nm-statusbar-db-name">{dbName}</span>
-        {dbShared && <span className="nm-statusbar-db-tag">shared</span>}
-      </button>
-      {persistedLabel && (
-        <button
-          className={`nm-statusbar-btn nm-statusbar-persisted nm-status-persisted${
-            purgeArmed ? " nm-statusbar-armed" : ""
-          }`}
-          onClick={onPurge}
-          title={
-            purgeArmed
-              ? "Click again to delete the saved log"
-              : "Saved to IndexedDB — click twice to purge"
-          }
-        >
-          {purgeArmed ? "Purge saved log?" : persistedLabel}
-        </button>
-      )}
+        {/* Which database this panel is reading and writing. Ambient rather
+            than conditional: the answer to "why am I seeing another app's
+            requests?" should be on screen before the question gets asked. */}
+        <Seg className="nm-status-db">
+          <button
+            type="button"
+            className={`nm-statusbar-btn nm-statusbar-db${
+              dbShared ? " nm-statusbar-db-shared" : ""
+            }`}
+            onClick={onShowDatabases}
+            title={
+              dbShared
+                ? `Writing to the shared default "${dbName}" — every app on this origin uses it, so entries from other projects will appear here. Pass dbName to separate them. Click to see every database on this origin.`
+                : `Writing to "${dbName}". Click to see every Blix database on this origin.`
+            }
+          >
+            <span className="nm-statusbar-db-name">{dbName}</span>
+            {dbShared && <span className="nm-statusbar-db-tag">shared</span>}
+          </button>
+        </Seg>
+
+        {persistedLabel && (
+          <Seg className="nm-status-persisted">
+            <button
+              type="button"
+              className={`nm-statusbar-btn nm-statusbar-persisted${
+                purgeArmed ? " nm-statusbar-armed" : ""
+              }`}
+              onClick={onPurge}
+              title={
+                purgeArmed
+                  ? "Click again to delete the saved log"
+                  : "Saved to IndexedDB — click twice to purge"
+              }
+            >
+              {purgeArmed ? "Purge saved log?" : `${persistedCount} saved · ${persistedLabel}`}
+            </button>
+          </Seg>
+        )}
+      </div>
     </div>
   );
 }

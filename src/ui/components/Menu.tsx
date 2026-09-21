@@ -23,7 +23,6 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Icon } from "./Icon";
 
 /**
  * Where a menu attaches, as viewport coordinates measured from its trigger.
@@ -57,6 +56,7 @@ export function Menu({
   width,
   label,
   onPointerLeave,
+  onScroll,
   children,
 }: {
   anchor: MenuAnchor;
@@ -66,6 +66,11 @@ export function Menu({
   /** Fires when the pointer leaves the whole menu — used to end a hover
    * preview once, rather than per item. */
   onPointerLeave?: () => void;
+  /** The list moved under the pointer. Menus that preview on hover need to
+   * know the difference between pointing and scrolling — and it has to be both
+   * events: a wheel tick fires before the scroll it causes, but a scrollbar
+   * drag or a keyboard scroll only produces the scroll. */
+  onScroll?: () => void;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -141,6 +146,8 @@ export function Menu({
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerLeave={onPointerLeave}
+      onScroll={onScroll}
+      onWheel={onScroll}
       style={{
         right: anchor.right,
         width,
@@ -163,23 +170,31 @@ export function Menu({
 }
 
 export function MenuItem({
-  icon,
   children,
-  hint,
-  checked,
+  state,
+  on,
+  value,
+  arrow,
   disabled,
-  danger,
   onSelect,
   onPreview,
 }: {
-  icon?: React.ReactNode;
   children: React.ReactNode;
-  /** Short trailing note — a shortcut key, or the setting's current value. */
-  hint?: React.ReactNode;
-  /** Renders as a radio/checkbox rather than a plain command. */
-  checked?: boolean;
+  /**
+   * The right-hand column: a shortcut, a setting's current value, or — on a
+   * disabled row — the *reason* it is disabled. Every row that carries a state
+   * prints it here, which is what makes the menu readable without opening
+   * anything. There is no icon column: in a menu where half the rows carry a
+   * state, a second column of glyphs only competes with the one the eye needs.
+   */
+  state?: React.ReactNode;
+  /** The state is live — an ON that changes what happens to the log. */
+  on?: boolean;
+  /** The state is a setting's value rather than a shortcut. */
+  value?: boolean;
+  /** This row opens something else. */
+  arrow?: boolean;
   disabled?: boolean;
-  danger?: boolean;
   onSelect: () => void;
   /**
    * "You are about to pick this." Fired on hover *and* on keyboard focus, so
@@ -190,24 +205,23 @@ export function MenuItem({
 }) {
   return (
     <button
-      className={`nm-menu-item${danger ? " nm-menu-danger" : ""}${
-        checked ? " nm-menu-on" : ""
-      }`}
-      role={checked === undefined ? "menuitem" : "menuitemradio"}
-      aria-checked={checked}
+      type="button"
+      className="nm-menu-item"
+      role="menuitem"
       disabled={disabled}
       onClick={onSelect}
       onPointerEnter={onPreview}
       onFocus={onPreview}
     >
-      {icon}
-      {children}
-      {hint != null && <span className="nm-menu-hint">{hint}</span>}
-      {checked && (
-        <span className="nm-menu-check">
-          <Icon name="check" size={12} />
+      <span className="nm-menu-label">{children}</span>
+      {state != null && (
+        <span className="nm-menu-state" data-on={on || undefined} data-value={value || undefined}>
+          {state}
         </span>
       )}
+      <span className="nm-menu-arrow" aria-hidden>
+        {arrow ? "›" : ""}
+      </span>
     </button>
   );
 }

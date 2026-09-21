@@ -5,6 +5,77 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-21
+
+The panel, redesigned. One token layer, a row you can tell apart from its
+neighbours, and columns you choose. Nothing about capture, storage or masking
+changes.
+
+### Added
+
+- **A single token layer.** Sizes, type, spacing and radii live in
+  `ui/styles/tokens.ts`; colour is 33 slots per theme in `ui/themes/bx.ts`,
+  authored rather than derived. A dev-time check reports any theme missing a
+  slot, and any theme whose `--bx-fg-2` or `--bx-fg-3` falls under 4.5:1
+  against a ground it actually lands on. It reports; it never corrects — half
+  of these palettes are published and their values are deliberate.
+- **Column control.** Right-click the column head, or **Columns** in the
+  overflow menu. Seven of the eight columns can be switched off and the choice
+  persists; ROUTE cannot, because a row you cannot identify is not a row.
+- **The Redux Diff tab is a unified diff.** Each changed path is a header;
+  both sides are pretty-printed and diffed by line, with unchanged stretches
+  collapsed and a per-path `+n −n`. It replaces one line per path, which was
+  right for a scalar and useless for an object — `{"items":[…]}` on both sides
+  told you nothing. **Copy** now yields a real unified diff.
+- **Launcher corners** — Sharp, Soft or Pill, in the overflow menu. The
+  launcher is the only surface that sits on the host app's page rather than
+  inside the panel's own chrome, which makes it the one radius worth handing
+  over.
+- Clicking the status bar's pinned count **goes to** that entry, switching
+  source if it is in another one, and cycles on repeat clicks.
+
+### Changed
+
+- **The row is nine tracks**: rail, pin, method, route, size, status, time,
+  links, timing. ROUTE renders the whole route with the module dimmed and the
+  identifier bright, so four rows against `getAll` are four different rows
+  rather than one repeated four times. PIN and LINKS hold their width whether
+  or not they have anything to show.
+- **The list is an ARIA grid** with a roving tabindex, not a stack of divs
+  carrying click handlers. Enter activates a row; Space stays with capture.
+- Status codes and methods are monospace text. The coloured pills and badges
+  are gone — here, and in the export menu, the appearance menu and the
+  databases sheet.
+- **Default density is the 26px step.** All three steps remain in the menu.
+- The status bar degrades a segment at a time, each carrying its own
+  separator, so a narrow panel no longer leaves a row of orphan slashes.
+- Timing phases take the data colours rather than the four source-identity
+  ones, and a phase that cost nothing recedes instead of competing.
+- The collapsed sidebar shows sources and counts only. The session stats are
+  hidden rather than shrunk: four numbers with their labels stripped off are
+  four unattributed numbers.
+- Dragging the launcher shows all four corner targets, each one named.
+- The filter field shows `8 of 56` and a clear button in place of removable
+  token chips.
+
+### Fixed
+
+- The shortcuts sheet and the command palette advertised `P`, `R`, `X`, `C`
+  and `U` where the handlers are lower case, so those keys did nothing. Case
+  is load-bearing — `c` copies the response, `⇧C` clears the log — so the
+  documentation now prints what actually fires. The palette also offered `⇧D`
+  for density, which has never had a binding at all.
+- `c` was documented as copying the active format. It has always copied the
+  response as JSON, and now says so.
+- The list/detail split is clamped to what the panel can give it. A stored
+  580px list inside a 580px panel left the detail pane 40px wide.
+- The detail pane's format controls drop to a row of their own below 560px
+  instead of sharing one 27px line with the tabs and squeezing the format
+  labels to nothing.
+- Selecting text in the filter field no longer reads as a second focus ring.
+- The Headers, Connection and Query State tabs render as a key/value grid
+  again rather than one item per line.
+
 ## [0.7.0] - 2026-09-20
 
 The `Authorization` header, inspectable: what a JWT in it claims, and an opt-in

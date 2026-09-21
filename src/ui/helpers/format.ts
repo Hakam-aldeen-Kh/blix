@@ -118,8 +118,12 @@ export function entryStatusLabel(entry: MonitorEntry): string {
       if (entry.state === "error") return "ERR";
       return (entry.query?.status ?? "OK").toUpperCase().slice(0, 4);
     default:
-      if (entry.state === "pending") return "•••";
-      if (entry.state === "aborted") return "⊘";
+      // Words, not glyphs. The column is monospace text now rather than a
+      // pill, and "pending" and "aborted" are states a code cannot express —
+      // the glyphs that used to stand in for them (••• and ⊘) had to be
+      // learned, and one of them read as "disabled".
+      if (entry.state === "pending") return "pending";
+      if (entry.state === "aborted") return "aborted";
       if (entry.status != null) return String(entry.status);
       return entry.state === "error" ? "ERR" : "—";
   }
@@ -134,4 +138,66 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * A route, split where the eye needs it: the module that says *where* and the
+ * identifier that says *what*.
+ *
+ * The list used to show only `requestName`'s last segment, which is why four
+ * rows against `Tickets/getAll`, `Macros/getAll`, `Agents/getAll` and
+ * `Presence/getAll` all read `getAll` and could not be told apart. The head is
+ * what gives way when the column narrows; the tail never truncates, because
+ * the tail is the part you are scanning for.
+ *
+ * The query string travels with the tail — `getAll?status=open` and
+ * `getAll?status=closed` are two different calls, and dropping the difference
+ * would recreate the bug one level down.
+ */
+export function splitRoute(entry: MonitorEntry): { head: string; tail: string } {
+  const raw = entry.url || "";
+  const kind = entry.kind ?? "http";
+
+  // A Redux action type and a serialized query key are already `slice/name`;
+  // they have no query string and must not be path-cleaned.
+  if (kind === "redux" || kind === "query") {
+    const cut = raw.lastIndexOf("/");
+    return cut < 0
+      ? { head: "", tail: raw }
+      : { head: raw.slice(0, cut + 1), tail: raw.slice(cut + 1) };
+  }
+
+  const q = raw.indexOf("?");
+  const path = q < 0 ? raw : raw.slice(0, q);
+  const search = q < 0 ? "" : raw.slice(q);
+  const cut = path.lastIndexOf("/");
+  if (cut < 0) return { head: "", tail: path + search || "—" };
+  return { head: path.slice(0, cut + 1), tail: path.slice(cut + 1) + search };
+}
+
+/**
+ * Which of the four data colours a row paints in.
+ *
+ * Severity, not success: a 404 on an avatar and a 500 on checkout are both
+ * "not 2xx" and are not the same news. `mark` is the deliberate absence — a
+ * 304 and an aborted request are both "nothing happened", which must not read
+ * as either progress or failure.
+ */
+export type Tone = "ok" | "warn" | "err" | "info" | "mark";
+
+export function statusTone(entry: MonitorEntry): Tone {
+  if (entry.state === "aborted") return "mark";
+  if (entry.state === "pending") return "info";
+
+  const status = entry.status;
+  if (status == null) return entry.state === "error" ? "err" : "ok";
+  if (status === 304) return "mark";
+  if (status < 200) return "info"; // 101, and anything else informational
+  if (status < 300) return "ok";
+  if (status < 400) return "info"; // a redirect is in progress, not finished
+  // 401 is the one 4xx that reads as a failure rather than as an outcome: it
+  // stops the app rather than answering it, and a wall of them is the bug.
+  if (status === 401) return "err";
+  if (status < 500) return "warn";
+  return "err";
 }

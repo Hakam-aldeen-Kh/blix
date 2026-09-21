@@ -121,152 +121,145 @@ export function DatabasesSheet({ onClose }: { onClose: () => void }) {
       <div
         className="nm-sheet"
         role="dialog"
+        aria-modal="true"
         aria-label="Databases on this origin"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <button
-          className="nm-pill nm-pill-sq nm-sheet-close"
-          onClick={onClose}
-          title="Close"
-        >
-          <Icon name="close" size={13} />
-        </button>
-        <h3>Databases on this origin</h3>
-
-        <div className="nm-sheet-desc nm-db-intro">
-          IndexedDB belongs to the origin, not to your app. Every app served
-          from this one writes here, and each keeps its own database only if it
-          was given a <code>dbName</code>.
+        <div className="nm-sheet-head">
+          <h3>Databases on this origin</h3>
+          <button type="button" className="nm-sheet-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={13} />
+          </button>
         </div>
 
-        {listing.partial && (
-          <div className="nm-db-warn">
-            This browser does not implement <code>indexedDB.databases()</code>,
-            so this list is built from the databases Blix has opened in it and
-            may be incomplete. Databases written by another browser profile, or
-            before this version, will not appear.
-          </div>
-        )}
+        <div className="nm-db-lead">
+          IndexedDB belongs to the origin, not to your app. Every app served from
+          this one writes here, and each keeps its own database only if it was
+          given a <code>dbName</code>.
+        </div>
 
-        {error && <div className="nm-db-error">{error}</div>}
+        <div className="nm-db-body nm-scroll">
+          {listing.partial && (
+            <div className="nm-db-warn">
+              This browser does not implement <code>indexedDB.databases()</code>, so
+              this list is built from the databases Blix has opened in it and may be
+              incomplete. Databases written by another browser profile, or before
+              this version, will not appear.
+            </div>
+          )}
 
-        {status === "loading" && listing.databases.length === 0 && (
-          <div className="nm-palette-empty">Reading the origin…</div>
-        )}
+          {error && <div className="nm-db-error">{error}</div>}
 
-        {status === "ready" && listing.databases.length === 0 && (
-          <div className="nm-palette-empty">
-            No Blix database on this origin yet — one is created the first time
-            you turn on Preserve log.
-          </div>
-        )}
+          {status === "loading" && listing.databases.length === 0 && (
+            <div className="nm-db-empty">Reading the origin…</div>
+          )}
 
-        <div className="nm-db-list">
-          {listing.databases.map((db) => (
-            <div
-              className={`nm-db-item${opened === db.name ? " nm-db-open" : ""}`}
-              key={db.name}
-            >
-              <div className="nm-db-row">
-                <span className="nm-db-ico">
-                  <Icon name="database" size={14} />
-                </span>
-                <div className="nm-db-main">
-                  <div className="nm-db-name">
-                    {db.name}
-                    {db.active && <span className="nm-db-tag">this panel</span>}
-                    {db.legacy && (
-                      <span className="nm-db-tag nm-db-tag-legacy">legacy</span>
+          {status === "ready" && listing.databases.length === 0 && (
+            <div className="nm-db-empty">
+              No Blix database on this origin yet — one is created the first time
+              you turn on Preserve log.
+            </div>
+          )}
+
+          <div className="nm-db-list">
+            {listing.databases.map((db) => (
+              <div
+                className={`nm-db-item${opened === db.name ? " nm-db-open" : ""}`}
+                key={db.name}
+              >
+                <div className="nm-db-row">
+                  <div className="nm-db-main">
+                    <div className="nm-db-name">{db.name}</div>
+                    <div className="nm-db-note">
+                      {db.bytes === null ? "size unknown" : `~${formatBytes(db.bytes)}`}
+                      {db.active && " · use Purge saved log to clear this one"}
+                      {db.legacy &&
+                        !db.active &&
+                        " · shared by every app here before dbName was prefixed"}
+                    </div>
+                  </div>
+
+                  {/* Where the menus print a state, and for the same reason:
+                      it is a fact about the row, not a thing you press. */}
+                  {db.active && <span className="nm-db-tag">this panel</span>}
+                  {db.legacy && <span className="nm-db-tag nm-db-tag-legacy">legacy</span>}
+
+                  <button
+                    type="button"
+                    className="nm-db-btn"
+                    onClick={() => togglePeek(db)}
+                    aria-expanded={opened === db.name}
+                    title={
+                      opened === db.name
+                        ? "Hide the recent entries"
+                        : `Show the newest entries in ${db.name}`
+                    }
+                  >
+                    {opened === db.name ? "Hide" : "Peek"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`nm-db-btn nm-db-del${armed === db.name ? " nm-db-armed" : ""}`}
+                    disabled={db.active || busy !== null}
+                    onClick={() => remove(db)}
+                    title={
+                      db.active
+                        ? "The database this panel is using cannot be deleted from here — it is open. Use Purge saved log."
+                        : `Delete ${db.name}`
+                    }
+                  >
+                    {busy === db.name
+                      ? "Deleting…"
+                      : armed === db.name
+                        ? "Delete?"
+                        : "Delete"}
+                  </button>
+                </div>
+
+                {opened === db.name && (
+                  <div className="nm-db-peek">
+                    {peek?.state === "loading" && (
+                      <div className="nm-db-peek-msg">Reading…</div>
+                    )}
+                    {peek?.state === "ready" && peek.entries.length === 0 && (
+                      <div className="nm-db-peek-msg">
+                        No entries saved in this database — Preserve log was most
+                        likely never switched on for it.
+                      </div>
+                    )}
+                    {peek?.state === "ready" && peek.entries.length > 0 && (
+                      <>
+                        {peek.entries.map((entry) => (
+                          <div className="nm-db-peek-row" key={entry.id}>
+                            <span
+                              className="nm-db-peek-dot"
+                              data-src={SECTION_OF[entry.kind] ?? "network"}
+                            />
+                            <span className="nm-db-peek-when">{clock(entry.at)}</span>
+                            <span className="nm-db-peek-method">{entry.method}</span>
+                            <span className="nm-db-peek-url" title={entry.url}>
+                              {shortUrl(entry.url)}
+                            </span>
+                            <span
+                              className={`nm-db-peek-status${
+                                entry.state === "error" ? " nm-db-peek-bad" : ""
+                              }`}
+                            >
+                              {entry.status ?? entry.state}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="nm-db-peek-msg">
+                          Newest {peek.entries.length}, read once — a snapshot, not a
+                          live view. Open the panel in that project for the full log.
+                        </div>
+                      </>
                     )}
                   </div>
-                  <div className="nm-db-note">
-                    {db.bytes === null
-                      ? "size unknown"
-                      : `~${formatBytes(db.bytes)}`}
-                    {db.active && " · use Purge saved log to clear this one"}
-                    {db.legacy &&
-                      !db.active &&
-                      " · shared by every app here before dbName was prefixed"}
-                  </div>
-                </div>
-                <button
-                  className="nm-pill"
-                  onClick={() => togglePeek(db)}
-                  aria-expanded={opened === db.name}
-                  title={
-                    opened === db.name
-                      ? "Hide the recent entries"
-                      : `Show the newest entries in ${db.name}`
-                  }
-                >
-                  {opened === db.name ? "Hide" : "Peek"}
-                </button>
-                <button
-                  className={`nm-pill${armed === db.name ? " nm-db-armed" : ""}`}
-                  disabled={db.active || busy !== null}
-                  onClick={() => remove(db)}
-                  title={
-                    db.active
-                      ? "The database this panel is using cannot be deleted from here — it is open. Use Purge saved log."
-                      : `Delete ${db.name}`
-                  }
-                >
-                  {busy === db.name
-                    ? "Deleting…"
-                    : armed === db.name
-                      ? "Delete?"
-                      : "Delete"}
-                </button>
+                )}
               </div>
-
-              {opened === db.name && (
-                <div className="nm-db-peek">
-                  {peek?.state === "loading" && (
-                    <div className="nm-db-peek-msg">Reading…</div>
-                  )}
-                  {peek?.state === "ready" && peek.entries.length === 0 && (
-                    <div className="nm-db-peek-msg">
-                      No entries saved in this database — Preserve log was most
-                      likely never switched on for it.
-                    </div>
-                  )}
-                  {peek?.state === "ready" && peek.entries.length > 0 && (
-                    <>
-                      {peek.entries.map((entry) => (
-                        <div className="nm-db-peek-row" key={entry.id}>
-                          <span
-                            className="nm-db-peek-dot"
-                            data-accent={SECTION_OF[entry.kind] ?? "network"}
-                          />
-                          <span className="nm-db-peek-when">
-                            {clock(entry.at)}
-                          </span>
-                          <span className="nm-db-peek-method">
-                            {entry.method}
-                          </span>
-                          <span className="nm-db-peek-url" title={entry.url}>
-                            {shortUrl(entry.url)}
-                          </span>
-                          <span
-                            className={`nm-db-peek-status${
-                              entry.state === "error" ? " nm-db-peek-bad" : ""
-                            }`}
-                          >
-                            {entry.status ?? entry.state}
-                          </span>
-                        </div>
-                      ))}
-                      <div className="nm-db-peek-msg">
-                        Newest {peek.entries.length}, read once — a snapshot,
-                        not a live view. Open the panel in that project for the
-                        full log.
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </>

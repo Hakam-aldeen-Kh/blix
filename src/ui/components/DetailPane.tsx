@@ -5,7 +5,7 @@
 import { summarizeInitiator } from "../../capture/monitorInitiator";
 import { networkMonitor, type MonitorEntry } from "../../capture/networkMonitor";
 import { HeadersTable } from "./HeadersTable";
-import { useContext, useState, useSyncExternalStore } from "react";
+import { useContext, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BlixContext } from "../BlixContext";
 import { accentKey } from "../constants/ui";
 import {
@@ -14,9 +14,12 @@ import {
   entryStatusLabel,
   formatBytes,
   formatDuration,
+  splitRoute,
   statusText,
+  statusTone,
 } from "../helpers/format";
 import { linkLabel, sectionOf } from "../helpers/entryLinks";
+import { useMeasuredSize } from "../hooks/useMeasuredSize";
 import { canActOnQuery, invalidateQuery } from "../services/queryActions";
 import { canRedispatch, redispatchAction } from "../services/reduxActions";
 import { canReplay, replayEntry } from "../services/replayRequest";
@@ -332,47 +335,57 @@ function EmptyDetail({
  * into one truncating line — so the action buttons beside it sit at the same
  * x for every entry, instead of sliding as the metadata changes shape.
  */
-function summarize(entry: MonitorEntry): string {
+/**
+ * The reason phrase — the words beside the status code. Only HTTP has one;
+ * the other three sources fill the slot with the nearest thing they have,
+ * rather than the blank that reads as "unknown".
+ */
+function reasonOf(entry: MonitorEntry): string {
+  switch (entry.kind ?? "http") {
+    case "ws":
+      return entry.state === "pending" ? "Open" : "Closed";
+    case "redux":
+      return entry.redux?.diff?.slices.join(", ") ?? "";
+    case "query": {
+      const q = entry.query;
+      if (!q) return "";
+      return q.sub === "mutation" ? "Mutation" : "Query";
+    }
+    default:
+      if (entry.state === "error") return "Failed";
+      if (entry.state === "aborted") return "Cancelled, or cut off by a page reload";
+      return statusText(entry.status) || "OK";
+  }
+}
+
+/**
+ * The measurements, pushed to the right of the status line. Each one is its
+ * own element so they keep their own spacing rather than being glued into a
+ * single string with separators in it.
+ */
+function metaOf(entry: MonitorEntry): string[] {
   const parts: string[] = [];
   switch (entry.kind ?? "http") {
     case "ws":
-      parts.push(entry.state === "pending" ? "Open" : "Closed");
       parts.push(`${entry.frames?.length ?? 0} frames`);
       break;
-    case "redux": {
-      const diff = entry.redux?.diff;
-      if (diff?.slices.length) parts.push(diff.slices.join(", "));
+    case "redux":
       if (entry.redux?.reducerMs != null) {
         parts.push(`reducer ${formatDuration(entry.redux.reducerMs)}`);
       }
-      if (diff?.truncated) parts.push("diff truncated");
       break;
-    }
-    case "query": {
-      const q = entry.query;
-      parts.push(q?.sub === "mutation" ? "Mutation" : "Query");
-      if (q?.status) parts.push(q.status);
-      if (q?.fetchStatus && q.fetchStatus !== "idle") parts.push(q.fetchStatus);
-      if (q) parts.push(`${q.observers} ${q.observers === 1 ? "observer" : "observers"}`);
-      if (q?.gcRemoved) parts.push("removed from cache");
+    case "query":
+      if (entry.query) {
+        parts.push(`${entry.query.observers} ${entry.query.observers === 1 ? "observer" : "observers"}`);
+      }
       break;
-    }
     default:
-      parts.push(
-        entry.state === "error"
-          ? "Failed"
-          : entry.state === "aborted"
-            ? // Two causes land here — a cancel, and a request a reload cut
-              // off mid-flight — and the entry does not record which.
-              "Aborted — cancelled, or cut off by a page reload"
-            : statusText(entry.status) || "OK",
-      );
       if (entry.durationMs != null) parts.push(formatDuration(entry.durationMs));
       if (entry.sizeBytes != null) parts.push(formatBytes(entry.sizeBytes));
   }
   parts.push(clock(entry.at));
   if (entry.replayCount) parts.push(`replayed ${entry.replayCount}×`);
-  return parts.filter(Boolean).join(" · ");
+  return parts.filter(Boolean);
 }
 
 export function DetailPane({
@@ -426,6 +439,26 @@ export function DetailPane({
   // below it; see `PayloadToolbarSlot`. State rather than a ref, because the
   // consumers only learn the node exists when a render tells them so.
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
+  /**
+   * A callback ref rather than a plain one: this component has three return
+   * branches, and the one that owns the tab row only mounts once an entry is
+   * selected - after the measuring effect has already run and found nothing.
+   * Re-identifying the ref object when the node changes is what makes the
+   * observer attach to the element that actually exists.
+   */
+  const [paneEl, setPaneEl] = useState<HTMLDivElement | null>(null);
+  const paneRef = useMemo(() => ({ current: paneEl }), [paneEl]);
+  const paneSize = useMeasuredSize(paneRef);
+  /**
+   * Whether the format controls share the tab row.
+   *
+   * Sharing it is right when there is room: two stacked bars squeezed the size
+   * readout into a column narrow enough to wrap across three lines. But a
+   * narrow pane cannot hold five tabs, five formats, a size, Wrap and Copy on
+   * one 27px line, and the tabs scroll while the tools cannot - so below this
+   * the tools take a row of their own rather than a sliver of that one.
+   */
+  const sharesTabRow = paneSize.width === 0 || paneSize.width >= 560;
   const { store, apiClient } = useContext(BlixContext);
   const entry = resolved.entry;
 
@@ -558,7 +591,7 @@ export function DetailPane({
   const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
 
   return (
-    <div className="nm-detail">
+    <div className="nm-detail" data-tone={statusTone(entry)} ref={setPaneEl}>
       {/* The selection has left the current filter. Keep showing it — hiding it
           would make the user's context vanish for a reason they didn't cause —
           but say so, and offer to clear only the filter responsible. */}
@@ -576,16 +609,38 @@ export function DetailPane({
 
       <div className="nm-detail-head">
         <div className="nm-detail-id">
-          <span className="nm-method" data-accent={accentKey(entry.kind, entry.method)}>
-            {entry.transport ?? entry.method}
-          </span>
-          <span className="nm-detail-status" data-state={entry.state}>
-            {entryStatusLabel(entry)}
-          </span>
-          <span className="nm-detail-summary">{summarize(entry)}</span>
+          <span className="nm-detail-status">{entryStatusLabel(entry)}</span>
+          <span className="nm-detail-method">{entry.transport ?? entry.method}</span>
+          <span className="nm-detail-reason">{reasonOf(entry)}</span>
+          <span className="nm-detail-gap" />
+          {metaOf(entry).map((part) => (
+            <span className="nm-detail-meta" key={part}>
+              {part}
+            </span>
+          ))}
+        </div>
 
+        {/* The whole route, module dimmed — the same split the row uses, so
+            the pane and the row it came from read as the same thing. */}
+        <div className="nm-detail-url" title={`${entry.baseURL ?? ""}${entry.url}`}>
+          <span className="nm-detail-url-head">
+            {entry.baseURL ?? ""}
+            {splitRoute(entry).head}
+          </span>
+          {splitRoute(entry).tail}
+        </div>
+
+        {/* Why the primary action is disabled, as text. A disabled button does
+            not reliably show its tooltip, so the reason was invisible exactly
+            when it mattered. */}
+        {primary && !primary.can && primary.reason && (
+          <div className="nm-detail-note">{primary.reason}</div>
+        )}
+
+        <div className="nm-detail-actions">
           {primary && (
             <button
+              type="button"
               className={`nm-dbtn nm-dbtn-primary${armed ? " nm-dbtn-on" : ""}`}
               onClick={runPrimary}
               disabled={!primary.can}
@@ -596,11 +651,12 @@ export function DetailPane({
                   : `${primary.label} (Shift+R)`)
               }
             >
-              <Icon name="replay" size={12} />
+              <Icon name="replay" size={11} />
               {armed ? "Run write?" : primary.label}
             </button>
           )}
           <button
+            type="button"
             className={`nm-dbtn${entry.pinned ? " nm-dbtn-on" : ""}`}
             onClick={() => onTogglePin(entry.id)}
             title={
@@ -609,35 +665,27 @@ export function DetailPane({
                 : "Pin — keeps this entry through Clear and buffer eviction"
             }
           >
-            <Icon name="pin" size={12} />
+            <Icon name="pin" size={11} />
             {entry.pinned ? "Pinned" : "Pin"}
           </button>
           {isHttp && (
-            <button className="nm-dbtn nm-dbtn-mono" onClick={copyCurl} title="Copy as cURL">
-              <Icon name="terminal" size={12} />
+            <button type="button" className="nm-dbtn" onClick={copyCurl} title="Copy as cURL">
+              <Icon name="terminal" size={11} />
               {curlCopied ? "Copied" : "cURL"}
             </button>
           )}
+          <span className="nm-dbtn-gap" />
           <button
+            type="button"
             className="nm-dbtn nm-dbtn-sq"
             onClick={(e) => onMoreMenu(e, entry)}
-            aria-label="More actions for this entry"
+            aria-label="More actions for this request"
             aria-haspopup="menu"
             title="More actions"
           >
             <Icon name="more" size={12} />
           </button>
         </div>
-        <div className="nm-detail-url" title={`${entry.baseURL ?? ""}${entry.url}`}>
-          {entry.baseURL ?? ""}
-          {entry.url}
-        </div>
-        {/* Why the primary action is disabled, as text. The button's `title`
-            is not enough on its own: a disabled button does not reliably show
-            its tooltip, so the reason was invisible exactly when it mattered. */}
-        {primary && !primary.can && primary.reason && (
-          <div className="nm-detail-reason">{primary.reason}</div>
-        )}
       </div>
 
       {/* Keyed by kind as well as tab: switching from a Redux action to an
@@ -664,10 +712,10 @@ export function DetailPane({
         {/* Filled by whichever payload viewer is mounted below — see
             `PayloadToolbarSlot`. Empty for Headers, Timing and Initiator, and
             the row then holds nothing but tabs. */}
-        <div ref={setToolbarSlot} style={{ display: "contents" }} />
+        {sharesTabRow && <div ref={setToolbarSlot} style={{ display: "contents" }} />}
       </div>
 
-      <PayloadToolbarSlot.Provider value={toolbarSlot}>
+      <PayloadToolbarSlot.Provider value={sharesTabRow ? toolbarSlot : null}>
       <div className="nm-tab-body">
         {activeTab === "timing" && (
           <TimingTab
@@ -701,6 +749,7 @@ export function DetailPane({
             value={entry.responsePayload ?? entry.error}
             query={query}
             entryId={`${entry.id}:preview`}
+            sizeBytes={entry.sizeBytes}
             format={format}
             onFormat={onFormat}
           />
@@ -858,6 +907,14 @@ export function DetailPane({
           </ScrollStrip>
         </div>
       )}
+
+      {/* The two things a reader does next, where they will look for them.
+          Not a second bar and not a second readout: the format controls, the
+          parsed size and the masked count all stay in the tab row. */}
+      <div className="nm-detail-foot">
+        <span>alt-click to fold</span>
+        <span>↑ ↓ to move</span>
+      </div>
     </div>
   );
 }

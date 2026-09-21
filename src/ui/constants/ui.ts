@@ -26,13 +26,26 @@ export const DENSITY_ROW_H: Record<Density, number> = {
   comfy: 36,
 };
 
-/** Default row height; used where density isn't threaded through. */
-export const ROW_H = DENSITY_ROW_H.normal;
+/**
+ * Default row height; used where density isn't threaded through.
+ *
+ * This is the one size the token layer does not own, and deliberately: row
+ * height is a *setting*. The panel writes the active step onto the root
+ * element as `--bx-row`, so CSS and the virtualizer read one number and there
+ * is no second copy in `tokens.ts` to drift from this one.
+ */
+export const ROW_H = DENSITY_ROW_H.compact;
 export const OVERSCAN = 8;
 
-/** Sources rail, expanded and icons-only. */
-export const RAIL_W = 178;
-export const RAIL_W_MINI = 52;
+/**
+ * Sources sidebar, expanded and icons-only.
+ *
+ * These mirror `--bx-w-side` and `--bx-w-side-collapsed`. The numbers live
+ * here as well because the sidebar is laid out with an inline width — a flex
+ * child's basis is set in JS, where CSS cannot reach it.
+ */
+export const RAIL_W = 180;
+export const RAIL_W_MINI = 34;
 
 export const MIN_W = 440;
 export const MIN_H = 340;
@@ -143,3 +156,62 @@ export const MAX_SEARCH_NODES = 20_000;
  * cap is only set entries, but still bounded — the click must not walk an
  * unbounded response. */
 export const DEEP_EXPAND_NODES = 20_000;
+
+/* ── Row columns ───────────────────────────────────────────────────────── */
+
+/**
+ * The columns a developer can switch off, in row order.
+ *
+ * ROUTE is absent on purpose: it is the one column that says *which* entry a
+ * row is, and a list of rows you cannot identify is not a list. Everything
+ * else is optional — which is the point, because what matters differs by what
+ * you are chasing. Hunting a payload size and hunting a 500 want different
+ * tables.
+ *
+ * The ids double as the `data-col` attribute on both the cell and its header,
+ * so hiding one is a single rule rather than a pair that can disagree.
+ */
+export const TOGGLEABLE_COLUMNS: { id: ColumnId; label: string }[] = [
+  { id: "pin", label: "Pin" },
+  { id: "method", label: "Method" },
+  { id: "size", label: "Size" },
+  { id: "status", label: "Status" },
+  { id: "time", label: "Time" },
+  { id: "links", label: "Linked" },
+  { id: "timing", label: "Timing" },
+];
+
+export type ColumnId = "pin" | "method" | "size" | "status" | "time" | "links" | "timing";
+
+/** Parses the stored comma-joined list. Unknown ids are dropped rather than
+ * kept, so a column removed in a later version cannot haunt the prefs. */
+export function parseHiddenColumns(stored: string): Set<ColumnId> {
+  const known = new Set(TOGGLEABLE_COLUMNS.map((c) => c.id as string));
+  return new Set(
+    stored
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => known.has(s)) as ColumnId[],
+  );
+}
+
+/* ── The launcher's corners ────────────────────────────────────────────── */
+
+export type FabRadius = "sharp" | "soft" | "pill";
+
+/**
+ * The three steps, as CSS values.
+ *
+ * Two of them name tokens rather than numbers, because they are the radii the
+ * rest of the panel already uses; only `pill` is a value of its own, and it
+ * is a shape rather than a size — half the height, whatever the height is.
+ */
+export const FAB_RADIUS: Record<FabRadius, { label: string; css: string }> = {
+  sharp: { label: "Sharp", css: "var(--bx-r-ctl)" },
+  soft: { label: "Soft", css: "var(--bx-r-modal)" },
+  pill: { label: "Pill", css: "999px" },
+};
+
+export function normalizeFabRadius(value: unknown): FabRadius {
+  return value === "soft" || value === "pill" ? value : "sharp";
+}

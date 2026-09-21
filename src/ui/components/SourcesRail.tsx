@@ -1,29 +1,25 @@
 "use client";
 
 /**
- * Dev Tools — the sources rail.
+ * Dev Tools — the sources sidebar.
  *
- * Four sources, four different tables. They were four tabs in the toolbar,
- * which said "four views of one thing" and fought the filter field for width
- * on every dock; as a rail they read as what they are — navigation — and the
- * header gets its width back.
+ * Four sources, four different tables. As tabs in the header they said "four
+ * views of one thing" and fought the filter for width on every dock; as a
+ * column they read as what they are — navigation.
  *
- * The rail also carries the session totals. Those were in the status bar,
- * where they were the first things the width breakpoints dropped and the last
- * place anyone looked; stacked here they are legible at a glance and survive
- * a narrow panel, because a rail loses width far more slowly than a bar does.
+ * The sidebar also carries the session totals. Those were in the status bar,
+ * where the width breakpoints dropped them first and nobody looked.
  *
- * At 52px it keeps only the icons. That is not a degraded state: each source
- * has its own mark, tinted with the same identity colour the rows, the tab
- * underline and the link ticks use — so "which world am I in" reads from the
- * shape even before the colour, which four dots could never do.
+ * Each source row ends with **its own number key**, right-aligned. The
+ * shortcut is taught where it is used, not in a sheet you have to know to
+ * open.
  */
 
 import { formatBytes, formatDuration } from "../helpers/format";
 import type { Section } from "../types/monitorUi";
 import { Icon, type IconName } from "./Icon";
 
-/** Top-level sources, in display/hotkey order. */
+/** Top-level sources, in display and hotkey order. */
 export const SECTION_DEFS: {
   id: Section;
   label: string;
@@ -50,7 +46,6 @@ export function SourcesRail({
   mini,
   section,
   counts,
-  live,
   stats,
   onSection,
   onToggle,
@@ -62,19 +57,24 @@ export function SourcesRail({
   mini: boolean;
   section: Section;
   counts: Record<Section, number>;
-  live: Partial<Record<Section, boolean>>;
   stats: SessionStats;
   onSection: (section: Section) => void;
   onToggle: () => void;
   onOpenPalette: () => void;
 }) {
+  /** label, value, tone. Slowest is always warm; Failing only once it is not
+   * zero; On disk goes quiet at zero, because "0 B saved" is not news. */
   const rows: [string, string, string][] = [
     ["Captured", String(stats.captured), ""],
     ["Transferred", formatBytes(stats.transferred), ""],
-    ["Slowest", stats.slowestMs > 0 ? formatDuration(stats.slowestMs) : "—", stats.slowestMs > 0 ? "nm-hot" : ""],
-    ["Failing", String(stats.failing), stats.failing > 0 ? "nm-bad" : ""],
+    ["Slowest", stats.slowestMs > 0 ? formatDuration(stats.slowestMs) : "—", stats.slowestMs > 0 ? "nm-hot" : "nm-zero"],
+    ["Failing", String(stats.failing), stats.failing > 0 ? "nm-bad" : "nm-zero"],
     ...(stats.persistedLabel
-      ? ([["On disk", stats.persistedLabel, ""]] as [string, string, string][])
+      ? ([["On disk", stats.persistedLabel, stats.persistedLabel === "0 B" ? "nm-zero" : ""]] as [
+          string,
+          string,
+          string,
+        ][])
       : []),
   ];
 
@@ -87,13 +87,14 @@ export function SourcesRail({
       <div className="nm-rail-head">
         <span className="nm-rail-label">SOURCES</span>
         <button
+          type="button"
           className="nm-rail-collapse"
           onClick={onToggle}
-          aria-label={mini ? "Expand the sources rail" : "Collapse the sources rail"}
+          aria-label={mini ? "Expand the sidebar" : "Collapse the sidebar"}
           aria-expanded={!mini}
           title={mini ? "Expand" : "Collapse"}
         >
-          <Icon name="chevron" size={12} />
+          <Icon name="chevron" size={10} />
         </button>
       </div>
 
@@ -103,29 +104,21 @@ export function SourcesRail({
           const active = section === s.id;
           return (
             <button
+              type="button"
               key={s.id}
               role="tab"
               aria-selected={active}
-              data-accent={s.id}
+              data-src={s.id}
               className={`nm-rail-item${active ? " active" : ""}${empty ? " nm-rail-empty" : ""}`}
               onClick={() => onSection(s.id)}
               title={`${s.title} — ${counts[s.id]}`}
             >
-              {/* Icon rather than a plain dot: collapsed to 52px the label is
-                  gone and colour alone is a legend you have to have learned.
-                  The icon still carries the source's identity colour, so the
-                  two readings reinforce each other instead of competing. */}
               <span className="nm-rail-ico">
-                <Icon name={s.icon} size={14} />
-                {/* An open socket or an in-flight fetch on a source you are
-                    not reading. Anchored to the icon rather than the row, so
-                    it stays put when the rail collapses and the row centres.
-                    Only realtime and query can be live; a Redux row is born
-                    terminal. */}
-                {live[s.id] && !active && <span className="nm-rail-live" />}
+                <Icon name={s.icon} size={12} />
               </span>
               <span className="nm-rail-name">{s.label}</span>
               <span className="nm-rail-n">{counts[s.id]}</span>
+              <span className="nm-rail-key">{s.hotkey}</span>
             </button>
           );
         })}
@@ -143,10 +136,27 @@ export function SourcesRail({
 
       <div className="nm-rail-spacer" />
 
-      <button className="nm-rail-cmd" onClick={onOpenPalette} title="Command palette">
-        <span>All commands</span>
-        <kbd className="nm-kbd">⌘K</kbd>
-      </button>
+      {/* Collapsed, the label and the shortcut both go — so the button needs a
+          glyph, or the foot of the sidebar is an empty rectangle. An icon
+          either replaces the label or is not there; here it replaces it. */}
+      <div className="nm-rail-cmdwrap">
+        <button
+          type="button"
+          className="nm-rail-cmd"
+          onClick={onOpenPalette}
+          aria-label="All commands"
+          title="All commands (⌘K)"
+        >
+          {mini ? (
+            <Icon name="search" size={12} />
+          ) : (
+            <>
+              <span>All commands</span>
+              <span className="nm-rail-key">⌘K</span>
+            </>
+          )}
+        </button>
+      </div>
     </nav>
   );
 }

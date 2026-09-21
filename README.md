@@ -786,16 +786,17 @@ The panel is one header, one rail and two panes.
 Query. They are not filters over one table: each has its own columns and its
 own notion of a row, so switching source switches the whole view. `1`–`4` jump
 between them, and each keeps its own selection, so stepping to Redux and back
-returns you to the request you were reading. Below the sources it carries the
-session totals, and it collapses to icons — click the chevron, or let a narrow
-dock do it for you.
+returns you to the request you were reading. Each row ends with its own number
+key, because a shortcut is best taught where it is used. Below the sources it
+carries the session totals; collapsed, it keeps the sources and their counts
+and drops the totals, since four numbers without their labels are four
+unattributed numbers.
 
 **The header is the session**, not the entry: whether capture is running, what
-is being filtered out, and where the panel lives. Filter tokens you have
-already applied become chips *inside* the filter field, each removable on its
-own, so `method:post status:5xx` is two things you can undo separately rather
-than one string to re-edit. `.*` widens the search to request and response
-bodies.
+is being filtered out, and where the panel lives. While a filter is on, the
+field carries its own count — `8 of 56` — and a clear button, so you never
+have to read the status bar to know one is applied. `.*` widens the search to
+request and response bodies.
 
 **`Ctrl/⌘ K` opens the command palette**, and for several things it is the only
 way in — sort order, row density, dock position, the copy formats, the filter
@@ -803,6 +804,13 @@ syntax. The header spends its width on what you read constantly; everything you
 reach for occasionally lives one keystroke away instead of costing a button
 each. Every row shows its key binding where it has one, so the palette teaches
 its own shortcuts. `?` still opens the full cheatsheet.
+
+**The columns are yours.** Right-click the column head — or open **Columns** in
+the overflow menu — and switch off any of Pin, Method, Size, Status, Time,
+Linked and Timing. The choice persists. ROUTE has no switch: it is the column
+that says *which* entry a row is, and a list of rows you cannot identify is not
+a list. A narrow pane drops columns on its own, worst-affordable first, so the
+route keeps the width it needs.
 
 **Linked events tie the sources together.** When Blix can see that a query
 caused a request, that a request came from a query, or that one entry is a
@@ -895,14 +903,18 @@ panel's other preferences and survives a reload.
 The panel never inherits your app's styling — it portals outside every stacking
 context and ships its own palettes, so nothing you do to your own theme can
 distort it. Themes are complete rather than partial: every colour the panel
-paints, down to the JSON syntax highlighting and the duration bars, comes from
-the active theme. Each palette is checked against WCAG contrast targets — 4.5:1
-for anything read as text, 3:1 for badges and quiet chrome — which is why a few
-of the ported palettes differ by a shade from the originals in the slots used
-for dense monospace.
+paints, down to the JSON syntax highlighting and the timing bars, comes from
+the active theme. The two tones that carry text are held to 4.5:1 against every
+ground they land on, which is why a few of the ported palettes differ by a
+shade from the originals in the slots used for dense monospace. One tone is
+deliberately below it and may never hold text: it is for separators, payload
+punctuation and disabled glyphs.
 
-There is no API for adding your own; a theme is ~20 colours in
-`src/ui/themes/themes.ts` if you are working from source.
+There is no API for adding your own; a theme is 33 colour slots in
+`src/ui/themes/bx.ts` if you are working from source. Every theme fills the
+same set — a theme that cannot is reported in the console during development,
+along with any whose text tones fall under 4.5:1 on a ground they actually
+land on.
 
 ### `dbName` — when you need it
 
