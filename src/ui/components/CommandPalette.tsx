@@ -20,7 +20,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Section } from "../types/monitorUi";
 import { Icon } from "./Icon";
 
 export interface Command {
@@ -30,8 +29,14 @@ export interface Command {
   note?: string;
   /** Key binding, where the command has one. */
   key?: string;
-  /** Colours the row's dot with a source identity. */
-  accent?: Section | "danger" | "warn";
+  /** A count printed beside the hint — how many entries a source holds. */
+  count?: string;
+  /**
+   * The command destroys something. The palette used to carry a dot per row in
+   * a source colour; twelve of those read as a legend you have to have
+   * learned, and the one row worth colouring is the one that cannot be undone.
+   */
+  danger?: boolean;
   disabled?: boolean;
   run: () => void;
 }
@@ -148,7 +153,7 @@ export function CommandPalette({
           placeholder="Type a command…"
           spellCheck={false}
         />
-        <kbd className="nm-kbd">esc</kbd>
+        <span className="nm-palette-esc">esc</span>
       </div>
 
       <div className="nm-palette-list nm-scroll" ref={listRef}>
@@ -157,7 +162,9 @@ export function CommandPalette({
         )}
         {visible.map((group) => (
           <div key={group.name}>
-            <div className="nm-palette-group">{group.name}</div>
+            <div className="nm-palette-group">
+              <span>{group.name}</span>
+            </div>
             {group.items.map((command) => {
               // Bound per iteration, not read from the outer `let` at event
               // time — every row's handler would otherwise see the index of
@@ -167,8 +174,9 @@ export function CommandPalette({
               return (
                 <button
                   key={command.id}
+                  type="button"
                   className={`nm-palette-item${on ? " active" : ""}`}
-                  data-accent={command.accent}
+                  data-danger={command.danger || undefined}
                   disabled={command.disabled}
                   onClick={() => run(command)}
                   // Pointer, not click: the highlight should follow the mouse
@@ -177,10 +185,11 @@ export function CommandPalette({
                     if (at >= 0 && at !== active) setActive(at);
                   }}
                 >
-                  <span className="nm-palette-dot" />
                   <span className="nm-palette-label">{command.label}</span>
+                  <span className="nm-palette-gap" />
                   {command.note && <span className="nm-palette-note">{command.note}</span>}
-                  {command.key && <kbd className="nm-palette-key">{command.key}</kbd>}
+                  {command.count && <span className="nm-palette-count">{command.count}</span>}
+                  {command.key && <span className="nm-palette-key">{command.key}</span>}
                 </button>
               );
             })}

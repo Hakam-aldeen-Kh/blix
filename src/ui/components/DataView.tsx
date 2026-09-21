@@ -27,6 +27,7 @@
  * formats worth having at the payload level rather than only at export time.
  */
 
+import { MASK_SUFFIX } from "../../capture/monitorSerialize";
 import { createContext, useContext, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { copyText, formatBytes } from "../helpers/format";
@@ -132,6 +133,7 @@ export function DataView({
   format: requested,
   onFormat,
   extraFormat,
+  sizeBytes,
   children,
 }: {
   value: unknown;
@@ -142,6 +144,10 @@ export function DataView({
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
   extraFormat?: ExtraFormat;
+  /** The entry's captured size, for the formats that never build a flat
+   * string. Tree and Table render from the parsed value, so stringifying one
+   * just to measure it would put a full JSON.stringify in every render. */
+  sizeBytes?: number;
   /** A pane's own navigation, rendered as its own bar above the format
    * toolbar — the Redux State tab's slice picker. Kept separate because
    * "which part of the store am I looking at" and "how is it rendered" are
@@ -260,6 +266,27 @@ export function DataView({
     });
   };
 
+  /**
+   * How many values on screen are not the values that were sent.
+   *
+   * The panel masks sensitive strings before they are ever stored, so a
+   * reader comparing a payload against the wire needs to know the difference
+   * is deliberate. Counted from the rendered text rather than tracked through
+   * the pipeline: the mask suffix is the only thing that survives every
+   * format, and a count that disagreed with what is on screen would be worse
+   * than none.
+   */
+  const maskedCount = useMemo(() => {
+    const source = json ?? text ?? "";
+    let n = 0;
+    let at = source.indexOf(MASK_SUFFIX);
+    while (at !== -1) {
+      n += 1;
+      at = source.indexOf(MASK_SUFFIX, at + MASK_SUFFIX.length);
+    }
+    return n;
+  }, [json, text]);
+
   const body = json ?? yaml?.text ?? text ?? null;
   const lines = jsonLines?.length ?? (body ? body.split("\n").length : 0);
   const isTextual = TEXTUAL.includes(format);
@@ -291,7 +318,11 @@ export function DataView({
           })}
         </div>
 
+        {maskedCount > 0 && (
+          <span className="nm-masked">{maskedCount} masked</span>
+        )}
         <span className="nm-json-size">
+          {body == null && sizeBytes != null && format !== "table" && formatBytes(sizeBytes)}
           {body != null &&
             `${formatBytes(body.length)} · ${lines} ${lines === 1 ? "line" : "lines"}`}
           {format === "table" &&
@@ -304,6 +335,7 @@ export function DataView({
             only once everything *is* folded: flipping the moment one block was
             folded by hand left no way to collapse the rest without expanding
             them all first. */}
+        <span className="nm-tool-gap" />
         {collapsible.length > 0 && (
           <button
             className="nm-copy"

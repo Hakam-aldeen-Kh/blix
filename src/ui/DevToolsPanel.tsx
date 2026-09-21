@@ -55,10 +55,27 @@ import { RequestTable } from "./components/RequestTable";
 import { ShortcutsSheet } from "./components/ShortcutsSheet";
 import { SourcesRail, SECTION_DEFS } from "./components/SourcesRail";
 import { StatusBar } from "./components/StatusBar";
-import { DENSITY_ROW_H, RAIL_W, RAIL_W_MINI, type Density } from "./constants/ui";
+import {
+  DENSITY_ROW_H,
+  MIN_DETAIL_H,
+  MIN_DETAIL_W,
+  MIN_LIST_H,
+  MIN_LIST_W,
+  FAB_RADIUS,
+  normalizeFabRadius,
+  type FabRadius,
+  parseHiddenColumns,
+  RAIL_W,
+  RAIL_W_MINI,
+  TOGGLEABLE_COLUMNS,
+  type ColumnId,
+  type Density,
+} from "./constants/ui";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ExportMenu, type ExportScope } from "./components/ExportMenu";
 import { ThemeMenu } from "./components/ThemeMenu";
+import { BX_PALETTES, bxTokens } from "./themes/bx";
+import { assertThemes } from "./themes/check";
 import {
   normalizeThemePref,
   resolveTheme,
@@ -136,6 +153,7 @@ const EMPTY_COPY: Record<
   },
 };
 import { copyText, formatBytes } from "./helpers/format";
+import { niceScale, rowTiming, type RowTiming } from "./helpers/waterfall";
 import { buildLinkGraph, linkedEntries, sectionOf } from "./helpers/entryLinks";
 import { useHostTheme } from "./hooks/useHostTheme";
 import { useContextMenu } from "./hooks/useContextMenu";
@@ -146,7 +164,7 @@ import { hidingReasons, useMonitorList } from "./hooks/useMonitorList";
 import { useMonitorSelection } from "./hooks/useMonitorSelection";
 import { usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
-import { describeTokens, parseFilter, tokenToRaw } from "./services/filterQuery";
+import { parseFilter } from "./services/filterQuery";
 import { canReplay, replayEntry } from "./services/replayRequest";
 import { toCurl, toFetch } from "./services/snippets";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
@@ -185,13 +203,30 @@ export default function DevTools() {
   // Written to the root's `style` rather than shipped as one CSS block per
   // theme — see `BASE_THEME_CSS`. Memoized on the resolved theme so hovering
   // down the picker doesn't rebuild ~80 properties per pointer event.
-  const themeStyle = useMemo(() => themeTokens(theme.palette), [theme]);
+  // Two vocabularies for the length of the redesign: `--bx-*` is the slot
+  // contract every rebuilt surface reads, `--nm-*` the derived set the ones
+  // still waiting their phase read. The second retires with the last of them.
+  const themeStyle = useMemo(
+    () => ({
+      ...themeTokens(theme.palette),
+      ...bxTokens(BX_PALETTES[theme.id], theme.base),
+    }),
+    [theme],
+  );
+
+  // Once, in development: a theme that cannot fill every slot, and text below
+  // 4.5:1 on a ground it actually lands on. Reports; never corrects.
+  useEffect(assertThemes, []);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const [showDatabases, setShowDatabases] = useState(false);
+  /** Where the column picker opens, or null. Anchored like the header's menus
+   * so it lands under whatever asked for it — the column head, or the row in
+   * the overflow menu. */
+  const [columnAnchor, setColumnAnchor] = useState<MenuAnchor | null>(null);
   /** A purge that did not happen — almost always another tab holding the
    * database open. Shown rather than swallowed: the three purge controls all
    * claimed success unconditionally before `destroyDb` observed its request. */
@@ -291,19 +326,15 @@ export default function DevTools() {
   // over `entries` rather than three separate `useMemo`s (each re-scanning
   // the whole buffer and re-deriving `sectionOf(e)` per item): the buffer can
   // hold hundreds of entries and this recomputes on every captured event.
-  const { sectionEntries, sectionCounts, sectionLive } = useMemo(() => {
+  const { sectionEntries, sectionCounts } = useMemo(() => {
     const counts: Record<Section, number> = { network: 0, realtime: 0, redux: 0, query: 0 };
-    // Redux rows are born terminal (there is no "in-flight" dispatch to show
-    // live), so only realtime and query ever show the live dot.
-    const live: Partial<Record<Section, boolean>> = {};
     const filtered: MonitorEntry[] = [];
     for (const e of entries) {
       const s = sectionOf(e);
       counts[s] += 1;
       if (s === section) filtered.push(e);
-      if (e.state === "pending" && (s === "realtime" || s === "query")) live[s] = true;
     }
-    return { sectionEntries: filtered, sectionCounts: counts, sectionLive: live };
+    return { sectionEntries: filtered, sectionCounts: counts };
   }, [entries, section]);
 
   const parsedFilter = useMemo(() => parseFilter(query), [query]);
@@ -315,6 +346,29 @@ export default function DevTools() {
     sort,
   );
   const selection = useMonitorSelection(entries, list.filtered, list.visibleIds);
+
+  /**
+   * Which columns the developer has switched off.
+   *
+   * Stored as a list of what is *off* rather than a map of what is on, so a
+   * column added in a later version arrives visible instead of arriving
+   * hidden for everyone who ever opened this menu.
+   */
+  const hiddenColumns = useMemo(
+    () => parseHiddenColumns(prefs.hiddenColumns),
+    [prefs.hiddenColumns],
+  );
+  const toggleColumn = useCallback(
+    (id: ColumnId) => {
+      const next = new Set(hiddenColumns);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      savePrefs({ hiddenColumns: [...next].join(",") });
+    },
+    [hiddenColumns],
+  );
+
+  const fabRadius = normalizeFabRadius(prefs.fabRadius);
 
   const rowHeight = DENSITY_ROW_H[density];
   const virtual = useVirtualRows(list.rows.length, scrollerRef, rowHeight, open);
@@ -357,10 +411,36 @@ export default function DevTools() {
     // that was just picked, and clearing it would flash.
   }, []);
 
+  /**
+   * Go to the next pinned entry, wherever it is.
+   *
+   * The status bar's count used to apply an `is:pinned` filter, which answers
+   * "which are pinned" — but you pinned them precisely so you could come back
+   * to *one*, and a filter makes you find it again inside a shorter list.
+   * This selects it instead; the effect that keeps the selection in view does
+   * the scrolling, and switching source first means a pin you left in Redux is
+   * still one click away from the Network tab.
+   *
+   * Repeated clicks cycle, so two pins are a toggle between them rather than a
+   * button that only ever does one thing.
+   */
+  const goToPinned = useCallback(() => {
+    const pinned = entries.filter((e) => e.pinned);
+    if (pinned.length === 0) return;
+    const at = pinned.findIndex((e) => e.id === selection.activeRowId);
+    const next = pinned[(at + 1) % pinned.length];
+    const target = sectionOf(next);
+    if (target !== section) onSection(target);
+    selection.pin(next.id);
+  }, [entries, section, onSection, selection]);
+
   // Changing the dock moves the toolbar, which invalidates the export menu's
   // measured anchor — dismiss it as part of the interaction rather than
   // reacting to the change afterwards.
-  const closeMenus = useCallback(() => setMenuState(null), []);
+  const closeMenus = useCallback(() => {
+    setMenuState(null);
+    setColumnAnchor(null);
+  }, []);
 
   const onMode = useCallback(
     (next: Parameters<typeof dock.setMode>[0]) => {
@@ -471,7 +551,7 @@ export default function DevTools() {
         else if (showDatabases) setShowDatabases(false);
         else if (showShortcuts) setShowShortcuts(false);
         else if (kb.current.menuOpen) menu.close();
-        else if (menuState) closeMenus();
+        else if (menuState || columnAnchor) closeMenus();
         else setOpen(false);
         return;
       }
@@ -567,7 +647,7 @@ export default function DevTools() {
     // render) would defeat the point of this effect: attach the listener
     // once, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, menuState, closeMenus, onSection, showShortcuts, showPalette, showDatabases, togglePause, togglePin, menu.close]);
+  }, [dock, menuState, columnAnchor, closeMenus, onSection, showShortcuts, showPalette, showDatabases, togglePause, togglePin, menu.close]);
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
@@ -680,12 +760,6 @@ export default function DevTools() {
   const persisted = getPersistedStats();
   // Worst state wins: the badge and the header logo are a health light, so an
   // error has to outrank an in-flight request outranking "all quiet".
-  const dotState: MonitorState = list.counts.error
-    ? "error"
-    : list.counts.pending
-      ? "pending"
-      : "success";
-
   const nouns = SECTION_NOUNS[section];
   const pendingLabel =
     section === "realtime" ? "Open" : section === "query" ? "Fetching" : "Pending";
@@ -721,14 +795,6 @@ export default function DevTools() {
     if (hiding.includes("query")) setQuery("");
   };
 
-  const chips = describeTokens(parsedFilter);
-  const removeChip = (index: number) =>
-    setQuery(
-      parsedFilter.tokens
-        .filter((_, i) => i !== index)
-        .map(tokenToRaw)
-        .join(" "),
-    );
 
   // One pass over the visible durations feeds three consumers: the status bar
   // and rail totals, the list's duration bars, and the Timing tab's
@@ -741,6 +807,19 @@ export default function DevTools() {
     null,
   );
   const slowestMs = slowestEntry?.durationMs ?? 0;
+
+  // One scale for the whole list, so the bars are comparable to each other
+  // rather than each to itself, and rounded so it holds still while requests
+  // arrive instead of rescaling every row when a new worst case lands.
+  const scaleMs = niceScale(slowestMs);
+  const timings = useMemo(() => {
+    const out = new Map<string, RowTiming>();
+    for (const row of list.rows) {
+      if (row.kind === "divider") continue;
+      out.set(row.entry.id, rowTiming(row.entry, scaleMs, nowAbs));
+    }
+    return out;
+  }, [list.rows, scaleMs, nowAbs]);
   const sortedDurations = durations.map((e) => e.durationMs).sort((a, b) => a - b);
   const medianMs = sortedDurations.length
     ? sortedDurations[Math.floor(sortedDurations.length / 2)]
@@ -754,6 +833,25 @@ export default function DevTools() {
   // still wins, and re-widening the panel restores what they chose.
   const railMini = railCollapsed || (panel.measured && panel.width < 760);
   const railWidth = railMini ? RAIL_W_MINI : RAIL_W;
+
+  /**
+   * The split, clamped to what the panel can actually give it.
+   *
+   * The stored size is a width the developer once dragged, and the panel it
+   * was dragged in may since have been docked, shrunk or reopened on a smaller
+   * screen. The drag handler clamps as you drag; nothing clamped on the way
+   * back in, so a 580px list inside a 580px panel left the detail pane 40px
+   * wide and unreadable. Same bounds as the drag, applied to what is stored.
+   */
+  const splitExtent =
+    dock.splitAxis === "x" ? panel.width - railWidth : panel.height;
+  const [minSelf, minOther] =
+    dock.splitAxis === "x" ? [MIN_LIST_W, MIN_DETAIL_W] : [MIN_LIST_H, MIN_DETAIL_H];
+  const listSize =
+    panel.measured && splitExtent > minSelf + minOther
+      ? Math.min(dock.splitSize, Math.max(minSelf, splitExtent - minOther))
+      : dock.splitSize;
+
 
   const openPalette = () => setShowPalette(true);
   const closePalette = () => setShowPalette(false);
@@ -784,7 +882,6 @@ export default function DevTools() {
           id: "pause",
           label: paused ? "Resume capture" : "Pause capture",
           key: "Space",
-          accent: "warn",
           run: togglePause,
         },
         {
@@ -792,7 +889,7 @@ export default function DevTools() {
           label: "Clear log",
           note: "pinned entries are kept",
           key: "⇧C",
-          accent: "danger",
+          danger: true,
           run: () => {
             networkMonitor.clear();
             selection.clear();
@@ -803,7 +900,6 @@ export default function DevTools() {
           label: prefs.preserveLog ? "Stop preserving the log" : "Preserve log across reloads",
           note: "writes to IndexedDB",
           key: "⇧L",
-          accent: "warn",
           run: () => setPreserveLog(!prefs.preserveLog),
         },
         {
@@ -814,7 +910,6 @@ export default function DevTools() {
           note: authUnmasked
             ? "unmasked now · never exported or saved"
             : "new requests · never exported or saved",
-          accent: "warn",
           run: toggleAuthMasking,
         },
         {
@@ -829,9 +924,8 @@ export default function DevTools() {
       items: SECTION_DEFS.map((s) => ({
         id: `section-${s.id}`,
         label: `Go to ${s.label}`,
-        note: `${sectionCounts[s.id]}`,
+        count: String(sectionCounts[s.id]),
         key: s.hotkey,
-        accent: s.id,
         run: () => onSection(s.id),
       })),
     },
@@ -841,7 +935,7 @@ export default function DevTools() {
         {
           id: "replay",
           label: "Replay request",
-          key: "R",
+          key: "r",
           disabled: !replayCheck?.can,
           // A disabled row with no reason reads as a bug. Fetch entries are the
           // common case now: replay is axios-only.
@@ -868,7 +962,7 @@ export default function DevTools() {
         {
           id: "copy-url",
           label: "Copy URL",
-          key: "U",
+          key: "u",
           disabled: !selectedEntry,
           run: () =>
             selectedEntry &&
@@ -877,7 +971,7 @@ export default function DevTools() {
         {
           id: "pin",
           label: selectedEntry?.pinned ? "Unpin entry" : "Pin entry",
-          key: "P",
+          key: "p",
           disabled: !selectedEntry,
           run: () => selectedEntry && togglePin(selectedEntry.id),
         },
@@ -885,7 +979,6 @@ export default function DevTools() {
           id: `link-${other.id}`,
           label: `Jump to linked ${sectionOf(other)} entry`,
           note: other.url,
-          accent: sectionOf(other),
           run: () => {
             onSection(sectionOf(other));
             selection.pin(other.id);
@@ -939,7 +1032,6 @@ export default function DevTools() {
           id: "density",
           label: "Cycle row density",
           note: density,
-          key: "⇧D",
           run: () =>
             onDensity(
               DENSITY_ORDER[(DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length],
@@ -967,7 +1059,7 @@ export default function DevTools() {
           id: "purge",
           label: "Purge the saved log",
           note: persisted.count ? `${persisted.count} on disk` : "nothing saved",
-          accent: "danger",
+          danger: true,
           disabled: persisted.count === 0,
           run: purge,
         },
@@ -995,7 +1087,13 @@ export default function DevTools() {
           // chrome — native scrollbars, form controls, the caret — matches
           // instead of defaulting to the host page's scheme.
           colorScheme: theme.base,
+          // Row height is a setting, not a constant, so it cannot live in
+          // `tokens.ts` — `constants/ui.ts` owns the three steps and the
+          // number reaches CSS down the same path the theme's colours take.
+          // One value, read by both the stylesheet and the virtualizer.
           "--nm-row-h": `${rowHeight}px`,
+          "--bx-row": `${rowHeight}px`,
+          "--bx-r-fab": FAB_RADIUS[fabRadius].css,
         } as React.CSSProperties
       }
     >
@@ -1004,17 +1102,16 @@ export default function DevTools() {
 
       {!open && !fab.dragPos && (
         <MonitorFab
-          dotState={dotState}
+          paused={paused}
           total={entries.length}
           errors={list.counts.error}
           pending={list.counts.pending}
-          docking={fab.docking}
           onPointerDown={fab.start}
         />
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} dotState={dotState} total={entries.length} />
+        <FabDragPreview pos={fab.dragPos} paused={paused} total={entries.length} />
       )}
 
       {open && (
@@ -1042,15 +1139,14 @@ export default function DevTools() {
           )}
 
           <MonitorToolbar
-            dotState={dotState}
             query={query}
             onQuery={onQuery}
             searchRef={searchRef}
-            chips={chips}
-            onRemoveChip={removeChip}
             deepSearch={deepSearch}
             onDeepSearch={onDeepSearch}
             searching={list.searching}
+            shown={list.filtered.length}
+            total={list.counts.all}
             paused={paused}
             onTogglePause={togglePause}
             preserveLog={prefs.preserveLog}
@@ -1080,7 +1176,6 @@ export default function DevTools() {
               mini={railMini}
               section={section}
               counts={sectionCounts}
-              live={sectionLive}
               stats={{
                 captured: entries.length,
                 transferred: list.totalBytes,
@@ -1103,8 +1198,8 @@ export default function DevTools() {
                 className="nm-list"
                 style={
                   dock.splitAxis === "x"
-                    ? { width: dock.splitSize, flexBasis: dock.splitSize }
-                    : { height: dock.splitSize, flexBasis: dock.splitSize }
+                    ? { width: listSize, flexBasis: listSize }
+                    : { height: listSize, flexBasis: listSize }
                 }
               >
                 <RequestTable
@@ -1114,14 +1209,22 @@ export default function DevTools() {
                   stateFilter={stateFilter}
                   onStateFilter={setStateFilter}
                   pendingLabel={pendingLabel}
-                  slowestMs={slowestMs}
-                  nowAbs={nowAbs}
+                  scaleMs={scaleMs}
+                  timings={timings}
                   activeRowId={selection.activeRowId}
                   sort={sort}
                   onSort={onSort}
                   onSelect={selection.pin}
                   onTogglePin={togglePin}
                   onContextMenu={menu.open}
+                  onColumnMenu={(e) =>
+                    setColumnAnchor({
+                      top: e.clientY + 4,
+                      bottom: window.innerHeight - e.clientY + 4,
+                      right: Math.max(8, window.innerWidth - e.clientX),
+                    })
+                  }
+                  hidden={hiddenColumns}
                   linkTags={links.tags}
                   virtual={virtual}
                   scrollerRef={scrollerRef}
@@ -1222,6 +1325,7 @@ export default function DevTools() {
             slowestMs={slowestMs}
             failingHint={firstFailing?.url ?? null}
             pinnedCount={pinnedCount}
+            persistedCount={persisted.count}
             persistedLabel={
               prefs.preserveLog && hydration === "ready"
                 ? `${persisted.count} saved · ${formatBytes(persisted.bytes)}`
@@ -1241,7 +1345,7 @@ export default function DevTools() {
               }
             }}
             onShowErrors={() => setStateFilter("error")}
-            onShowPinned={() => setQuery("is:pinned")}
+            onShowPinned={goToPinned}
             onOpenPalette={openPalette}
           />
 
@@ -1293,13 +1397,16 @@ export default function DevTools() {
       )}
 
       {moreAnchor && (
-        <Menu anchor={moreAnchor} width={236} label="More actions">
-          {/* Clear lives here rather than in the header: it is destructive,
-              it is a keystroke away, and a button beside Export that empties
-              the log is one mis-click nobody wants. */}
+        <Menu anchor={moreAnchor} width={320} label="More options">
+          {/* LOG — everything that changes what is in the buffer. Clear lives
+              here rather than in the header: it is destructive, it is a
+              keystroke away, and a button beside Export that empties the log
+              is one mis-click nobody wants. */}
+          <div className="nm-menu-group">
+            <span>LOG</span>
+          </div>
           <MenuItem
-            icon={<Icon name="clear" size={13} />}
-            hint="⇧C"
+            state="⇧C"
             onSelect={() => {
               networkMonitor.clear();
               selection.clear();
@@ -1309,8 +1416,8 @@ export default function DevTools() {
             Clear log
           </MenuItem>
           <MenuItem
-            icon={<Icon name="preserve" size={13} />}
-            hint={prefs.preserveLog ? "on" : undefined}
+            state={prefs.preserveLog ? "ON" : "OFF"}
+            on={prefs.preserveLog}
             onSelect={() => {
               setPreserveLog(!prefs.preserveLog);
               closeMenus();
@@ -1318,11 +1425,38 @@ export default function DevTools() {
           >
             Preserve log
           </MenuItem>
-          {/* Beside Preserve log: the other setting whose "on" is worth being
-              reminded of every time you share your screen. */}
+          {/* A disabled row prints its *reason* where the state goes, rather
+              than being red and dead with no explanation. */}
           <MenuItem
-            icon={<Icon name="check" size={13} />}
-            hint={authUnmasked ? "on" : undefined}
+            disabled={persisted.count === 0}
+            state={persisted.count ? formatBytes(persisted.bytes) : "nothing saved"}
+            value={persisted.count > 0}
+            onSelect={() => {
+              purge();
+              closeMenus();
+            }}
+          >
+            Purge saved log
+          </MenuItem>
+          <MenuItem
+            arrow
+            state={isSharedDefaultDb() ? "shared" : undefined}
+            on={isSharedDefaultDb()}
+            onSelect={() => {
+              setShowDatabases(true);
+              closeMenus();
+            }}
+          >
+            Databases on this origin
+          </MenuItem>
+
+          {/* VIEW — settings that change what you see, not what is kept. */}
+          <div className="nm-menu-group">
+            <span>VIEW</span>
+          </div>
+          <MenuItem
+            state={authUnmasked ? "ON" : "OFF"}
+            on={authUnmasked}
             onSelect={() => {
               toggleAuthMasking();
               closeMenus();
@@ -1331,64 +1465,60 @@ export default function DevTools() {
             Show Authorization in full
           </MenuItem>
           <MenuItem
-            icon={<Icon name="clear" size={13} />}
-            danger
-            disabled={persisted.count === 0}
-            hint={persisted.count ? formatBytes(persisted.bytes) : undefined}
-            onSelect={() => {
-              purge();
-              closeMenus();
-            }}
-          >
-            Purge saved log
-          </MenuItem>
-          {/* Directly under Purge, because they are the two halves of the same
-              question: this one clears the database you are on, that one shows
-              you every other database this origin is carrying. */}
-          <MenuItem
-            icon={<Icon name="database" size={13} />}
-            hint={isSharedDefaultDb() ? "shared" : undefined}
-            onSelect={() => {
-              setShowDatabases(true);
-              closeMenus();
-            }}
-          >
-            Databases on this origin
-          </MenuItem>
-          <MenuItem
-            icon={<Icon name="follow" size={13} />}
-            hint={selection.isFollowing ? "on" : undefined}
+            state={selection.isFollowing ? "ON" : "OFF"}
+            on={selection.isFollowing}
             onSelect={() => {
               selection.toggleFollow();
               closeMenus();
             }}
           >
-            Follow newest
+            Follow the newest entry
           </MenuItem>
           {/* Stays open: density is a setting you cycle until it looks right,
               and closing after each step would mean reopening to compare. */}
           <MenuItem
-            icon={<Icon name="density" size={13} />}
-            hint={density}
+            arrow
+            value
+            state={`${TOGGLEABLE_COLUMNS.length - hiddenColumns.size} of ${TOGGLEABLE_COLUMNS.length}`}
+            onSelect={() => moreAnchor && setColumnAnchor(moreAnchor)}
+          >
+            Columns
+          </MenuItem>
+          {/* Beside Density because it is the same kind of thing: one setting
+              with a handful of steps, cycled in place. It was at the foot of
+              the Appearance menu, which meant scrolling past twelve themes to
+              reach it — and previewing each one on the way. */}
+          <MenuItem
+            arrow
+            value
+            state={FAB_RADIUS[fabRadius].label.toUpperCase()}
+            onSelect={() => {
+              const order = Object.keys(FAB_RADIUS) as FabRadius[];
+              const next = order[(order.indexOf(fabRadius) + 1) % order.length];
+              savePrefs({ fabRadius: next });
+            }}
+          >
+            Launcher corners
+          </MenuItem>
+          <MenuItem
+            arrow
+            value
+            state={density.toUpperCase()}
             onSelect={() =>
               onDensity(
-                DENSITY_ORDER[
-                  (DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length
-                ],
+                DENSITY_ORDER[(DENSITY_ORDER.indexOf(density) + 1) % DENSITY_ORDER.length],
               )
             }
           >
             Density
           </MenuItem>
 
-          <div className="nm-menu-sep" />
-
+          <div className="nm-menu-group">
+            <span>TAKE IT WITH YOU</span>
+          </div>
           {/* Hands off to the export menu rather than duplicating two of its
-              six formats — this menu only exists because the panel is too
-              narrow to show the export button. Reuses the same anchor, so the
-              menu opens exactly where this one was. */}
+              six formats. Reuses the same anchor, so it opens where this did. */}
           <MenuItem
-            icon={<Icon name="download" size={13} />}
             disabled={entries.length === 0}
             onSelect={() => moreAnchor && setExportAnchor(moreAnchor)}
           >
@@ -1396,31 +1526,25 @@ export default function DevTools() {
           </MenuItem>
 
           {panel.tinyToolbar && (
-            <>
-              <div className="nm-menu-sep" />
-              <MenuItem
-                icon={<Icon name="dock-bottom" size={13} />}
-                hint={dock.mode}
-                onSelect={() => {
-                  onMode(
-                    dock.mode === "bottom"
-                      ? "right"
-                      : dock.mode === "right"
-                        ? "float"
-                        : "bottom",
-                  );
-                  closeMenus();
-                }}
-              >
-                Dock position
-              </MenuItem>
-            </>
+            <MenuItem
+              value
+              state={dock.mode.toUpperCase()}
+              onSelect={() => {
+                onMode(
+                  dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom",
+                );
+                closeMenus();
+              }}
+            >
+              Dock position
+            </MenuItem>
           )}
 
-          <div className="nm-menu-sep" />
+          <div className="nm-menu-group">
+            <span>HELP</span>
+          </div>
           <MenuItem
-            icon={<Icon name="search" size={13} />}
-            hint="⌘K"
+            state="⌘K"
             onSelect={() => {
               closeMenus();
               openPalette();
@@ -1429,8 +1553,7 @@ export default function DevTools() {
             All commands
           </MenuItem>
           <MenuItem
-            icon={<Icon name="keyboard" size={13} />}
-            hint="?"
+            state="?"
             onSelect={() => {
               setShowShortcuts(true);
               closeMenus();
@@ -1438,6 +1561,31 @@ export default function DevTools() {
           >
             Keyboard shortcuts
           </MenuItem>
+        </Menu>
+      )}
+
+      {/* The column picker. Opened from the column head, which is the thing
+          it is about, and from the overflow menu for anyone who would never
+          think to right-click a header. Stays open: choosing columns is a
+          thing you do two or three at a time and want to see the effect of. */}
+      {columnAnchor && (
+        <Menu anchor={columnAnchor} width={220} label="Columns">
+          <div className="nm-menu-group">
+            <span>COLUMNS</span>
+          </div>
+          {TOGGLEABLE_COLUMNS.map((c) => (
+            <MenuItem
+              key={c.id}
+              state={hiddenColumns.has(c.id) ? "OFF" : "ON"}
+              on={!hiddenColumns.has(c.id)}
+              onSelect={() => toggleColumn(c.id)}
+            >
+              {c.label}
+            </MenuItem>
+          ))}
+          <div className="nm-menu-foot">
+            <span>Route always shows</span>
+          </div>
         </Menu>
       )}
 

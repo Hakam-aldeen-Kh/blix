@@ -111,7 +111,7 @@ export function TimingTab({
 
       <div className="nm-timing-legend">
         {rows.map((row) => (
-          <div className="nm-timing-row" key={row.key}>
+          <div className="nm-timing-row" data-zero={row.value === 0 || undefined} key={row.key}>
             <span className={`nm-timing-swatch nm-timing-${row.key}`} />
             <span className="nm-timing-label">{row.label}</span>
             <span className="nm-timing-note">{row.note}</span>
