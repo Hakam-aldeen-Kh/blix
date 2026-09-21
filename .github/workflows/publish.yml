@@ -9,7 +9,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
@@ -47,3 +47,33 @@ jobs:
         run: pnpm publish --no-git-checks --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Pushing the tag publishes to npm but leaves the Releases page untouched —
+      # every release through v0.6.1 was filled in by hand, and v0.7.0 was missed
+      # because of it. This runs last because npm is the step that cannot be taken
+      # back: a release created before a failed publish would advertise a version
+      # nobody can install.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # A CHANGELOG section runs from its "## [x.y.z] - date" heading to the
+          # next "## [" — that body is the release notes, already written. Matched
+          # by prefix rather than regex: the pattern crosses YAML, then the shell,
+          # then awk, and a bracket escaped for all three survives none of them.
+          awk -v h="## [$VERSION]" '
+            index($0, h) == 1                { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            echo "::warning::No CHANGELOG section for $VERSION — falling back to commit-generated notes"
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
