@@ -157,6 +157,13 @@ const FAB = `
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
 }
 .nm-fab-count { color: var(--bx-fg-2); }
+.nm-fab-src { display: inline-flex; align-items: center; gap: 3px; color: var(--bx-fg-2); }
+.nm-fab-src svg { flex: none; }
+.nm-fab-src .nm-fab-err { margin-left: 2px; }
+.nm-fab-src[data-src="network"]  svg { color: var(--bx-src-network); }
+.nm-fab-src[data-src="realtime"] svg { color: var(--bx-src-realtime); }
+.nm-fab-src[data-src="redux"]    svg { color: var(--bx-src-redux); }
+.nm-fab-src[data-src="query"]    svg { color: var(--bx-src-query); }
 .nm-fab-err { color: var(--bx-err); }
 .nm-fab-grip { display: flex; align-items: center; padding-right: var(--bx-3); color: var(--bx-mark); }
 

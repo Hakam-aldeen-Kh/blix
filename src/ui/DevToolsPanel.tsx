@@ -326,15 +326,30 @@ export default function DevTools() {
   // over `entries` rather than three separate `useMemo`s (each re-scanning
   // the whole buffer and re-deriving `sectionOf(e)` per item): the buffer can
   // hold hundreds of entries and this recomputes on every captured event.
-  const { sectionEntries, sectionCounts } = useMemo(() => {
+  // `allErrors`/`allPending` span every source: the launcher badge summarizes
+  // the whole log, whereas `list.counts` only covers the source last open.
+  const { sectionEntries, sectionCounts, sectionErrors, allErrors, allPending } = useMemo(() => {
     const counts: Record<Section, number> = { network: 0, realtime: 0, redux: 0, query: 0 };
+    const errorsBySection: Record<Section, number> = { network: 0, realtime: 0, redux: 0, query: 0 };
     const filtered: MonitorEntry[] = [];
+    let errors = 0;
+    let pending = 0;
     for (const e of entries) {
       const s = sectionOf(e);
       counts[s] += 1;
       if (s === section) filtered.push(e);
+      if (e.state === "error") {
+        errors += 1;
+        errorsBySection[s] += 1;
+      } else if (e.state === "pending") pending += 1;
     }
-    return { sectionEntries: filtered, sectionCounts: counts };
+    return {
+      sectionEntries: filtered,
+      sectionCounts: counts,
+      sectionErrors: errorsBySection,
+      allErrors: errors,
+      allPending: pending,
+    };
   }, [entries, section]);
 
   const parsedFilter = useMemo(() => parseFilter(query), [query]);
@@ -1104,14 +1119,16 @@ export default function DevTools() {
         <MonitorFab
           paused={paused}
           total={entries.length}
-          errors={list.counts.error}
-          pending={list.counts.pending}
+          counts={sectionCounts}
+          sourceErrors={sectionErrors}
+          errors={allErrors}
+          pending={allPending}
           onPointerDown={fab.start}
         />
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} paused={paused} total={entries.length} />
+        <FabDragPreview pos={fab.dragPos} paused={paused} counts={sectionCounts} />
       )}
 
       {open && (
