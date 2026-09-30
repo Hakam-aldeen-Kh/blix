@@ -8,7 +8,9 @@
  * **Scope first.** Exporting the whole buffer while you are staring at twelve
  * filtered rows is almost never what you meant, and the old menu silently did
  * exactly that. The scope is a visible toggle with both counts on it, so the
- * export says what it will contain before you pick a format.
+ * export says what it will contain before you pick a format. **Selected**
+ * narrows it to the one entry open in the detail pane — a request, a Redux
+ * action or a query — for handing a single case to someone.
  *
  * **Format second**, grouped by who is on the other end: a tool, a person, or
  * a shell. Each item is two lines — the name with its file extension, and the
@@ -25,7 +27,7 @@ import { exportHar } from "../services/harExport";
 import { toCsv, toCurlScript, toMarkdown, toNdjson } from "../services/exportFormats";
 import { Menu, type MenuAnchor } from "./Menu";
 
-export type ExportScope = "shown" | "all";
+export type ExportScope = "selected" | "shown" | "all";
 
 /** One format. `warn` marks the row whose description is a promise. */
 function Item({
@@ -69,6 +71,7 @@ export function ExportMenu({
   anchor,
   scope,
   onScope,
+  selected,
   shown,
   all,
   onDone,
@@ -76,6 +79,9 @@ export function ExportMenu({
   anchor: MenuAnchor;
   scope: ExportScope;
   onScope: (scope: ExportScope) => void;
+  /** The entry open in the detail pane — a request, a Redux action, a query —
+   * or null when nothing is selected. */
+  selected: MonitorEntry | null;
   /** What the current section and filters leave visible. */
   shown: MonitorEntry[];
   /** Everything in the buffer, across all four sections. */
@@ -83,7 +89,11 @@ export function ExportMenu({
   /** Close the menu — every format is a one-shot action. */
   onDone: () => void;
 }) {
-  const entries = scope === "all" ? all : shown;
+  // A remembered "selected" scope with nothing selected falls back to what is
+  // shown, rather than opening a menu where every format is disabled.
+  const effective: ExportScope = scope === "selected" && !selected ? "shown" : scope;
+  const entries =
+    effective === "all" ? all : effective === "selected" && selected ? [selected] : shown;
   const stamp = fileStamp();
   const empty = entries.length === 0;
 
@@ -104,7 +114,20 @@ export function ExportMenu({
         <div className="nm-menu-scope">
           <button
             type="button"
-            className={`nm-scope-btn${scope === "shown" ? " active" : ""}`}
+            className={`nm-scope-btn${effective === "selected" ? " active" : ""}`}
+            onClick={() => onScope("selected")}
+            disabled={!selected}
+            title={
+              selected
+                ? "Only the entry open in the detail pane"
+                : "Select an entry in the list to export it on its own"
+            }
+          >
+            Selected <b>{selected ? 1 : 0}</b>
+          </button>
+          <button
+            type="button"
+            className={`nm-scope-btn${effective === "shown" ? " active" : ""}`}
             onClick={() => onScope("shown")}
             title="Only what the current section and filters show"
           >
@@ -112,7 +135,7 @@ export function ExportMenu({
           </button>
           <button
             type="button"
-            className={`nm-scope-btn${scope === "all" ? " active" : ""}`}
+            className={`nm-scope-btn${effective === "all" ? " active" : ""}`}
             onClick={() => onScope("all")}
             title="Everything in the buffer, across all four sources"
           >
