@@ -34,7 +34,12 @@ export type IconName =
   | "database"
   | "theme"
   | "check"
-  | "link";
+  | "link"
+  | "lock"
+  | "columns"
+  | "corner"
+  | "purge"
+  | "command";
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   return (
@@ -214,6 +219,37 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M2.9 4.1v3.8c0 1.1 2.3 2 5.1 2s5.1-.9 5.1-2V4.1" />
           <path d="M2.9 7.9v3.8c0 1.1 2.3 2 5.1 2s5.1-.9 5.1-2V7.9" />
         </>
+      )}
+      {name === "lock" && (
+        <>
+          <rect x="3.2" y="7" width="9.6" height="6.6" rx="1.4" />
+          <path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" />
+        </>
+      )}
+      {name === "columns" && (
+        <>
+          <rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.6" />
+          <path d="M6.1 2.8v10.4M9.9 2.8v10.4" />
+        </>
+      )}
+      {name === "corner" && (
+        <>
+          <path d="M3 13V7.4A4.4 4.4 0 0 1 7.4 3H13" />
+          <path d="M8 13h5V8" strokeDasharray="1.4 1.8" />
+        </>
+      )}
+      {/* The database with a cross — distinct from Clear's bin, which empties
+          the live log, because Purge deletes what is on disk. */}
+      {name === "purge" && (
+        <>
+          <ellipse cx="7" cy="4.1" rx="4.6" ry="1.8" />
+          <path d="M2.4 4.1v7.6c0 1 2 1.8 4.6 1.8" />
+          <path d="M11.6 4.1v3.1" />
+          <path d="M10 10l3.6 3.6M13.6 10 10 13.6" />
+        </>
+      )}
+      {name === "command" && (
+        <path d="M6 6h4v4H6zM6 6V4.5A1.5 1.5 0 1 0 4.5 6H6M10 6V4.5A1.5 1.5 0 1 1 11.5 6H10M6 10v1.5A1.5 1.5 0 1 1 4.5 10H6M10 10v1.5a1.5 1.5 0 1 0 1.5-1.5H10" />
       )}
     </svg>
   );

@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Icon, type IconName } from "./Icon";
 
 /**
  * Where a menu attaches, as viewport coordinates measured from its trigger.
@@ -171,6 +172,7 @@ export function Menu({
 
 export function MenuItem({
   children,
+  icon,
   state,
   on,
   value,
@@ -180,12 +182,14 @@ export function MenuItem({
   onPreview,
 }: {
   children: React.ReactNode;
+  /** A glyph before the label. Optional per row, but a menu that uses it
+   * should give every row one so the labels stay aligned. */
+  icon?: IconName;
   /**
    * The right-hand column: a shortcut, a setting's current value, or — on a
    * disabled row — the *reason* it is disabled. Every row that carries a state
    * prints it here, which is what makes the menu readable without opening
-   * anything. There is no icon column: in a menu where half the rows carry a
-   * state, a second column of glyphs only competes with the one the eye needs.
+   * anything.
    */
   state?: React.ReactNode;
   /** The state is live — an ON that changes what happens to the log. */
@@ -213,6 +217,11 @@ export function MenuItem({
       onPointerEnter={onPreview}
       onFocus={onPreview}
     >
+      {icon && (
+        <span className="nm-menu-ico" aria-hidden>
+          <Icon name={icon} size={13} />
+        </span>
+      )}
       <span className="nm-menu-label">{children}</span>
       {state != null && (
         <span className="nm-menu-state" data-on={on || undefined} data-value={value || undefined}>

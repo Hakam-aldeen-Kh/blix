@@ -157,6 +157,13 @@ const FAB = `
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
 }
 .nm-fab-count { color: var(--bx-fg-2); }
+.nm-fab-src { display: inline-flex; align-items: center; gap: 3px; color: var(--bx-fg-2); }
+.nm-fab-src svg { flex: none; }
+.nm-fab-src .nm-fab-err { margin-left: 2px; }
+.nm-fab-src[data-src="network"]  svg { color: var(--bx-src-network); }
+.nm-fab-src[data-src="realtime"] svg { color: var(--bx-src-realtime); }
+.nm-fab-src[data-src="redux"]    svg { color: var(--bx-src-redux); }
+.nm-fab-src[data-src="query"]    svg { color: var(--bx-src-query); }
 .nm-fab-err { color: var(--bx-err); }
 .nm-fab-grip { display: flex; align-items: center; padding-right: var(--bx-3); color: var(--bx-mark); }
 
@@ -1168,6 +1175,9 @@ const MENU = `
 }
 .nm-menu-item:hover, .nm-menu-item.active { background: var(--bx-hover-float); }
 .nm-menu-item:disabled { cursor: not-allowed; }
+.nm-menu-ico { display: flex; flex: none; margin-right: var(--bx-3); color: var(--bx-fg-3); }
+.nm-menu-item:hover .nm-menu-ico, .nm-menu-item:focus-visible .nm-menu-ico { color: var(--bx-fg-2); }
+.nm-menu-item:disabled .nm-menu-ico { color: var(--bx-mark); }
 .nm-menu-label { flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg); }
 .nm-menu-item:disabled .nm-menu-label { color: var(--bx-fg-3); }
 /* A row that carries a state prints it where the icon used to be. A disabled
@@ -1198,6 +1208,7 @@ const MENU = `
 .nm-scope-btn:first-child { border-radius: var(--bx-r-ctl) 0 0 var(--bx-r-ctl); }
 .nm-scope-btn:last-child { border-radius: 0 var(--bx-r-ctl) var(--bx-r-ctl) 0; }
 .nm-scope-btn.active { background: var(--bx-hover-float); color: var(--bx-fg); }
+.nm-scope-btn:disabled { color: var(--bx-mark); cursor: not-allowed; }
 .nm-scope-btn b {
   font-family: var(--bx-font-mono); font-weight: 400; color: var(--bx-fg-3);
   font-variant-numeric: tabular-nums;

@@ -326,15 +326,30 @@ export default function DevTools() {
   // over `entries` rather than three separate `useMemo`s (each re-scanning
   // the whole buffer and re-deriving `sectionOf(e)` per item): the buffer can
   // hold hundreds of entries and this recomputes on every captured event.
-  const { sectionEntries, sectionCounts } = useMemo(() => {
+  // `allErrors`/`allPending` span every source: the launcher badge summarizes
+  // the whole log, whereas `list.counts` only covers the source last open.
+  const { sectionEntries, sectionCounts, sectionErrors, allErrors, allPending } = useMemo(() => {
     const counts: Record<Section, number> = { network: 0, realtime: 0, redux: 0, query: 0 };
+    const errorsBySection: Record<Section, number> = { network: 0, realtime: 0, redux: 0, query: 0 };
     const filtered: MonitorEntry[] = [];
+    let errors = 0;
+    let pending = 0;
     for (const e of entries) {
       const s = sectionOf(e);
       counts[s] += 1;
       if (s === section) filtered.push(e);
+      if (e.state === "error") {
+        errors += 1;
+        errorsBySection[s] += 1;
+      } else if (e.state === "pending") pending += 1;
     }
-    return { sectionEntries: filtered, sectionCounts: counts };
+    return {
+      sectionEntries: filtered,
+      sectionCounts: counts,
+      sectionErrors: errorsBySection,
+      allErrors: errors,
+      allPending: pending,
+    };
   }, [entries, section]);
 
   const parsedFilter = useMemo(() => parseFilter(query), [query]);
@@ -1104,14 +1119,16 @@ export default function DevTools() {
         <MonitorFab
           paused={paused}
           total={entries.length}
-          errors={list.counts.error}
-          pending={list.counts.pending}
+          counts={sectionCounts}
+          sourceErrors={sectionErrors}
+          errors={allErrors}
+          pending={allPending}
           onPointerDown={fab.start}
         />
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} paused={paused} total={entries.length} />
+        <FabDragPreview pos={fab.dragPos} paused={paused} counts={sectionCounts} />
       )}
 
       {open && (
@@ -1386,6 +1403,7 @@ export default function DevTools() {
           anchor={exportAnchor}
           scope={exportScope}
           onScope={setExportScope}
+          selected={selectedEntry ?? null}
           shown={list.filtered}
           all={entries}
           onDone={closeMenus}
@@ -1412,6 +1430,7 @@ export default function DevTools() {
             <span>LOG</span>
           </div>
           <MenuItem
+            icon="clear"
             state="⇧C"
             onSelect={() => {
               networkMonitor.clear();
@@ -1422,6 +1441,7 @@ export default function DevTools() {
             Clear log
           </MenuItem>
           <MenuItem
+            icon="preserve"
             state={prefs.preserveLog ? "ON" : "OFF"}
             on={prefs.preserveLog}
             onSelect={() => {
@@ -1434,6 +1454,7 @@ export default function DevTools() {
           {/* A disabled row prints its *reason* where the state goes, rather
               than being red and dead with no explanation. */}
           <MenuItem
+            icon="purge"
             disabled={persisted.count === 0}
             state={persisted.count ? formatBytes(persisted.bytes) : "nothing saved"}
             value={persisted.count > 0}
@@ -1445,6 +1466,7 @@ export default function DevTools() {
             Purge saved log
           </MenuItem>
           <MenuItem
+            icon="database"
             arrow
             state={isSharedDefaultDb() ? "shared" : undefined}
             on={isSharedDefaultDb()}
@@ -1461,6 +1483,7 @@ export default function DevTools() {
             <span>VIEW</span>
           </div>
           <MenuItem
+            icon="lock"
             state={authUnmasked ? "ON" : "OFF"}
             on={authUnmasked}
             onSelect={() => {
@@ -1471,6 +1494,7 @@ export default function DevTools() {
             Show Authorization in full
           </MenuItem>
           <MenuItem
+            icon="follow"
             state={selection.isFollowing ? "ON" : "OFF"}
             on={selection.isFollowing}
             onSelect={() => {
@@ -1483,6 +1507,7 @@ export default function DevTools() {
           {/* Stays open: density is a setting you cycle until it looks right,
               and closing after each step would mean reopening to compare. */}
           <MenuItem
+            icon="columns"
             arrow
             value
             state={`${TOGGLEABLE_COLUMNS.length - hiddenColumns.size} of ${TOGGLEABLE_COLUMNS.length}`}
@@ -1495,6 +1520,7 @@ export default function DevTools() {
               the Appearance menu, which meant scrolling past twelve themes to
               reach it — and previewing each one on the way. */}
           <MenuItem
+            icon="corner"
             arrow
             value
             state={FAB_RADIUS[fabRadius].label.toUpperCase()}
@@ -1507,6 +1533,7 @@ export default function DevTools() {
             Launcher corners
           </MenuItem>
           <MenuItem
+            icon="density"
             arrow
             value
             state={density.toUpperCase()}
@@ -1525,6 +1552,7 @@ export default function DevTools() {
           {/* Hands off to the export menu rather than duplicating two of its
               six formats. Reuses the same anchor, so it opens where this did. */}
           <MenuItem
+            icon="download"
             disabled={entries.length === 0}
             onSelect={() => moreAnchor && setExportAnchor(moreAnchor)}
           >
@@ -1533,6 +1561,7 @@ export default function DevTools() {
 
           {panel.tinyToolbar && (
             <MenuItem
+              icon="dock-float"
               value
               state={dock.mode.toUpperCase()}
               onSelect={() => {
@@ -1550,6 +1579,7 @@ export default function DevTools() {
             <span>HELP</span>
           </div>
           <MenuItem
+            icon="command"
             state="⌘K"
             onSelect={() => {
               closeMenus();
@@ -1559,6 +1589,7 @@ export default function DevTools() {
             All commands
           </MenuItem>
           <MenuItem
+            icon="keyboard"
             state="?"
             onSelect={() => {
               setShowShortcuts(true);
