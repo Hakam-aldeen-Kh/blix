@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-30
+
+Blix on a staging server, a clear button scoped to one source, and no more
+hydration warning in Next.js.
+
+### Added
+
+- **`NEXT_PUBLIC_BLIX=true` keeps Blix in a production build**, for staging
+  and test servers. Since Next.js 16, `next build` runs on Turbopack and
+  inlines `NODE_ENV` as `"production"` whatever the environment says, so a
+  staging build made with `NODE_ENV=development` — which kept the panel under
+  webpack — silently lost it. The panel and the capture layer both check the
+  new variable next to `NODE_ENV`. Set it to `false` in the production env
+  file: left unset, the check stays in the bundle at runtime and the panel's
+  chunk is emitted into the build (it never loads). Your own mount component
+  and call-site guards need the variable too.
+- **A red clear button beside Export** empties the source you are reading and
+  leaves the other three alone. Pinned entries survive it, and it is disabled
+  when the source has nothing to clear. **Clear log** in the overflow menu and
+  `⇧C` still empty every source.
+
+### Changed
+
+- **The panel opens floating by default**, instead of docked to the bottom.
+  Only the default changes: a dock position you already chose is kept.
+
+### Fixed
+
+- **Hydration mismatch in SSR hosts.** `<Blix />` branched on
+  `typeof window`, so the server rendered nothing and the client's first pass
+  rendered a `<Suspense>`, and Next.js reported a mismatch on every load. It
+  now renders nothing until hydration has finished, and the panel mounts on the
+  render after.
+
 ## [0.8.0] - 2026-09-21
 
 The panel, redesigned. One token layer, a row you can tell apart from its

@@ -3,7 +3,8 @@
 ## Blix is a development-only tool
 
 Blix is a dev-tools panel. It is gated on a literal
-`process.env.NODE_ENV === "development"` check and is eliminated from
+`process.env.NODE_ENV === "development"` check (plus an explicit opt-in, see
+[below](#opting-a-production-build-in)) and is eliminated from
 production builds by design — the panel's dynamic `import()` is dropped
 entirely, and the capture layer becomes a no-op. See
 [Production elimination](README.md#production-elimination) in the README for
@@ -15,6 +16,23 @@ running in production is, in the first instance, a report about a missing
 `NODE_ENV` substitution in the consuming build — but tell us anyway if you
 find a path by which the panel or the capture layer survives a correctly
 configured production build. That would be a real bug.
+
+## Opting a production build in
+
+Since 0.9.0, a build made with `NEXT_PUBLIC_BLIX=true` keeps the panel and
+capture, for staging and test servers. That is the one supported way to run
+Blix outside development, and it is exactly as dangerous as it sounds:
+**whoever loads that build is captured, and can open the panel**, with every
+request body, header and Redux payload the page produces.
+
+- Set it only in the env file of a build that real users never reach.
+- Set `NEXT_PUBLIC_BLIX=false` in the production env file. When the variable is
+  unset, Next.js leaves the check in the bundle at runtime, and the panel's
+  chunk is emitted into the build — it never loads, but it is there.
+- A production build that captures because `NEXT_PUBLIC_BLIX=true` was set for
+  it is working as configured, not a vulnerability.
+
+See [Enabling Blix in a production build](README.md#enabling-blix-in-a-production-build-staging).
 
 ## It captures credentials and personal data by nature
 

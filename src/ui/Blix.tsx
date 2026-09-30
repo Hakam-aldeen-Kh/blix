@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from "react";
 import { BlixContext } from "./BlixContext";
 import type { StoreLike, HttpClientLike } from "./BlixContext";
 import { configureDbName } from "../capture/monitorConfig";
@@ -14,9 +14,23 @@ export interface BlixProps {
   dbName?: string;
 }
 
+const noopSubscribe = () => () => {};
+
 export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // Must be called before any conditional return (Rules of Hooks).
   const panelRef = useRef<ReturnType<typeof lazy> | null>(null);
+
+  // `false` on the server *and* during hydration, `true` on every client
+  // render after it. Branching on `typeof window` instead rendered `null` on
+  // the server and a `<Suspense>` on the client's first pass, which is a
+  // hydration mismatch in any SSR host (Next.js reports it on every load).
+  // React swaps to the client snapshot right after hydrating, so the panel
+  // mounts one render later with no warning.
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
 
   // Without a name, every app on this origin shares `blix:default` — which is
   // a confusing thing to discover from the log rather than from a warning.
@@ -28,7 +42,11 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // NODE_ENV check keeps it out of production builds the same way the panel
   // itself is kept out.
   useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
+    if (
+      process.env.NODE_ENV !== "development" &&
+      process.env.NEXT_PUBLIC_BLIX !== "true"
+    )
+      return;
     if (dbName) return;
     console.warn(
       "[blix] No dbName prop — using the shared database \"blix:default\".\n" +
@@ -44,10 +62,15 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-    // The import() is inside a literal NODE_ENV check so webpack/Turbopack
+  if (
+    mounted &&
+    (process.env.NODE_ENV === "development" ||
+      process.env.NEXT_PUBLIC_BLIX === "true")
+  ) {
+    // The import() is inside literal env checks so webpack/Turbopack
     // constant-fold the condition to false in production and eliminate the
-    // chunk reference entirely.
+    // chunk reference entirely. `NEXT_PUBLIC_BLIX` is the explicit opt-in for
+    // a production build (a staging server) — see `MONITOR_ENABLED`.
     // Do NOT replace this check with an imported boolean (e.g. MONITOR_ENABLED)
     // — cross-file constant propagation is not guaranteed by every bundler.
     if (!panelRef.current) {

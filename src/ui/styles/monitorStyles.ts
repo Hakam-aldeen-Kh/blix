@@ -322,6 +322,9 @@ const HEADER = `
 .nm-ibtn:hover { background: var(--bx-hover); }
 .nm-ibtn.active, .nm-ibtn[aria-expanded="true"] { background: var(--bx-sel); color: var(--bx-fg); }
 .nm-ibtn:disabled { color: var(--bx-mark); cursor: default; background: transparent; }
+/* Destructive: the header's per-source clear. Red while it can do something;
+   the disabled rule above still greys it out when there is nothing to clear. */
+.nm-ibtn-danger:not(:disabled) { color: var(--bx-err); }
 .nm-hsep { width: 1px; height: 16px; flex: none; background: var(--bx-line); }
 `;
 

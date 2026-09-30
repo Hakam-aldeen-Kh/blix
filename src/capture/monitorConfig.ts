@@ -11,11 +11,19 @@
 /**
  * Whether capturing is active.
  *
- * Gated on `NODE_ENV` alone, deliberately. Production builds hardcode
- * `NODE_ENV=production`, so this cannot be subverted — whereas gating on a
- * custom public env var could be, since a build script is free to pass an
- * arbitrary env file and a development-flavoured one would then ship the
- * monitor to users.
+ * On in development, and in any build made with `NEXT_PUBLIC_BLIX=true`.
+ *
+ * `NODE_ENV` alone stopped being enough with Next.js 16: `next build` runs on
+ * Turbopack and inlines `NODE_ENV` as `"production"` whatever the environment
+ * says, so a staging server built with `NODE_ENV=development` in its env file
+ * — which worked under webpack — silently lost the panel. The opt-in is a
+ * separate, explicit variable rather than a reinterpretation of `NODE_ENV`, so
+ * the only way to ship the monitor is to name it. The cost is the one this
+ * gate used to avoid: an env file that sets it by mistake ships the monitor to
+ * users. Keep it out of the production env file.
+ *
+ * Both halves are literal `process.env.X` comparisons so the bundler inlines
+ * them and folds the whole expression to `false` when neither is set.
  *
  * The `typeof window` half keeps the server-side module singleton empty: this
  * file is reachable from the host's HTTP-client module, which typically also
@@ -23,7 +31,9 @@
  * accumulate every user's payloads for the lifetime of the process.
  */
 export const MONITOR_ENABLED =
-  process.env.NODE_ENV === "development" && typeof window !== "undefined";
+  (process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_BLIX === "true") &&
+  typeof window !== "undefined";
 
 /** Bumped when `MonitorEntry`'s persisted shape changes. Records written under
  * a different version are dropped on read rather than migrated — this is a

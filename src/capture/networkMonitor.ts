@@ -245,12 +245,19 @@ class NetworkMonitor {
     this.sink?.onDirty(parentId);
   }
 
-  /** Clears the log, keeping pinned entries — that is what pinning is for. */
-  clear(): void {
-    const survivors = this.entries.filter((e) => e.pinned);
-    const removed = this.entries
-      .filter((e) => !e.pinned)
-      .map((e) => e.id);
+  /**
+   * Clears the log, keeping pinned entries — that is what pinning is for.
+   *
+   * With `match`, only the unpinned entries it accepts go — the header's
+   * per-source clear passes one, so emptying Redux leaves Network alone. The
+   * predicate comes from the caller because "which source is this entry" is
+   * a panel concept (`sectionOf`), not a capture one.
+   */
+  clear(match?: (entry: MonitorEntry) => boolean): void {
+    const goes = (e: MonitorEntry) => !e.pinned && (!match || match(e));
+    const survivors = this.entries.filter((e) => !goes(e));
+    const removed = this.entries.filter(goes).map((e) => e.id);
+    if (removed.length === 0) return;
 
     this.entries = survivors;
     this.reindex();

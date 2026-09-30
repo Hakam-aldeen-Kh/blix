@@ -1154,6 +1154,12 @@ export default function DevTools() {
             onExportMenu={setExportAnchor}
             exportOpen={exportAnchor !== null}
             exportDisabled={entries.length === 0}
+            onClearSection={() => {
+              networkMonitor.clear((e) => sectionOf(e) === section);
+              selection.clear();
+            }}
+            clearDisabled={!sectionEntries.some((e) => !e.pinned)}
+            sectionLabel={SECTION_DEFS.find((s) => s.id === section)?.label ?? section}
             onThemeMenu={setThemeAnchor}
             themeOpen={themeAnchor !== null}
             themeLabel={theme.label}
@@ -1398,10 +1404,10 @@ export default function DevTools() {
 
       {moreAnchor && (
         <Menu anchor={moreAnchor} width={320} label="More options">
-          {/* LOG — everything that changes what is in the buffer. Clear lives
-              here rather than in the header: it is destructive, it is a
-              keystroke away, and a button beside Export that empties the log
-              is one mis-click nobody wants. */}
+          {/* LOG — everything that changes what is in the buffer. This Clear
+              empties every source; the header's button beside Export only
+              empties the one being read, which bounds what a mis-click can
+              cost. */}
           <div className="nm-menu-group">
             <span>LOG</span>
           </div>

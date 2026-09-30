@@ -7,7 +7,8 @@ a dockable panel with cross-source links, diffing, replay and HAR/cURL
 export.
 
 The entire panel is eliminated from production builds — see
-[Production elimination](#production-elimination).
+[Production elimination](#production-elimination). To keep it on a staging
+server, see [Enabling Blix in a production build](#enabling-blix-in-a-production-build-staging).
 
 Release notes are in [CHANGELOG.md](https://github.com/Hakam-aldeen-Kh/blix/blob/main/CHANGELOG.md).
 
@@ -397,7 +398,9 @@ never creating one of its own — and the panel updates.
 It is a **silent no-op** — never a throw, never a console warning — in every
 one of these:
 
-- outside development (`process.env.NODE_ENV !== "development"`);
+- outside development (`process.env.NODE_ENV !== "development"`), unless the
+  build opted in with `NEXT_PUBLIC_BLIX=true` (see
+  [staging](#enabling-blix-in-a-production-build-staging));
 - **outside the browser** — the gate is also `typeof window !== "undefined"`,
   so every call made while rendering on the server does nothing, by design (see
   [Production elimination](#production-elimination));
@@ -721,7 +724,11 @@ import { store } from "@/src/store";
 // module graph, which fails the production build. Importing them here keeps
 // that evaluation on the client side of the boundary.
 export default function BlixMount() {
-  if (process.env.NODE_ENV !== "development") return null;
+  if (
+    process.env.NODE_ENV !== "development" &&
+    process.env.NEXT_PUBLIC_BLIX !== "true"
+  )
+    return null;
   return <Blix store={store} apiClient={apiClient} dbName="my-app" />;
 }
 ```
@@ -797,6 +804,14 @@ is being filtered out, and where the panel lives. While a filter is on, the
 field carries its own count — `8 of 56` — and a clear button, so you never
 have to read the status bar to know one is applied. `.*` widens the search to
 request and response bodies.
+
+**The red bin beside Export clears the source you are reading**, and only
+that one: emptying Redux leaves Network alone. Pinned entries survive it, and
+it is disabled when the source has nothing left to clear. To empty every
+source at once, use **Clear log** in the overflow menu, or `⇧C`.
+
+The panel opens **floating** the first time. Dock it to the bottom or the
+right from the header; the choice is saved per project.
 
 **`Ctrl/⌘ K` opens the command palette**, and for several things it is the only
 way in — sort order, row density, dock position, the copy formats, the filter
@@ -1014,8 +1029,55 @@ payloads for the lifetime of the server. Keeping the server-side singleton
 permanently empty is the point.
 
 Practically: a `captureEncrypted` call that runs during SSR does nothing, and
-`<Blix />` returns `null` there — it checks `typeof window` alongside
-`NODE_ENV` before touching the panel import.
+`<Blix />` renders nothing there. It also renders nothing during hydration, so
+its first client render matches the server's HTML; the panel mounts on the
+render right after. (Before 0.9.0 it branched on `typeof window` instead,
+which Next.js reported as a hydration mismatch on every load.)
+
+### Enabling Blix in a production build (staging)
+
+A staging or test server usually runs a production build, where the panel is
+gone by design. Setting `NODE_ENV=development` for that build does not bring
+it back on Next.js 16: `next build` runs on Turbopack and inlines `NODE_ENV`
+as `"production"` whatever the environment says.
+
+Opt in explicitly instead, in that server's env file:
+
+```bash
+NEXT_PUBLIC_BLIX=true
+```
+
+The panel and the capture layer both check it next to `NODE_ENV`, as the same
+kind of literal comparison, so Next.js inlines it at build time.
+
+> **Set `NEXT_PUBLIC_BLIX=false` in your production env file.** Next.js only
+> inlines variables that are defined. Left unset, the comparison stays in the
+> bundle as a runtime check: the panel still never loads — the variable is
+> undefined in the browser — but its chunk is emitted into your production
+> build. `false` lets the bundler fold the check and drop the chunk.
+
+**Never set `NEXT_PUBLIC_BLIX=true` for a build that real users get.** It
+ships the monitor to them, and with it everything it captures — see
+[Security](#security).
+
+**Your own guards need the variable too.** A mount component that returns
+`null` outside development (as in [Mounting the panel](#mounting-the-panel)),
+or a call-site guard around `attachHttpMonitor` (below), keeps Blix off on
+staging regardless of the variable. Add it to each:
+
+```ts
+if (
+  (process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_BLIX === "true") &&
+  typeof window !== "undefined"
+) {
+  attachHttpMonitor(apiClient);
+}
+```
+
+The variable is read under its `NEXT_PUBLIC_` name, which is a Next.js
+convention. The opt-in has been verified with Next.js 16 (Turbopack) only;
+other bundlers do not inline that name by default.
 
 ### Guard your call sites
 
@@ -1085,10 +1147,12 @@ option to keep a third party's traffic out of the log.
 By default all of that is **in memory only**. Nothing is written to disk, and
 a reload starts clean.
 
-All of it is dev-only regardless. Capture is gated on
+All of it is dev-only unless you opt a build in. Capture is gated on
 `process.env.NODE_ENV === "development" && typeof window !== "undefined"`, and
 the database is opened only when the panel mounts — see
-[Production elimination](#production-elimination).
+[Production elimination](#production-elimination). A build made with
+`NEXT_PUBLIC_BLIX=true` captures exactly as development does, so everything in
+this section applies to whoever uses that build.
 
 ### What reaches disk, and when
 
