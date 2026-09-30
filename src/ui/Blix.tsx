@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from "react";
 import { BlixContext } from "./BlixContext";
 import type { StoreLike, HttpClientLike } from "./BlixContext";
 import { configureDbName } from "../capture/monitorConfig";
@@ -14,9 +14,23 @@ export interface BlixProps {
   dbName?: string;
 }
 
+const noopSubscribe = () => () => {};
+
 export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // Must be called before any conditional return (Rules of Hooks).
   const panelRef = useRef<ReturnType<typeof lazy> | null>(null);
+
+  // `false` on the server *and* during hydration, `true` on every client
+  // render after it. Branching on `typeof window` instead rendered `null` on
+  // the server and a `<Suspense>` on the client's first pass, which is a
+  // hydration mismatch in any SSR host (Next.js reports it on every load).
+  // React swaps to the client snapshot right after hydrating, so the panel
+  // mounts one render later with no warning.
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
 
   // Without a name, every app on this origin shares `blix:default` — which is
   // a confusing thing to discover from the log rather than from a warning.
@@ -49,7 +63,7 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   }, []);
 
   if (
-    typeof window !== "undefined" &&
+    mounted &&
     (process.env.NODE_ENV === "development" ||
       process.env.NEXT_PUBLIC_BLIX === "true")
   ) {
