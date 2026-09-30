@@ -71,7 +71,7 @@ const LEGACY_KEYS = [
 
 export const DEFAULT_PREFS: MonitorPrefs = {
   rev: 0,
-  mode: "bottom",
+  mode: "float",
   bottomH: 420,
   rightW: 520,
   float: { pos: null, size: { w: 920, h: 600 }, maximized: false },
