@@ -810,6 +810,12 @@ that one: emptying Redux leaves Network alone. Pinned entries survive it, and
 it is disabled when the source has nothing left to clear. To empty every
 source at once, use **Clear log** in the overflow menu, or `⇧C`.
 
+**The launcher badge summarizes the log while the panel is closed.** It shows
+one count per source that has captured anything — Network, Realtime, Redux,
+Query, each with its rail icon — and, in red beside a count, how many of that
+source's entries failed. The dot is capture state: green while capturing,
+amber while paused, pulsing while something is in flight.
+
 The panel opens **floating** the first time. Dock it to the bottom or the
 right from the header; the choice is saved per project.
 
@@ -868,9 +874,12 @@ literal rather than a pre-serialized string.
 ### Exporting the log
 
 The **Export** button in the header offers six formats and a scope
-toggle — **Shown** (what the current section and filters leave visible) or
-**All**. It defaults to Shown, with both counts on the control, so an export
-says what it will contain before you pick a format.
+toggle — **Selected** (the one entry open in the detail pane: a request, a
+Redux action or a query), **Shown** (what the current section and filters
+leave visible) or **All**. It defaults to Shown, with every count on the
+control, so an export says what it will contain before you pick a format.
+Selected is disabled until you select an entry; if it was your last choice and
+nothing is selected, the menu opens on Shown instead.
 
 | | Format | For |
 | --- | --- | --- |

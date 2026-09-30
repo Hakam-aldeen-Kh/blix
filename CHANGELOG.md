@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-09-30
+
+A launcher that says what it holds, and exporting one entry on its own.
+
+### Added
+
+- **Export the selected entry.** The export menu's scope has a third option,
+  **Selected**, beside Shown and All: the one entry open in the detail pane —
+  a request, a Redux action or a query — in any of the six formats. It is
+  disabled while nothing is selected, and a remembered Selected scope falls
+  back to Shown rather than opening with every format disabled.
+- **Per-source counts on the launcher badge.** The single total is replaced by
+  one segment per source that has captured anything — Network, Realtime,
+  Redux, Query — each with the rail's icon and colour, and its failing count
+  in red beside it. Empty sources are left out.
+- **Icons in the overflow menu**, one per option. Purge has its own glyph, so
+  it no longer reads as the same action as Clear.
+
+### Fixed
+
+- The launcher's failing count and its in-flight pulse only counted the source
+  last open in the panel, so an error in Network did not show while Redux was
+  the saved source. Both now span every source.
+
 ## [0.9.0] - 2026-09-30
 
 Blix on a staging server, a clear button scoped to one source, and no more
