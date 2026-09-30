@@ -17,6 +17,10 @@
  * or is not there; a glyph beside a word is two things saying one thing. Both
  * are named in the overflow menu and in the command palette, which is where
  * you go when you do not already know the glyph.
+ *
+ * **Clear beside Export empties the current source only.** Clearing every
+ * source stays in the overflow menu and on ⇧C; the header button is scoped so
+ * a mis-click costs one source's log, never all four.
  */
 
 import type { DockMode } from "../../capture/monitorTypes";
@@ -42,6 +46,12 @@ export interface ToolbarProps {
   onExportMenu: (anchor: MenuAnchor | null) => void;
   exportOpen: boolean;
   exportDisabled: boolean;
+  /** Empties the source being read, and only that one. */
+  onClearSection: () => void;
+  clearDisabled: boolean;
+  /** "Network", "Redux"… — named in the tooltip so it is clear which log
+   * the button empties. */
+  sectionLabel: string;
   onThemeMenu: (anchor: MenuAnchor | null) => void;
   themeOpen: boolean;
   themeLabel: string;
@@ -85,6 +95,9 @@ export function MonitorToolbar(props: ToolbarProps) {
     onExportMenu,
     exportOpen,
     exportDisabled,
+    onClearSection,
+    clearDisabled,
+    sectionLabel,
     onThemeMenu,
     themeOpen,
     themeLabel,
@@ -221,6 +234,16 @@ export function MonitorToolbar(props: ToolbarProps) {
           title="Export the log"
         >
           <Icon name="download" size={13} />
+        </button>
+        <button
+          type="button"
+          className="nm-ibtn nm-ibtn-danger"
+          onClick={onClearSection}
+          disabled={clearDisabled}
+          aria-label={`Clear the ${sectionLabel} log`}
+          title={`Clear the ${sectionLabel} log — other sources and pinned entries are kept`}
+        >
+          <Icon name="clear" size={13} />
         </button>
         <button
           type="button"
