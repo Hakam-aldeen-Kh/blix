@@ -1175,6 +1175,9 @@ const MENU = `
 }
 .nm-menu-item:hover, .nm-menu-item.active { background: var(--bx-hover-float); }
 .nm-menu-item:disabled { cursor: not-allowed; }
+.nm-menu-ico { display: flex; flex: none; margin-right: var(--bx-3); color: var(--bx-fg-3); }
+.nm-menu-item:hover .nm-menu-ico, .nm-menu-item:focus-visible .nm-menu-ico { color: var(--bx-fg-2); }
+.nm-menu-item:disabled .nm-menu-ico { color: var(--bx-mark); }
 .nm-menu-label { flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg); }
 .nm-menu-item:disabled .nm-menu-label { color: var(--bx-fg-3); }
 /* A row that carries a state prints it where the icon used to be. A disabled
@@ -1205,6 +1208,7 @@ const MENU = `
 .nm-scope-btn:first-child { border-radius: var(--bx-r-ctl) 0 0 var(--bx-r-ctl); }
 .nm-scope-btn:last-child { border-radius: 0 var(--bx-r-ctl) var(--bx-r-ctl) 0; }
 .nm-scope-btn.active { background: var(--bx-hover-float); color: var(--bx-fg); }
+.nm-scope-btn:disabled { color: var(--bx-mark); cursor: not-allowed; }
 .nm-scope-btn b {
   font-family: var(--bx-font-mono); font-weight: 400; color: var(--bx-fg-3);
   font-variant-numeric: tabular-nums;
