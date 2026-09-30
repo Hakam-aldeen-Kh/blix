@@ -28,7 +28,11 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // NODE_ENV check keeps it out of production builds the same way the panel
   // itself is kept out.
   useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
+    if (
+      process.env.NODE_ENV !== "development" &&
+      process.env.NEXT_PUBLIC_BLIX !== "true"
+    )
+      return;
     if (dbName) return;
     console.warn(
       "[blix] No dbName prop — using the shared database \"blix:default\".\n" +
@@ -44,10 +48,15 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-    // The import() is inside a literal NODE_ENV check so webpack/Turbopack
+  if (
+    typeof window !== "undefined" &&
+    (process.env.NODE_ENV === "development" ||
+      process.env.NEXT_PUBLIC_BLIX === "true")
+  ) {
+    // The import() is inside literal env checks so webpack/Turbopack
     // constant-fold the condition to false in production and eliminate the
-    // chunk reference entirely.
+    // chunk reference entirely. `NEXT_PUBLIC_BLIX` is the explicit opt-in for
+    // a production build (a staging server) — see `MONITOR_ENABLED`.
     // Do NOT replace this check with an imported boolean (e.g. MONITOR_ENABLED)
     // — cross-file constant propagation is not guaranteed by every bundler.
     if (!panelRef.current) {
