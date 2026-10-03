@@ -117,7 +117,7 @@ const EMPTY_COPY: Record<
   }
 > = {
   network: {
-    icon: "network",
+    icon: "globe",
     title: "No requests yet",
     sub: "Captured requests appear here as the app makes them. If nothing arrives, Blix may not be attached to the HTTP client this app actually uses.",
     snippets: [
@@ -133,7 +133,7 @@ const EMPTY_COPY: Record<
     snippets: [{ code: 'const realtime = tapRealtimeAdapter(adapter, "pusher")' }],
   },
   redux: {
-    icon: "stack",
+    icon: "redux",
     title: "No Redux actions yet",
     sub: "Actions dispatched anywhere in the app appear here, with a bounded diff of what each one changed.",
     snippets: [
@@ -143,7 +143,7 @@ const EMPTY_COPY: Record<
     ],
   },
   query: {
-    icon: "database",
+    icon: "query",
     title: "No query activity yet",
     sub: "Cache lifecycle — fetch, success, invalidate, garbage-collect — appears here once the query client is tapped.",
     // From an effect, as the README says: under Strict Mode a client created

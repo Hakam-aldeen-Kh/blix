@@ -381,17 +381,24 @@ const RAIL = `
 }
 .nm-rail-item:hover { background: var(--bx-hover); }
 .nm-rail-item.active { background: var(--bx-float); }
-/* One of exactly two places a source colour is allowed, and it is data: which
-   of the four worlds you are looking at. */
-.nm-rail-item[data-src="network"].active  { border-left-color: var(--bx-src-network); }
-.nm-rail-item[data-src="realtime"].active { border-left-color: var(--bx-src-realtime); }
-.nm-rail-item[data-src="redux"].active    { border-left-color: var(--bx-src-redux); }
-.nm-rail-item[data-src="query"].active    { border-left-color: var(--bx-src-query); }
+/* A source's colour is its identity, and it is data: which of the four worlds
+   you are looking at. It is resolved once here, and painted in three places -
+   the active mark, the source's icon, and the active tab of an entry that
+   came from it - so the sidebar, the launcher and the detail pane all name a
+   source the same way. */
+.nm-rail-item[data-src="network"],  .nm-tab[data-accent="network"]  { --bx-src: var(--bx-src-network); }
+.nm-rail-item[data-src="realtime"], .nm-tab[data-accent="realtime"] { --bx-src: var(--bx-src-realtime); }
+.nm-rail-item[data-src="redux"],    .nm-tab[data-accent="redux"]    { --bx-src: var(--bx-src-redux); }
+.nm-rail-item[data-src="query"],    .nm-tab[data-accent="query"]    { --bx-src: var(--bx-src-query); }
+.nm-rail-item.active { border-left-color: var(--bx-src); }
 .nm-rail-ico {
   width: 26px; flex: none; display: flex; align-items: center; justify-content: center;
-  color: var(--bx-fg-3);
+  color: var(--bx-src, var(--bx-fg-3));
 }
-.nm-rail-item.active .nm-rail-ico { color: var(--bx-fg-2); }
+/* A source with nothing in it yet keeps its shape and gives up its colour. */
+/* The filter is for the Query mark, which paints its own colours and would
+   otherwise be the one icon that never goes quiet. */
+.nm-rail-empty:not(.active) .nm-rail-ico { color: var(--bx-fg-3); filter: grayscale(1); }
 .nm-rail-name {
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -832,7 +839,10 @@ const DETAIL = `
   font-size: var(--bx-fs-code); cursor: pointer; white-space: nowrap;
   transition: color 90ms linear, border-color 90ms linear;
 }
-.nm-tab.active { border-bottom-color: var(--bx-accent); color: var(--bx-fg); }
+/* The underline is the source's colour, not the UI accent: the tabs under a
+   Redux action and the tabs under a request are different sets, and the mark
+   says which set you are in. */
+.nm-tab.active { border-bottom-color: var(--bx-src, var(--bx-accent)); color: var(--bx-fg); }
 .nm-tab-n { padding-left: var(--bx-2); color: var(--bx-fg-3); font-variant-numeric: tabular-nums; }
 
 /* The format controls share the tab row. Two stacked bars squeezed the size
@@ -2202,6 +2212,10 @@ const SURFACES = `
 .nm-fchip-0 .nm-fchip-label, .nm-fchip-0 .nm-fchip-n { color: var(--bx-fg-3); }
 /* The Encrypted tab says what kind of ciphertext it holds. */
 .nm-tab-aes { color: var(--bx-fg-3); }
+/* Headers, Initiator and the Query state tab. The class was on all three and
+   had no rule of its own, so it neither filled the tab body nor scrolled - a
+   long header list ran off the bottom of the pane and the wheel did nothing. */
+.nm-headers { flex: 1 1 auto; min-height: 0; overflow: auto; }
 /* The detail pane with nothing selected yet. */
 .nm-empty-detail { background: var(--bx-bar); }
 

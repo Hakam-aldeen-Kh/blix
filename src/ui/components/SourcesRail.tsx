@@ -27,10 +27,10 @@ export const SECTION_DEFS: {
   title: string;
   icon: IconName;
 }[] = [
-  { id: "network", label: "Network", hotkey: "1", title: "HTTP requests (1)", icon: "network" },
+  { id: "network", label: "Network", hotkey: "1", title: "HTTP requests (1)", icon: "globe" },
   { id: "realtime", label: "Realtime", hotkey: "2", title: "WebSocket / ActionCable connections (2)", icon: "bolt" },
-  { id: "redux", label: "Redux", hotkey: "3", title: "Redux actions (3)", icon: "stack" },
-  { id: "query", label: "Query", hotkey: "4", title: "TanStack Query cache activity (4)", icon: "database" },
+  { id: "redux", label: "Redux", hotkey: "3", title: "Redux actions (3)", icon: "redux" },
+  { id: "query", label: "Query", hotkey: "4", title: "TanStack Query cache activity (4)", icon: "query" },
 ];
 
 export interface SessionStats {
@@ -114,7 +114,7 @@ export function SourcesRail({
               title={`${s.title} — ${counts[s.id]}`}
             >
               <span className="nm-rail-ico">
-                <Icon name={s.icon} size={12} />
+                <Icon name={s.icon} size={14} />
               </span>
               <span className="nm-rail-name">{s.label}</span>
               <span className="nm-rail-n">{counts[s.id]}</span>

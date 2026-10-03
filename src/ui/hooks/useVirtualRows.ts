@@ -90,15 +90,25 @@ export function useVirtualRows(
   // a time-based debounce, the callback always reads `scrollTop` fresh at the
   // moment it actually runs, never the value captured when the frame was
   // scheduled.
+  //
+  // The frame calls the *latest* `recompute`, not the one that scheduled it:
+  // a capture landing between the scroll event and its frame changes `total`,
+  // and the stale closure would clamp the window to the old row count — the
+  // last rows of a list that just grew stayed blank until the next scroll.
+  const recomputeRef = useRef(recompute);
+  useEffect(() => {
+    recomputeRef.current = recompute;
+  }, [recompute]);
+
   const scrollFrameRef = useRef(0);
   const onScroll = useCallback(() => {
     if (scrollFrameRef.current) return;
     scrollFrameRef.current = requestAnimationFrame(() => {
       scrollFrameRef.current = 0;
       scrollTopRef.current = scrollerRef.current?.scrollTop ?? 0;
-      recompute();
+      recomputeRef.current();
     });
-  }, [recompute, scrollerRef]);
+  }, [scrollerRef]);
 
   useEffect(() => {
     return () => {
@@ -124,6 +134,12 @@ export function useVirtualRows(
     });
     observer.observe(node);
     viewportRef.current = node.clientHeight;
+    // The node is new whenever the panel reopens, and a new scroller starts at
+    // 0 — but the ref still held where the old one was left. The window was
+    // then computed for that old offset: rows translated far down the list,
+    // and a blank viewport above them that no amount of looking would fill
+    // until the first scroll event corrected it.
+    scrollTopRef.current = node.scrollTop;
     recompute();
 
     return () => {

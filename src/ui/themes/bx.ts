@@ -100,8 +100,9 @@ export interface BxPalette {
   diffAdd: string;
   diffDel: string;
 
-  /* ── Source identity. Two touch points only: the sidebar's 2px active mark
-     and a row's cross-source link ticks. Nowhere else. ─────────────────── */
+  /* ── Source identity: the sidebar's active mark and icon, the launcher's
+     icons, a row's cross-source link ticks, and the active tab of the detail
+     pane. Always "which source", never decoration. ─────────────────────── */
   srcNetwork: string;
   srcRealtime: string;
   srcRedux: string;
@@ -118,10 +119,11 @@ export interface BxPalette {
  * ramp because elevation is now a background step and `fg3` because it now
  * carries text that has to clear 4.5:1.
  *
- * The four `src*` slots are the exception in the other direction: the mockups
- * name them only for Midnight, where they are deliberately desaturated to sit
- * inside the new palette. Every other theme keeps the identity colours it
- * already shipped rather than having a muted set invented for it.
+ * The four `src*` slots are the exception in the other direction: every theme
+ * keeps the identity colours it already shipped. Midnight's are desaturated to
+ * sit inside its palette, but on the same hues as the other eleven — Redux
+ * violet and Query orange, the colours those tools' own devtools taught — so
+ * a source does not change colour family when the theme does.
  */
 const MIDNIGHT: BxPalette = {
   shadowRgb: "0,0,0",
@@ -136,8 +138,8 @@ const MIDNIGHT: BxPalette = {
   synKey: "#9fb8c9", synStr: "#a7bf96", synNum: "#c9a86a",
   synBool: "#c08a94", synPunct: "#5f646c",
   diffAdd: "#a7bf96", diffDel: "#d1a0a0",
-  srcNetwork: "#6ea8c7", srcRealtime: "#5fb3a1", srcRedux: "#b08968",
-  srcQuery: "#8f9bc4",
+  srcNetwork: "#6ea8c7", srcRealtime: "#a9c25d", srcRedux: "#a590d0",
+  srcQuery: "#d08560",
 };
 
 const DAYLIGHT: BxPalette = {
@@ -153,7 +155,7 @@ const DAYLIGHT: BxPalette = {
   synKey: "#1f6d92", synStr: "#1f6d43", synNum: "#8a5a1f",
   synBool: "#9c3d68", synPunct: "#858c95",
   diffAdd: "#3d6b4a", diffDel: "#8c3b3b",
-  srcNetwork: "#1f6d92", srcRealtime: "#0891a8", srcRedux: "#7c3aed",
+  srcNetwork: "#1f6d92", srcRealtime: "#5c7a12", srcRedux: "#7c3aed",
   srcQuery: "#dd6a10",
 };
 

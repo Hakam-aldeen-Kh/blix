@@ -47,7 +47,7 @@ function SourceCounts({
             data-src={s.id}
             title={`${counts[s.id]} ${s.label}${failed > 0 ? `, ${failed} failing` : ""}`}
           >
-            <Icon name={s.icon} size={11} />
+            <Icon name={s.icon} size={13} />
             {counts[s.id]}
             {failed > 0 && <span className="nm-fab-err">{failed}</span>}
           </span>
