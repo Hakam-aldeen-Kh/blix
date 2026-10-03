@@ -35,6 +35,7 @@ import { analyzeFolds } from "../helpers/jsonFold";
 import { asTable } from "../helpers/tabular";
 import { toYaml } from "../helpers/toYaml";
 import type { DataFormat } from "../types/monitorUi";
+import { Icon } from "./Icon";
 import { JsonText } from "./JsonText";
 import { JsonTree } from "./JsonTree";
 import { TableView } from "./TableView";
@@ -336,6 +337,7 @@ export function DataView({
             folded by hand left no way to collapse the rest without expanding
             them all first. */}
         <span className="nm-tool-gap" />
+        <div className="nm-tool-acts">
         {collapsible.length > 0 && (
           <button
             className="nm-copy"
@@ -351,15 +353,19 @@ export function DataView({
         )}
         {isTextual && (
           <button
-            className={`nm-copy nm-toggle${wrap ? " active" : ""}`}
+            className={`nm-copy nm-copy-ico nm-toggle${wrap ? " active" : ""}`}
+            aria-label="Wrap long lines"
             onClick={() => setWrap((w) => !w)}
-            title="Toggle line wrapping"
+            aria-pressed={wrap}
+            title={wrap ? "Long lines wrap — click to scroll sideways instead" : "Long lines scroll sideways — click to wrap"}
           >
-            Wrap
+            <Icon name="wrap" size={11} />
+            <span className="nm-copy-label">Wrap</span>
           </button>
         )}
         <button
-          className="nm-copy"
+          className={`nm-copy nm-copy-ico${copied ? " nm-copied" : ""}`}
+          aria-label="Copy"
           onClick={copy}
           title={`Copy as ${
             format === extraFormat?.id
@@ -369,8 +375,10 @@ export function DataView({
                 : format.toUpperCase()
           }`}
         >
-          {copied ? "✓ Copied" : "Copy"}
+          <Icon name={copied ? "check" : "copy"} size={11} />
+          <span className="nm-copy-label">{copied ? "Copied" : "Copy"}</span>
         </button>
+        </div>
     </>
   );
 

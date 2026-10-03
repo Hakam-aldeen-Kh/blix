@@ -141,7 +141,7 @@ export function Menu({
   return (
     <div
       ref={ref}
-      className="nm-menu nm-scroll"
+      className="nm-menu"
       role="menu"
       aria-label={label}
       tabIndex={-1}

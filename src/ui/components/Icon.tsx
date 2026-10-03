@@ -6,12 +6,13 @@
 
 export type IconName =
   | "search"
+  | "search-off"
+  | "rows"
   | "clear"
   | "maximize"
   | "restore"
   | "close"
   | "grip"
-  | "inbox"
   | "pause"
   | "play"
   | "download"
@@ -23,6 +24,7 @@ export type IconName =
   | "dock-float"
   | "replay"
   | "copy"
+  | "wrap"
   | "chevron"
   | "pin"
   | "keyboard"
@@ -92,6 +94,21 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M13.5 13.5l-3.1-3.1" />
         </>
       )}
+      {/* A search that came back with nothing. */}
+      {name === "search-off" && (
+        <>
+          <circle cx="7" cy="7" r="4.6" />
+          <path d="M13.6 13.6l-3.2-3.2" />
+          <path d="M5.5 5.5l3 3M8.5 5.5l-3 3" />
+        </>
+      )}
+      {/* A list with one row picked out - "choose one of these". */}
+      {name === "rows" && (
+        <>
+          <path d="M2.6 3.6h10.8M2.6 12.4h10.8" />
+          <rect x="2.2" y="6" width="11.6" height="4" rx="1.2" fill="currentColor" fillOpacity="0.3" />
+        </>
+      )}
       {name === "clear" && (
         <>
           <path d="M3 4.4h10" />
@@ -114,12 +131,6 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
             <circle cx="10" cy={cy} r="0.95" />
           </g>
         ))}
-      {name === "inbox" && (
-        <>
-          <path d="M2 9.5 3.6 4a1.4 1.4 0 0 1 1.3-1h6.2a1.4 1.4 0 0 1 1.3 1L14 9.5V12a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12z" />
-          <path d="M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14" />
-        </>
-      )}
       {name === "pause" && (
         <>
           <rect x="4.5" y="3.5" width="2.4" height="9" rx="0.8" fill="currentColor" stroke="none" />
@@ -188,6 +199,15 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
         <>
           <rect x="5.4" y="5.4" width="8" height="8" rx="1.6" />
           <path d="M10.6 5.4V4a1.6 1.6 0 0 0-1.6-1.6H4a1.6 1.6 0 0 0-1.6 1.6v5a1.6 1.6 0 0 0 1.6 1.6h1.4" />
+        </>
+      )}
+      {/* A line that runs out of room and turns back. */}
+      {name === "wrap" && (
+        <>
+          <path d="M2.4 4h11.2" />
+          <path d="M2.4 8h9a2.2 2.2 0 0 1 0 4.4H8.2" />
+          <path d="M9.8 10.6 8 12.4l1.8 1.8" />
+          <path d="M2.4 12.4h2.8" />
         </>
       )}
       {name === "chevron" && <path d="M6 4l4 4-4 4" />}

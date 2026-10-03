@@ -386,10 +386,10 @@ const RAIL = `
    the active mark, the source's icon, and the active tab of an entry that
    came from it - so the sidebar, the launcher and the detail pane all name a
    source the same way. */
-.nm-rail-item[data-src="network"],  .nm-tab[data-accent="network"]  { --bx-src: var(--bx-src-network); }
-.nm-rail-item[data-src="realtime"], .nm-tab[data-accent="realtime"] { --bx-src: var(--bx-src-realtime); }
-.nm-rail-item[data-src="redux"],    .nm-tab[data-accent="redux"]    { --bx-src: var(--bx-src-redux); }
-.nm-rail-item[data-src="query"],    .nm-tab[data-accent="query"]    { --bx-src: var(--bx-src-query); }
+.nm-rail-item[data-src="network"],  .nm-tab[data-accent="network"],  .nm-empty-ico[data-accent="network"]  { --bx-src: var(--bx-src-network); }
+.nm-rail-item[data-src="realtime"], .nm-tab[data-accent="realtime"], .nm-empty-ico[data-accent="realtime"] { --bx-src: var(--bx-src-realtime); }
+.nm-rail-item[data-src="redux"],    .nm-tab[data-accent="redux"],    .nm-empty-ico[data-accent="redux"]    { --bx-src: var(--bx-src-redux); }
+.nm-rail-item[data-src="query"],    .nm-tab[data-accent="query"],    .nm-empty-ico[data-accent="query"]    { --bx-src: var(--bx-src-query); }
 .nm-rail-item.active { border-left-color: var(--bx-src); }
 .nm-rail-ico {
   width: 26px; flex: none; display: flex; align-items: center; justify-content: center;
@@ -860,18 +860,33 @@ const DETAIL = `
   padding: 0 var(--bx-4);
 }
 .nm-json-toolbar { flex: none; height: 26px; border-bottom: 1px solid var(--bx-line-soft); }
-.nm-fmt { display: flex; align-items: center; flex: none; }
+/* Display-format switch. Leads the payload controls because it changes what
+   the pane below it *is*, unlike Wrap and Copy which act on whatever is
+   already there. One bordered control with hairlines between its segments, so
+   five words read as one choice rather than as five buttons. */
+.nm-fmt {
+  display: flex; align-items: stretch; flex: none; height: var(--bx-h-ctl-sm);
+  border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-ctl);
+  overflow: hidden;
+}
 .nm-fmt-btn {
-  flex: none;
-  height: var(--bx-h-ctl-sm); padding: 0 8px; background: transparent; border: 0;
+  display: flex; align-items: center; flex: none; height: 100%; padding: 0 8px; background: transparent; border: 0;
+  border-left: 1px solid var(--bx-line);
   color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer;
   transition: background-color 90ms linear, color 90ms linear;
 }
-.nm-fmt-btn:first-child { border-radius: var(--bx-r-ctl) 0 0 var(--bx-r-ctl); }
-.nm-fmt-btn:last-child { border-radius: 0 var(--bx-r-ctl) var(--bx-r-ctl) 0; }
+.nm-fmt-btn:first-child { border-left: 0; }
+.nm-fmt-btn:hover:not(:disabled):not(.active) { background: var(--bx-hover); color: var(--bx-fg); }
 .nm-fmt-btn.active { background: var(--bx-sel); color: var(--bx-fg); }
+/* Table stays visible while unavailable rather than disappearing - a control
+   that comes and goes as you click between requests is harder to learn than
+   one that is simply dim, and its tooltip explains why. */
+.nm-fmt-btn:disabled { color: var(--bx-mark); cursor: not-allowed; }
+/* Tertiary: the readout is the first thing to give up its width, so the
+   controls on either side of it never leave the pane. */
 .nm-json-size {
-  flex: none; font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
   color: var(--bx-fg-3); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 /* How many values on screen are not the values that were sent. */
@@ -887,19 +902,27 @@ const DETAIL = `
   color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer; white-space: nowrap;
   transition: background-color 90ms linear;
 }
-.nm-copy:hover { background: var(--bx-hover); }
+.nm-copy:hover { background: var(--bx-hover); color: var(--bx-fg); }
+/* On is the same pressed ground the format switch uses - one way of saying
+   "this is the current state" across the whole bar. */
 .nm-toggle.active { background: var(--bx-sel); color: var(--bx-fg); }
+/* Copy confirms in place, in the colour that means it worked. */
+.nm-copy.nm-copied { color: var(--bx-ok); border-color: var(--bx-ok); }
+/* The actions sit closer to each other than to the readout beside them. */
+.nm-tool-acts { display: flex; align-items: center; gap: var(--bx-2); flex: none; }
+/* A pane too narrow for the words keeps the buttons and drops to their
+   icons, rather than pushing Copy off the edge. Only the bar that sits in the
+   viewer is affected - the one lent to the tab row exists only when the pane
+   is wide enough to share it. */
+@container nmview (max-width: 520px) {
+  .nm-copy-label { display: none; }
+  .nm-copy-ico { width: var(--bx-h-ctl-sm); padding: 0; justify-content: center; }
+}
 
 .nm-tab-body {
   flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
   overflow: hidden;
 }
-.nm-detail-foot {
-  display: flex; align-items: center; flex: none; height: 24px; padding: 0 12px;
-  border-top: 1px solid var(--bx-line);
-  font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta); color: var(--bx-fg-3);
-}
-.nm-detail-foot > span:first-child { flex: 1 1 auto; }
 
 /* The selection has left the current filter. Keep showing it - hiding it would
    make the reader's context vanish for a reason they did not cause - but say
@@ -924,7 +947,15 @@ const DETAIL = `
 .nm-empty-title { margin: 0; font-size: var(--bx-fs-lg); color: var(--bx-fg); }
 .nm-empty-sub { margin: 0; font-size: var(--bx-fs-sm); line-height: 1.6; color: var(--bx-fg-3); max-width: 420px; }
 .nm-empty-copy { display: flex; flex-direction: column; gap: var(--bx-2); }
-.nm-empty-ico { display: flex; color: var(--bx-fg-3); }
+/* A quiet tile on the panel's own grounds and hairline, at the panel's own
+   radius. The glyph carries the meaning; where the empty state belongs to a
+   source it takes that source's colour, and is neutral otherwise. */
+.nm-empty-ico {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 40px; background: var(--bx-float);
+  border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-modal);
+  color: var(--bx-src, var(--bx-fg-2));
+}
 .nm-empty-setups { display: flex; flex-direction: column; gap: var(--bx-2); width: 100%; max-width: 420px; }
 .nm-empty-setup { display: flex; align-items: center; gap: var(--bx-2); }
 .nm-empty-snippet {
@@ -936,41 +967,20 @@ const DETAIL = `
 }
 .nm-empty-label { flex: none; font-size: var(--bx-fs-meta); color: var(--bx-fg-3); }
 .nm-empty-btn {
-  flex: none; height: var(--bx-h-ctl-sm); padding: 0 8px; background: transparent;
+  flex: none; height: var(--bx-h-ctl); padding: 0 var(--bx-4); background: transparent;
   border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-ctl);
-  color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer;
+  color: var(--bx-fg); font-size: var(--bx-fs-meta); cursor: pointer;
+  transition: background-color 90ms linear;
 }
+.nm-empty-btn:hover { background: var(--bx-hover); }
 .nm-empty-list { background: var(--bx-bg); }
 `;
 
 const VIEWERS = `
-.nm-json-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-/* The payload controls render into the tab row when the detail pane offers a
-   slot for them (see PayloadTools in DataView) — tabs and format are both
-   properties of the pane below, and two stacked 32px bars over a short docked
-   payload was more chrome than content. This is the standalone fallback. */
-.nm-json-toolbar { display: flex; align-items: center; gap: 6px; justify-content: flex-end; padding: 5px 10px; border-bottom: 1px solid var(--nm-line-2); flex-shrink: 0; }
-.nm-tabrow-tools { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; min-width: 0; }
-/* Tertiary information: it yields its space to the controls rather than
-   competing for it. The nowrap is the part that matters — as a wrapping flex
-   item it once folded "116 B · 10 lines" onto three lines and made the whole
-   toolbar twice as tall. */
-
-/* Display-format switch. Leads the payload controls because it changes what
-   the pane below it *is*, unlike Wrap and Copy which act on whatever is
-   already there. */
-.nm-fmt { display: flex; gap: 1px; padding: 2px; border-radius: 6px; border: 1px solid var(--nm-line); background: var(--nm-sunken); flex-shrink: 0; }
-.nm-fmt-btn {
-  height: 18px; padding: 0 7px; font-size: 10px; font-weight: 400; border: none; border-radius: 4px;
-  background: transparent; color: var(--nm-faint); cursor: pointer; font-family: inherit;
-  transition: background .14s ease, color .14s ease;
+.nm-json-wrap {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  container-type: inline-size; container-name: nmview;
 }
-.nm-fmt-btn:hover:not(:disabled) { color: var(--nm-txt); }
-.nm-fmt-btn.active { background: var(--nm-accent-soft); color: var(--nm-accent); font-weight: 600; }
-/* Table stays visible while unavailable rather than disappearing — a control
-   that comes and goes as you click between requests is harder to learn than
-   one that is simply dim, and its tooltip explains why. */
-.nm-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
 
 /* ── Redux store slices ────────────────────────────────────────────────────
    Its own bar above the format toolbar. Sharing that row meant three
@@ -1043,15 +1053,6 @@ const VIEWERS = `
 .nm-tv-row:hover > .nm-td { background: var(--nm-elev); }
 .nm-tv-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
 .nm-tv-note { font-size: 10.5px; color: var(--nm-faint); }
-.nm-copy {
-  flex: none; height: 20px; padding: 0 7px; font-size: 10px; border-radius: 5px;
-  border: 1px solid var(--nm-line); font-family: inherit;
-  background: var(--nm-elev); color: var(--nm-muted); cursor: pointer; white-space: nowrap;
-  transition: background .14s ease, color .14s ease, border-color .14s ease;
-}
-.nm-copy:hover { background: var(--nm-elev-hover); color: var(--nm-txt); }
-.nm-toggle { color: var(--nm-muted); }
-.nm-toggle.active { color: var(--nm-accent); border-color: var(--nm-accent); background: var(--nm-accent-soft); }
 .nm-nowrap { white-space: pre !important; word-break: normal !important; }
 .nm-json {
   margin: 0; flex: 1; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6;
@@ -1158,8 +1159,15 @@ const MENU = `
   position: fixed; z-index: 30; min-width: 0;
   background: var(--bx-float); border: 1px solid var(--bx-line-strong);
   border-radius: var(--bx-r-pop); padding: 5px 0;
-  max-height: 70vh; overflow-y: auto;
+  /* A menu shows no scrollbar, in either direction. Sideways it never scrolls
+     at all: setting only overflow-y made the other axis auto as well, and a
+     row one pixel too wide put a scrollbar across the foot of the menu. Down,
+     it takes the whole viewport before it gives in, and a window too short
+     even for that still moves under the wheel - just without the bar. */
+  max-height: calc(100vh - 16px); overflow-x: hidden; overflow-y: auto;
+  scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain;
 }
+.nm-menu::-webkit-scrollbar { width: 0; height: 0; }
 .nm-menu-head {
   display: flex; align-items: center; height: 30px; padding: 0 12px;
   border-bottom: 1px solid var(--bx-line); font-size: var(--bx-fs-md); color: var(--bx-fg);
@@ -1181,8 +1189,12 @@ const MENU = `
 .nm-menu-item {
   display: flex; align-items: center; width: 100%; height: 26px; padding: 0 12px;
   background: transparent; border: 0; text-align: left; cursor: pointer;
+  font-size: var(--bx-fs-md); color: var(--bx-fg); white-space: nowrap;
   transition: background-color 90ms linear;
 }
+/* The context menu puts its icon straight into the row, with no wrapper. */
+.nm-menu-item > .nm-ico { flex: none; margin-right: var(--bx-3); color: var(--bx-fg-3); }
+.nm-menu-item:hover > .nm-ico { color: var(--bx-fg-2); }
 .nm-menu-item:hover, .nm-menu-item.active { background: var(--bx-hover-float); }
 .nm-menu-item:disabled { cursor: not-allowed; }
 .nm-menu-ico { display: flex; flex: none; margin-right: var(--bx-3); color: var(--bx-fg-3); }
@@ -1277,11 +1289,6 @@ const MISC = `
 }
 .nm-empty-list { height: auto; padding-top: 48px; }
 .nm-tbody > .nm-empty-list { min-height: 100%; }
-.nm-empty-ico {
-  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
-  border-radius: 12px; border: 1px solid var(--nm-accent-fg);
-  background: var(--nm-accent-bg); color: var(--nm-accent-fg);
-}
 /* An empty section is where a developer finds out that capture has to be
    installed where the adapter is *constructed* — so the setup call sits in the
    empty state itself, one click from the clipboard, rather than in a README. */
@@ -1294,13 +1301,6 @@ const MISC = `
 .nm-empty-fn { color: var(--nm-syn-bool); }
 .nm-empty-arg { color: var(--nm-syn-str); }
 .nm-empty-punct { color: var(--nm-syn-null); }
-.nm-empty-btn {
-  display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 6px;
-  border: 1px solid var(--nm-accent-line); background: var(--nm-accent-soft); color: var(--nm-accent);
-  font-family: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer;
-  transition: filter .14s ease;
-}
-.nm-empty-btn:hover { filter: brightness(1.3); }
 /* One row per setup call — a snippet and its own copy button — so a section
    offering two (axios and fetch) never makes you guess which one a button
    copies. */

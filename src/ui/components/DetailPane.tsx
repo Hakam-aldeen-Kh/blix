@@ -317,7 +317,7 @@ function EmptyDetail({
   return (
     <div className="nm-empty nm-empty-detail">
       <span className="nm-empty-ico">
-        <Icon name="inbox" size={20} />
+        <Icon name="rows" size={20} />
       </span>
       <div className="nm-empty-copy">
         <p className="nm-empty-title">{title}</p>
@@ -907,14 +907,6 @@ export function DetailPane({
           </ScrollStrip>
         </div>
       )}
-
-      {/* The two things a reader does next, where they will look for them.
-          Not a second bar and not a second readout: the format controls, the
-          parsed size and the masked count all stay in the tab row. */}
-      <div className="nm-detail-foot">
-        <span>alt-click to fold</span>
-        <span>↑ ↓ to move</span>
-      </div>
     </div>
   );
 }

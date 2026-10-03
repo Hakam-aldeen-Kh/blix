@@ -1286,7 +1286,7 @@ export default function DevTools() {
                     ) : (
                       <div className="nm-empty nm-empty-list">
                         <span className="nm-empty-ico" data-accent={section}>
-                          <Icon name="search" size={20} />
+                          <Icon name="search-off" size={20} />
                         </span>
                         <div className="nm-empty-copy">
                           <p className="nm-empty-title">Nothing matches</p>
