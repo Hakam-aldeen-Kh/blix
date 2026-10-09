@@ -27,22 +27,42 @@ export function useMeasuredSize(
     if (!active || !node || typeof ResizeObserver === "undefined") return;
 
     let frame = 0;
+    let first = true;
+    let latest: DOMRectReadOnly | null = null;
+
+    const apply = () => {
+      const rect = latest;
+      if (!rect) return;
+      // setState inside the observer callback, not an effect body.
+      setSize((prev) => {
+        const width = Math.round(rect.width);
+        const height = Math.round(rect.height);
+        return prev.width === width && prev.height === height
+          ? prev
+          : { width, height };
+      });
+    };
+
     const observer = new ResizeObserver((entries) => {
+      // Always the newest box: a frame that was already scheduled must not
+      // commit the size it was scheduled with.
+      latest = entries[entries.length - 1]?.contentRect ?? latest;
+      // The first delivery is applied at once. It arrives before the first
+      // paint, and everything that picks a layout from this size - stacked or
+      // side by side, which toolbar, which sidebar - would otherwise paint the
+      // roomy one first and correct itself a frame later, or not at all in a
+      // tab whose animation frames are paused.
+      if (first) {
+        first = false;
+        apply();
+        return;
+      }
       if (frame) return;
       // rAF-throttled: a resize drag fires this at pointer rate, and each
       // update re-renders whatever consumes the size.
       frame = requestAnimationFrame(() => {
         frame = 0;
-        const rect = entries[0]?.contentRect;
-        if (!rect) return;
-        // setState inside the observer callback, not an effect body.
-        setSize((prev) => {
-          const width = Math.round(rect.width);
-          const height = Math.round(rect.height);
-          return prev.width === width && prev.height === height
-            ? prev
-            : { width, height };
-        });
+        apply();
       });
     });
 

@@ -356,8 +356,8 @@ const RAIL = `
   user-select: none; overflow: hidden;
 }
 .nm-rail-head {
-  display: flex; align-items: center; flex: none; height: 26px;
-  padding: 0 var(--bx-3) 0 var(--bx-4);
+  display: flex; align-items: center; flex: none; height: 28px;
+  padding: 0 var(--bx-3) 0 12px;
 }
 .nm-rail-label {
   flex: 1 1 auto; font-size: var(--bx-fs-micro); letter-spacing: .1em;
@@ -371,10 +371,14 @@ const RAIL = `
 }
 .nm-rail-collapse:hover { background: var(--bx-hover); }
 
-.nm-rail-list { flex: none; }
+/* The four sources are the one thing the sidebar may not lose, so the list is
+   what scrolls if a short dock cannot hold all four - without a bar, like the
+   menus. */
+.nm-rail-list { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.nm-rail-list::-webkit-scrollbar { width: 0; height: 0; }
 .nm-rail-item {
-  display: flex; align-items: center; width: 100%; height: var(--bx-row);
-  padding: 0 var(--bx-4) 0 0; background: transparent; border: 0;
+  display: flex; align-items: center; width: 100%; height: 28px;
+  padding: 0 12px 0 0; background: transparent; border: 0;
   border-left: var(--bx-rail) solid transparent;
   text-align: left; cursor: pointer;
   transition: background-color 90ms linear, border-color 90ms linear;
@@ -392,7 +396,7 @@ const RAIL = `
 .nm-rail-item[data-src="query"],    .nm-tab[data-accent="query"],    .nm-empty-ico[data-accent="query"]    { --bx-src: var(--bx-src-query); }
 .nm-rail-item.active { border-left-color: var(--bx-src); }
 .nm-rail-ico {
-  width: 26px; flex: none; display: flex; align-items: center; justify-content: center;
+  width: 32px; flex: none; display: flex; align-items: center; justify-content: center;
   color: var(--bx-src, var(--bx-fg-3));
 }
 /* A source with nothing in it yet keeps its shape and gives up its colour. */
@@ -403,9 +407,11 @@ const RAIL = `
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* The count is secondary to the name until its source is the one on screen. */
 .nm-rail-n {
-  flex: none; font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
-  color: var(--bx-fg-2); font-variant-numeric: tabular-nums;
+  flex: none; padding-left: var(--bx-3);
+  font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
+  color: var(--bx-fg-3); font-variant-numeric: tabular-nums;
 }
 .nm-rail-item.active .nm-rail-name, .nm-rail-item.active .nm-rail-n { color: var(--bx-fg); }
 .nm-rail-empty .nm-rail-name, .nm-rail-empty .nm-rail-n { color: var(--bx-fg-3); }
@@ -417,11 +423,12 @@ const RAIL = `
 
 .nm-rail-stats { flex: none; }
 .nm-rail-stats-head {
-  display: flex; align-items: center; height: 26px; margin-top: 16px;
-  padding: 0 var(--bx-4); font-size: var(--bx-fs-micro); letter-spacing: .1em;
+  display: flex; align-items: center; height: 28px; margin-top: var(--bx-4);
+  padding: 0 12px; border-top: 1px solid var(--bx-line);
+  font-size: var(--bx-fs-micro); letter-spacing: .1em;
   color: var(--bx-fg-3);
 }
-.nm-rail-stat { display: flex; align-items: center; height: 22px; padding: 0 var(--bx-4); }
+.nm-rail-stat { display: flex; align-items: center; height: 22px; padding: 0 12px; }
 .nm-rail-stat-k { flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-3); }
 .nm-rail-stat-v {
   flex: none; font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
@@ -468,7 +475,7 @@ const RAIL = `
   height: calc(var(--bx-row) + var(--bx-4)); padding: 0;
 }
 .nm-rail-mini .nm-rail-ico { width: auto; }
-.nm-rail-mini .nm-rail-n { font-size: var(--bx-fs-micro); font-variant-numeric: tabular-nums; }
+.nm-rail-mini .nm-rail-n { padding-left: 0; font-size: var(--bx-fs-micro); font-variant-numeric: tabular-nums; }
 /* The button keeps its box so the bottom of the sidebar still reads as a
    control rather than as an empty rectangle. */
 .nm-rail-mini .nm-rail-cmdwrap { padding: var(--bx-3); }
@@ -723,8 +730,8 @@ const TABLE = `
 
 .nm-load-divider {
   display: flex; align-items: center; gap: 8px; height: var(--nm-row-h); padding: 0 12px 0 20px;
-  font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--nm-faint);
+  font-size: var(--bx-fs-micro); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--bx-fg-3);
 }
 .nm-load-divider > span { flex: none; display: inline-flex; align-items: center; gap: 5px; }
 .nm-load-divider::after {
@@ -740,6 +747,10 @@ const DETAIL = `
 .nm-detail {
   display: flex; flex-direction: column; flex: 1 1 auto;
   min-width: 0; min-height: 0; background: var(--bx-bar);
+  /* Its own container, on both axes: how much head the pane can afford is a
+     question about the pane's height, and the pane's height is set by a dock
+     and a splitter the panel-level queries know nothing about. */
+  overflow: hidden; container-type: size; container-name: nmdetail;
 }
 .nm-detail-head {
   flex: none; padding: var(--bx-4) 12px;
@@ -752,7 +763,7 @@ const DETAIL = `
 .nm-detail[data-tone="info"] .nm-detail-head { border-left-color: var(--bx-info); }
 
 .nm-detail-id {
-  display: flex; align-items: baseline; gap: 9px;
+  display: flex; align-items: baseline; gap: 9px; min-width: 0; overflow: hidden;
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
 }
 .nm-detail-status { flex: none; font-size: var(--bx-fs-lg); color: var(--bx-fg-3); }
@@ -766,7 +777,7 @@ const DETAIL = `
 .nm-detail[data-tone="info"] .nm-detail-reason { color: var(--bx-info); }
 .nm-detail-method { flex: none; font-size: var(--bx-fs-sm); letter-spacing: .06em; color: var(--bx-fg-2); }
 .nm-detail-reason {
-  flex: none; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
+  flex: 0 1 auto; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nm-detail-gap { flex: 1 1 auto; }
@@ -795,6 +806,39 @@ const DETAIL = `
 .nm-dbtn-on { background: var(--bx-sel); color: var(--bx-fg); }
 .nm-dbtn-sq { width: 22px; padding: 0; justify-content: center; }
 .nm-dbtn-gap { flex: 1 1 auto; }
+.nm-dbtn-back { display: flex; transform: scaleX(-1); }
+
+/* A short pane spends its height on the payload, not on the head. First the
+   note and the wrapping route go; then the route and the actions share a
+   line. The head was a fixed 130px, which in a 160px pane pushed the tabs and
+   everything under them out through the bottom of the panel. */
+/* The clock is the first measurement to go when the status line runs out of
+   width: it is the one the row beside the pane does not also need. */
+@container nmdetail (max-width: 330px) {
+  .nm-detail-meta:last-child { display: none; }
+}
+@container nmdetail (max-height: 300px) {
+  .nm-notice { padding-top: var(--bx-2); padding-bottom: var(--bx-2); }
+  .nm-notice-txt { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nm-detail-head { padding-top: var(--bx-3); padding-bottom: var(--bx-3); }
+  .nm-detail-note { display: none; }
+  .nm-detail-url {
+    margin-top: var(--bx-2); white-space: nowrap; word-break: normal;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .nm-detail-actions { margin-top: var(--bx-3); }
+  .nm-empty-detail { gap: var(--bx-3); padding: var(--bx-4); }
+  .nm-empty-detail .nm-empty-ico { display: none; }
+}
+@container nmdetail (max-height: 200px) {
+  .nm-detail-head { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--bx-4); }
+  .nm-detail-id { flex: 1 1 100%; min-width: 0; }
+  .nm-detail-url { flex: 1 1 0; min-width: 0; }
+  .nm-detail-actions { flex: none; margin-top: var(--bx-2); }
+  .nm-dbtn-gap { display: none; }
+  .nm-linked { display: none; }
+  .nm-empty-detail .nm-empty-sub { display: none; }
+}
 
 .nm-tabrow {
   display: flex; align-items: stretch; flex: none; min-width: 0;
@@ -865,10 +909,14 @@ const DETAIL = `
    already there. One bordered control with hairlines between its segments, so
    five words read as one choice rather than as five buttons. */
 .nm-fmt {
-  display: flex; align-items: stretch; flex: none; height: var(--bx-h-ctl-sm);
+  display: flex; align-items: stretch; flex: 0 1 auto; min-width: 0;
+  height: var(--bx-h-ctl-sm);
   border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-ctl);
-  overflow: hidden;
+  /* Six formats in a 300px pane do not fit beside the actions; the switch is
+     the part that can slide, the actions are not. */
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
+.nm-fmt::-webkit-scrollbar { width: 0; height: 0; }
 .nm-fmt-btn {
   display: flex; align-items: center; flex: none; height: 100%; padding: 0 8px; background: transparent; border: 0;
   border-left: 1px solid var(--bx-line);
@@ -907,6 +955,7 @@ const DETAIL = `
    "this is the current state" across the whole bar. */
 .nm-toggle.active { background: var(--bx-sel); color: var(--bx-fg); }
 /* Copy confirms in place, in the colour that means it worked. */
+.nm-copy-flip { display: flex; transform: scaleY(-1); }
 .nm-copy.nm-copied { color: var(--bx-ok); border-color: var(--bx-ok); }
 /* The actions sit closer to each other than to the readout beside them. */
 .nm-tool-acts { display: flex; align-items: center; gap: var(--bx-2); flex: none; }
@@ -917,6 +966,13 @@ const DETAIL = `
 @container nmview (max-width: 520px) {
   .nm-copy-label { display: none; }
   .nm-copy-ico { width: var(--bx-h-ctl-sm); padding: 0; justify-content: center; }
+}
+/* Narrower still, the readout goes entirely and the segments tighten: five
+   formats and three actions are the bar, and they have to fit. */
+@container nmview (max-width: 400px) {
+  .nm-json-toolbar { gap: var(--bx-3); padding: 0 var(--bx-3); }
+  .nm-json-size, .nm-masked { display: none; }
+  .nm-fmt-btn { padding: 0 6px; }
 }
 
 .nm-tab-body {
@@ -1038,33 +1094,35 @@ const VIEWERS = `
 .nm-tv-head, .nm-tv-row { display: contents; }
 .nm-tv-head > span {
   position: sticky; top: 0; z-index: 1;
-  font-size: 9.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
-  color: var(--nm-faint); background: var(--nm-surface-2);
-  padding: 5px 10px; border-bottom: 1px solid var(--nm-line);
+  font-size: var(--bx-fs-micro); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--bx-fg-3); background: var(--bx-bar);
+  padding: 0 var(--bx-4); height: var(--bx-h-bar); line-height: var(--bx-h-bar);
+  border-bottom: 1px solid var(--bx-line);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nm-td {
-  padding: 3px 10px; font-family: var(--nm-mono); font-size: 11px;
-  border-bottom: 1px solid var(--nm-line-2);
+  padding: 3px var(--bx-4); font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
+  color: var(--bx-fg-2); border-bottom: 1px solid var(--bx-line-soft);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Hovering a row highlights the whole row even though the cells are grid
    children with no row element of their own to hang :hover on. */
 .nm-tv-row:hover > .nm-td { background: var(--nm-elev); }
 .nm-tv-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
-.nm-tv-note { font-size: 10.5px; color: var(--nm-faint); }
+.nm-tv-note { font-size: var(--bx-fs-sm); color: var(--bx-fg-3); }
 .nm-nowrap { white-space: pre !important; word-break: normal !important; }
 .nm-json {
-  margin: 0; flex: 1; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6;
-  font-family: var(--nm-mono); color: var(--nm-syn-txt); white-space: pre-wrap; word-break: break-word;
+  margin: 0; flex: 1; min-height: 0; overflow: auto; padding: var(--bx-4) 12px;
+  font-size: var(--bx-fs-code); line-height: 1.6;
+  font-family: var(--bx-font-mono); color: var(--bx-fg); white-space: pre-wrap; word-break: break-word;
 }
 /* Foldable JSON. Same typography as the flat .nm-json above, but one row per
    line so each can carry a gutter. The padding moves from the container to the
    rows, so a row's hover highlight runs the full width of the pane. */
 .nm-jfold {
-  flex: 1; min-height: 0; overflow: auto; padding: 12px 0;
-  font-size: 12px; line-height: 1.6; font-family: var(--nm-mono);
-  color: var(--nm-syn-txt);
+  flex: 1; min-height: 0; overflow: auto; padding: var(--bx-4) 0;
+  font-size: var(--bx-fs-code); line-height: 1.6; font-family: var(--bx-font-mono);
+  color: var(--bx-fg);
 }
 .nm-jrow { display: flex; align-items: flex-start; padding-right: 14px; }
 .nm-jrow:hover { background: var(--nm-elev); }
@@ -1100,8 +1158,8 @@ const VIEWERS = `
    it is standing in for the lines it replaced. */
 .nm-jsum {
   border: none; background: var(--nm-elev); color: var(--nm-faint);
-  font-family: inherit; font-size: 10.5px; line-height: 1.4;
-  padding: 0 6px; margin: 0 2px; border-radius: 5px; cursor: pointer;
+  font-family: inherit; font-size: var(--bx-fs-meta); line-height: 1.4;
+  padding: 0 var(--bx-3); margin: 0 2px; border-radius: var(--bx-r-ctl); cursor: pointer;
   transition: color .12s ease, background .12s ease;
 }
 .nm-jsum:hover { color: var(--nm-accent); background: var(--nm-accent-soft); }
@@ -1129,8 +1187,8 @@ const VIEWERS = `
 .nm-tree-blob { color: var(--nm-syn-blob); display: inline-flex; align-items: center; gap: 6px; }
 .nm-tree-trunc { color: var(--nm-warning); font-style: italic; }
 .nm-tree-chip {
-  font-size: 9.5px; font-weight: 700; padding: 0 6px; border-radius: 5px; margin-left: 6px;
-  border: 1px solid var(--nm-line-strong); background: var(--nm-elev); color: var(--nm-muted);
+  font-size: var(--bx-fs-meta); padding: 0 var(--bx-3); border-radius: var(--bx-r-ctl); margin-left: var(--bx-3);
+  border: 1px solid var(--bx-line-strong); background: transparent; color: var(--bx-fg-2);
   cursor: pointer; font-family: inherit; transition: background .12s ease, color .12s ease;
 }
 .nm-tree-chip:hover { color: var(--nm-txt); background: var(--nm-elev-hover); }
@@ -1138,7 +1196,7 @@ const VIEWERS = `
    on, and Enter has to activate it there. */
 .nm-tree-more {
   display: block; width: 100%; text-align: left; border: none; background: none;
-  font-family: inherit; font-size: 11px; color: var(--nm-accent);
+  font-family: inherit; font-size: var(--bx-fs-sm); color: var(--bx-accent);
   cursor: pointer; padding: 2px 0;
 }
 .nm-tree-more:hover { text-decoration: underline; }
@@ -1147,7 +1205,7 @@ const VIEWERS = `
 .nm-tree-row:focus-visible, .nm-tree-more:focus-visible {
   outline: 2px solid var(--nm-accent); outline-offset: -2px; border-radius: 4px;
 }
-.nm-tree-cap { padding: 10px 14px; color: var(--nm-warning); font-size: 11px; }
+.nm-tree-cap { padding: var(--bx-4) 12px; color: var(--bx-warn); font-size: var(--bx-fs-sm); }
 .nm-mark { background: var(--nm-mark); color: inherit; border-radius: 2px; }
 `;
 
@@ -1466,18 +1524,19 @@ const LAYOUT = `
 .nm-frames { flex: 1 1 55%; min-height: 0; overflow: auto; background: var(--nm-bg); }
 .nm-frame {
   display: grid; grid-template-columns: 62px 74px minmax(0, 1fr) 66px;
-  gap: 8px; align-items: center; padding: 4px 12px;
-  border-bottom: 1px solid var(--nm-line-2); font-size: 11px; cursor: pointer;
+  gap: 8px; align-items: center; min-height: var(--bx-row); padding: 0 12px;
+  border-bottom: 1px solid var(--bx-line-soft); font-size: var(--bx-fs-sm); cursor: pointer;
+  transition: background-color 90ms linear;
 }
-.nm-frame:hover { background: var(--nm-elev); }
-.nm-frame.active { background: var(--nm-c-realtime-soft); }
-.nm-frame-dir { font-size: 9.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; }
+.nm-frame:hover { background: var(--bx-hover); }
+.nm-frame.active { background: var(--bx-sel); }
+.nm-frame-dir { font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta); letter-spacing: .06em; text-transform: uppercase; }
 .nm-frame-in { color: var(--nm-success); }
 .nm-frame-out { color: var(--nm-c-network); }
 .nm-frame-system { color: var(--nm-faint); }
-.nm-frame-time { color: var(--nm-faint); font-variant-numeric: tabular-nums; font-size: 10px; }
+.nm-frame-time { color: var(--bx-fg-3); font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums; font-size: var(--bx-fs-meta); }
 .nm-frame-event { font-family: var(--nm-mono); color: var(--nm-txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nm-frame-size { color: var(--nm-faint); text-align: right; font-variant-numeric: tabular-nums; font-size: 10px; }
+.nm-frame-size { color: var(--bx-fg-3); text-align: right; font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums; font-size: var(--bx-fs-meta); }
 .nm-frame-body { flex: 1 1 45%; min-height: 0; border-top: 1px solid var(--nm-line); display: flex; flex-direction: column; overflow: hidden; }
 
 /* Timing breakdown. The three phases borrow existing identity colours rather
@@ -1625,8 +1684,20 @@ const RESPONSIVE = `
   .nm-slicebar-label { display: none; }
 }
 
+/* The filter is the one header control you type into, so it is the one that
+   keeps its width. The two state chips fall back to their dot and icon - the
+   colour still says on or off, and the tooltip still says which - and the
+   shortcut hint goes, since the palette has a button of its own. At 440px the
+   chips were spelling out "capturing" and "preserve" beside a 45px filter. */
+@container nm (max-width: 620px) {
+  .nm-chip { padding: 0 6px; }
+  .nm-chip > span:last-child { display: none; }
+  .nm-filter .nm-kbd { display: none; }
+  .nm-filter { min-width: 96px; }
+}
+
 @container nm (max-width: 520px) {
-  .nm-brand { display: none; }
+  .nm-title { display: none; }
   .nm-statusbar { gap: 8px; font-size: 10px; }
   .nm-detail-url { font-size: 10.5px; }
   .nm-htable { padding: 4px 10px 0; }
@@ -1669,11 +1740,24 @@ const RESPONSIVE = `
   .nm-col-pin { width: 0; overflow: hidden; }
 }
 
-@container nm (max-height: 340px) {
-  .nm-statusbar { display: none; }
-  .nm-linked { display: none; }
-  .nm-rail-stats { display: none; }
-}
+/* Written as a container query on height, this never applied: the panel is
+   an inline-size container and cannot be asked how tall it is. The panel now
+   says so itself. */
+.nm-panel[data-tiny] .nm-statusbar,
+.nm-panel[data-tiny] .nm-linked,
+.nm-panel[data-short] .nm-rail-stats { display: none; }
+/* In the shortest dock the sidebar is the four sources and nothing else: the
+   collapse toggle and the palette button are both in the header's menu. */
+.nm-panel[data-tiny] .nm-rail-head,
+.nm-panel[data-tiny] .nm-rail-cmdwrap,
+.nm-panel[data-tiny] .nm-rail-spacer { display: none; }
+
+/* One pane at a time - see singlePane in the panel. */
+.nm-body-panes.nm-single-list > .nm-split,
+.nm-body-panes.nm-single-list > .nm-detail,
+.nm-body-panes.nm-single-detail > .nm-split,
+.nm-body-panes.nm-single-detail > .nm-list { display: none; }
+.nm-body-panes.nm-single-list > .nm-list { height: auto !important; flex: 1 1 auto !important; }
 
 /* Stacked layout — the list sits above the detail. Applied by JS whenever the
    panel is too narrow for a side-by-side split to give both panes their
@@ -2243,8 +2327,8 @@ export const MONITOR_STYLES = [
   // Tokens come before anything that reads them. Ordering is not strictly
   // required for custom properties, but it keeps the emitted stylesheet
   // readable when inspected in the browser.
-  BX_BASE_CSS,
   BASE_THEME_CSS,
+  BX_BASE_CSS,
   ROLES,
   FAB,
   PANEL,

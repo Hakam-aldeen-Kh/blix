@@ -74,7 +74,7 @@ import {
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ExportMenu, type ExportScope } from "./components/ExportMenu";
 import { ThemeMenu } from "./components/ThemeMenu";
-import { BX_PALETTES, bxTokens } from "./themes/bx";
+import { BX_PALETTES, bxTokens, legacyAliases } from "./themes/bx";
 import { assertThemes } from "./themes/check";
 import {
   normalizeThemePref,
@@ -162,7 +162,7 @@ import { useFabDrag } from "./hooks/useFabDrag";
 import { useMonitorClock } from "./hooks/useMonitorClock";
 import { hidingReasons, useMonitorList } from "./hooks/useMonitorList";
 import { useMonitorSelection } from "./hooks/useMonitorSelection";
-import { usePanelSize } from "./hooks/usePanelSize";
+import { PANEL_CHROME_H, TINY_PANEL_BELOW, usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
 import { parseFilter } from "./services/filterQuery";
 import { canReplay, replayEntry } from "./services/replayRequest";
@@ -209,6 +209,7 @@ export default function DevTools() {
   const themeStyle = useMemo(
     () => ({
       ...themeTokens(theme.palette),
+      ...legacyAliases(BX_PALETTES[theme.id], theme.base),
       ...bxTokens(BX_PALETTES[theme.id], theme.base),
     }),
     [theme],
@@ -361,6 +362,24 @@ export default function DevTools() {
     sort,
   );
   const selection = useMonitorSelection(entries, list.filtered, list.visibleIds);
+
+  /**
+   * A stacked panel too short for two panes shows one at a time.
+   *
+   * Which one is a view state, not the selection: the selection is stored and
+   * restored, so deriving the pane from it would reopen the panel on a detail
+   * pane with no list behind it. Picking a row goes to the detail; its Back
+   * button returns to the list and leaves the selection where it was.
+   */
+  const [shortView, setShortView] = useState<"list" | "detail">("list");
+  const pinSelection = selection.pin;
+  const selectRow = useCallback(
+    (id: string) => {
+      pinSelection(id);
+      setShortView("detail");
+    },
+    [pinSelection],
+  );
 
   /**
    * Which columns the developer has switched off.
@@ -858,14 +877,30 @@ export default function DevTools() {
    * back in, so a 580px list inside a 580px panel left the detail pane 40px
    * wide and unreadable. Same bounds as the drag, applied to what is stored.
    */
+  // Stacked, the panes share the body, not the panel: the header and the
+  // status bar are not theirs to divide.
   const splitExtent =
-    dock.splitAxis === "x" ? panel.width - railWidth : panel.height;
+    dock.splitAxis === "x" ? panel.width - railWidth : panel.height - PANEL_CHROME_H;
   const [minSelf, minOther] =
     dock.splitAxis === "x" ? [MIN_LIST_W, MIN_DETAIL_W] : [MIN_LIST_H, MIN_DETAIL_H];
-  const listSize =
-    panel.measured && splitExtent > minSelf + minOther
-      ? Math.min(dock.splitSize, Math.max(minSelf, splitExtent - minOther))
-      : dock.splitSize;
+  // With room for both minimums the list may take anything up to what leaves
+  // the detail its own. Without it - a 600px bottom dock is wider than the
+  // stacking threshold but, less the sidebar, narrower than the two minimums -
+  // the shortfall is shared in proportion. It used to fall through to the
+  // stored size, which left the detail pane whatever was over.
+  const splitRoom = splitExtent - minOther;
+  const listCap =
+    splitRoom >= minSelf
+      ? splitRoom
+      : Math.round((splitExtent * minSelf) / (minSelf + minOther));
+  const listSize = panel.measured ? Math.min(dock.splitSize, listCap) : dock.splitSize;
+
+  const singlePane = dock.splitAxis === "y" && panel.shortPanel;
+  const singleView = !singlePane
+    ? null
+    : shortView === "detail" && selection.resolved.entry
+      ? "detail"
+      : "list";
 
 
   const openPalette = () => setShowPalette(true);
@@ -1137,6 +1172,11 @@ export default function DevTools() {
           className={`nm-panel nm-dock-${dock.mode} nm-density-${density}${
             dock.maximized ? " nm-max" : ""
           }${dock.animating ? " nm-anim" : ""}`}
+          // Height is not something the panel's container query can see - it
+          // is an inline-size container - so the one height step CSS needs is
+          // handed to it as an attribute.
+          data-tiny={panel.measured && panel.height < TINY_PANEL_BELOW ? "" : undefined}
+          data-short={panel.shortPanel ? "" : undefined}
           style={dock.panelStyle}
         >
           {/* Dock edge grips. The floating panel keeps its corner grip instead. */}
@@ -1216,7 +1256,11 @@ export default function DevTools() {
               onOpenPalette={openPalette}
             />
 
-            <div className={`nm-body-panes${dock.splitAxis === "y" ? " nm-body-v" : ""}`}>
+            <div
+              className={`nm-body-panes${dock.splitAxis === "y" ? " nm-body-v" : ""}${
+                singleView ? ` nm-single-${singleView}` : ""
+              }`}
+            >
               <div
                 className="nm-list"
                 style={
@@ -1237,7 +1281,7 @@ export default function DevTools() {
                   activeRowId={selection.activeRowId}
                   sort={sort}
                   onSort={onSort}
-                  onSelect={selection.pin}
+                  onSelect={selectRow}
                   onTogglePin={togglePin}
                   onContextMenu={menu.open}
                   onColumnMenu={(e) =>
@@ -1319,8 +1363,9 @@ export default function DevTools() {
                 onSelectEntry={(id) => {
                   const target = links.byId.get(id);
                   if (target) onSection(sectionOf(target));
-                  selection.pin(id);
+                  selectRow(id);
                 }}
+                onBack={singleView === "detail" ? () => setShortView("list") : undefined}
                 onMoreMenu={menu.open}
                 linked={linked}
                 timingContext={{

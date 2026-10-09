@@ -421,6 +421,60 @@ export function bxTokens(p: BxPalette, base: ThemeBase): Record<string, string> 
   return { ...out, ...shadows(p, base) };
 }
 
+/** `#rrggbb` at an alpha, for the tints the old vocabulary still asks for. */
+function tint(hex: string, a: number): string {
+  const n = Number.parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/**
+ * The old `--nm-*` colour names, answered from this palette.
+ *
+ * Some surfaces — the payload viewers, the frame list, the table view — are
+ * still written in the old vocabulary, and that vocabulary used to be filled
+ * from a second, separately authored palette. Two palettes meant two blues,
+ * two greys and two sets of hairlines on screen at once: a tab strip from one
+ * and the JSON under it from the other. Until those rules are rewritten, the
+ * old names resolve to these slots, so everything the panel paints comes from
+ * one set of colours. Spread *after* `themeTokens` so these win.
+ */
+export function legacyAliases(p: BxPalette, base: ThemeBase): Record<string, string> {
+  const dark = base === "dark";
+  const soft = (hex: string) => tint(hex, dark ? 0.14 : 0.12);
+  const edge = (hex: string) => tint(hex, dark ? 0.34 : 0.28);
+  const out: Record<string, string> = {
+    "--nm-bg": p.bg, "--nm-surface": p.bar, "--nm-surface-2": p.raise,
+    "--nm-surface-3": p.float,
+    "--nm-elev": p.hover, "--nm-elev-hover": p.sel,
+    "--nm-line": p.line, "--nm-line-2": p.lineSoft, "--nm-line-strong": p.lineStrong,
+    "--nm-sunken": p.bg, "--nm-well": p.bg, "--nm-input": p.bg, "--nm-input-focus": p.bg,
+    "--nm-txt": p.fg, "--nm-muted": p.fg2, "--nm-faint": p.fg3,
+    "--nm-accent": p.accent, "--nm-accent-soft": soft(p.accent), "--nm-accent-line": edge(p.accent),
+    "--nm-success": p.ok, "--nm-success-soft": soft(p.ok),
+    "--nm-error": p.err, "--nm-error-soft": soft(p.err), "--nm-error-line": edge(p.err),
+    "--nm-warning": p.warn, "--nm-warning-soft": soft(p.warn), "--nm-warning-line": edge(p.warn),
+    "--nm-syn-txt": p.fg, "--nm-syn-key": p.synKey, "--nm-syn-str": p.synStr,
+    "--nm-syn-num": p.synNum, "--nm-syn-bool": p.synBool, "--nm-syn-null": p.fg3,
+  };
+  const sources = { network: p.srcNetwork, realtime: p.srcRealtime, redux: p.srcRedux, query: p.srcQuery };
+  for (const [name, color] of Object.entries(sources)) {
+    out[`--nm-c-${name}`] = color;
+    out[`--nm-c-${name}-soft`] = soft(color);
+  }
+  const methods = { get: p.srcNetwork, post: p.ok, put: p.warn, delete: p.err, other: p.srcRedux };
+  for (const [name, color] of Object.entries(methods)) {
+    out[`--nm-m-${name}`] = color;
+    out[`--nm-m-${name}-soft`] = soft(color);
+  }
+  const states = { pending: p.info, success: p.ok, error: p.err };
+  for (const [name, color] of Object.entries(states)) {
+    out[`--nm-state-${name}`] = color;
+    out[`--nm-state-${name}-soft`] = tint(color, dark ? 0.18 : 0.14);
+    out[`--nm-state-${name}-glow`] = tint(color, 0.55);
+  }
+  return out;
+}
+
 /**
  * Midnight's slots baked onto bare `.nm-root`, as the floor.
  *
@@ -430,8 +484,9 @@ export function bxTokens(p: BxPalette, base: ThemeBase): Record<string, string> 
  * stored theme id that no longer resolves — so the panel degrades to Midnight
  * rather than to an element with forty empty custom properties.
  */
-export const BX_BASE_CSS = `.nm-root {\n${Object.entries(
-  bxTokens(MIDNIGHT, "dark"),
-)
+export const BX_BASE_CSS = `.nm-root {\n${Object.entries({
+  ...legacyAliases(MIDNIGHT, "dark"),
+  ...bxTokens(MIDNIGHT, "dark"),
+})
   .map(([k, v]) => `  ${k}: ${v};`)
   .join("\n")}\n}`;

@@ -10,9 +10,10 @@
  * The sidebar also carries the session totals. Those were in the status bar,
  * where the width breakpoints dropped them first and nobody looked.
  *
- * Each source row ends with **its own number key**, right-aligned. The
- * shortcut is taught where it is used, not in a sheet you have to know to
- * open.
+ * A source row is its icon, its name and its count — one number, which is
+ * the one that changes. The number key that selects it used to be printed
+ * beside the count, and two bare digits side by side read as one figure
+ * ("72 1"); the key is in the row's tooltip and the shortcuts sheet instead.
  */
 
 import { formatBytes, formatDuration } from "../helpers/format";
@@ -118,7 +119,6 @@ export function SourcesRail({
               </span>
               <span className="nm-rail-name">{s.label}</span>
               <span className="nm-rail-n">{counts[s.id]}</span>
-              <span className="nm-rail-key">{s.hotkey}</span>
             </button>
           );
         })}

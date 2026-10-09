@@ -396,6 +396,7 @@ export function DetailPane({
   onTogglePin,
   onSelectEntry,
   onMoreMenu,
+  onBack,
   linked,
   timingContext,
   query,
@@ -416,6 +417,9 @@ export function DetailPane({
   /** Opens the entry's context menu from the head's overflow button, so the
    * full action set stays one click away without a second menu to maintain. */
   onMoreMenu: (e: React.MouseEvent, entry: MonitorEntry) => void;
+  /** Set when the panel is showing one pane at a time and this is the one on
+   * screen: the way back to the list. */
+  onBack?: () => void;
   /** Entries correlated with this one — see `helpers/entryLinks.ts`. */
   linked: MonitorEntry[];
   /** Where this entry's duration sits among the ones currently listed. Owned
@@ -638,6 +642,14 @@ export function DetailPane({
         )}
 
         <div className="nm-detail-actions">
+          {onBack && (
+            <button type="button" className="nm-dbtn" onClick={onBack} title="Back to the list">
+              <span className="nm-dbtn-back">
+                <Icon name="chevron" size={11} />
+              </span>
+              List
+            </button>
+          )}
           {primary && (
             <button
               type="button"

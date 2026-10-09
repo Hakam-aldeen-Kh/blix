@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "blix-playground",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["playground/serve.mjs"],
+      "port": 5179
+    }
+  ]
+}

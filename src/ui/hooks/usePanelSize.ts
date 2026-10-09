@@ -25,6 +25,10 @@ const COMPACT_TOOLBAR_BELOW = 900;
 const TINY_TOOLBAR_BELOW = 620;
 /** Below this a stacked split has no room for two useful panes either. */
 const SHORT_PANEL_BELOW = 420;
+/** Below this the status bar and the linked strip give their rows back. */
+export const TINY_PANEL_BELOW = 340;
+/** The header and the status bar: what a stacked split does not get to divide. */
+export const PANEL_CHROME_H = 58;
 
 export interface PanelSize {
   width: number;

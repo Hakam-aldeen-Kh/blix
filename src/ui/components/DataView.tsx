@@ -240,6 +240,31 @@ export function DataView({
   const foldAll = () => setPaths(new Set(collapsible.map((r) => r.path)));
   const unfoldAll = () => setPaths(new Set());
 
+  /**
+   * How many values on screen are not the values that were sent.
+   *
+   * The panel masks sensitive strings before they are ever stored, so a
+   * reader comparing a payload against the wire needs to know the difference
+   * is deliberate. Counted from the rendered text rather than tracked through
+   * the pipeline: the mask suffix is the only thing that survives every
+   * format, and a count that disagreed with what is on screen would be worse
+   * than none.
+   */
+  const maskedCount = useMemo(() => {
+    const source = json ?? text ?? "";
+    let n = 0;
+    let at = source.indexOf(MASK_SUFFIX);
+    while (at !== -1) {
+      n += 1;
+      at = source.indexOf(MASK_SUFFIX, at + MASK_SUFFIX.length);
+    }
+    return n;
+  }, [json, text]);
+
+  // Every hook is above this line. It used to sit above the memo that is now
+  // just over it, so an entry whose payload arrived after the pane mounted —
+  // a frame, a pending request — rendered one more hook than the render
+  // before it, and React tore down the host app's whole tree.
   if (value === undefined) {
     return <div className="nm-empty">— not captured —</div>;
   }
@@ -266,27 +291,6 @@ export function DataView({
       setTimeout(() => setCopied(false), 1200);
     });
   };
-
-  /**
-   * How many values on screen are not the values that were sent.
-   *
-   * The panel masks sensitive strings before they are ever stored, so a
-   * reader comparing a payload against the wire needs to know the difference
-   * is deliberate. Counted from the rendered text rather than tracked through
-   * the pipeline: the mask suffix is the only thing that survives every
-   * format, and a count that disagreed with what is on screen would be worse
-   * than none.
-   */
-  const maskedCount = useMemo(() => {
-    const source = json ?? text ?? "";
-    let n = 0;
-    let at = source.indexOf(MASK_SUFFIX);
-    while (at !== -1) {
-      n += 1;
-      at = source.indexOf(MASK_SUFFIX, at + MASK_SUFFIX.length);
-    }
-    return n;
-  }, [json, text]);
 
   const body = json ?? yaml?.text ?? text ?? null;
   const lines = jsonLines?.length ?? (body ? body.split("\n").length : 0);
@@ -340,7 +344,8 @@ export function DataView({
         <div className="nm-tool-acts">
         {collapsible.length > 0 && (
           <button
-            className="nm-copy"
+            className="nm-copy nm-copy-ico"
+            aria-label={allFolded ? "Expand all" : "Collapse all"}
             onClick={allFolded ? unfoldAll : foldAll}
             title={
               allFolded
@@ -348,7 +353,10 @@ export function DataView({
                 : "Collapse every object below the top level"
             }
           >
-            {allFolded ? "Expand all" : "Collapse all"}
+            <span className={allFolded ? undefined : "nm-copy-flip"}>
+              <Icon name="follow" size={11} />
+            </span>
+            <span className="nm-copy-label">{allFolded ? "Expand all" : "Collapse all"}</span>
           </button>
         )}
         {isTextual && (

@@ -61,8 +61,10 @@ export function clampPos(pos: Pos, size: Size): Pos {
 export function defaultPosForCorner(corner: Corner, size: Size): Pos {
   if (typeof window === "undefined") return { x: MARGIN, y: MARGIN };
   return {
-    x: corner.endsWith("right") ? window.innerWidth - size.w - MARGIN : MARGIN,
-    y: corner.startsWith("top") ? MARGIN : window.innerHeight - size.h - MARGIN,
+    // Never left of or above the margin: the stored size may be larger than
+    // this screen, and the size is fitted at render while this is not.
+    x: corner.endsWith("right") ? Math.max(MARGIN, window.innerWidth - size.w - MARGIN) : MARGIN,
+    y: corner.startsWith("top") ? MARGIN : Math.max(MARGIN, window.innerHeight - size.h - MARGIN),
   };
 }
 
@@ -362,10 +364,18 @@ export function useDockGeometry(
   // Sizes are clamped to the viewport at render time, so a panel sized on a
   // large monitor can never overflow a smaller one — while the stored
   // preference itself is left intact.
+  //
+  // The viewport wins over the minimum. A minimum that is wider than the
+  // screen is not a floor, it is an overflow: on a 375px phone the 440px
+  // floor put the panel's right edge, and the close button on it, off-screen.
+  const fit = (value: number, min: number, room: number) => {
+    const floor = Math.min(min, room);
+    return clamp(value, floor, Math.max(floor, room));
+  };
   const fitH = (value: number, min: number, inset: number) =>
-    clamp(value, Math.min(min, viewport.h), Math.max(min, viewport.h - inset));
+    fit(value, min, viewport.h - inset);
   const fitW = (value: number, min: number, inset: number) =>
-    clamp(value, Math.min(min, viewport.w), Math.max(min, viewport.w - inset));
+    fit(value, min, viewport.w - inset);
 
   const panelStyle: React.CSSProperties = maximized
     ? {
