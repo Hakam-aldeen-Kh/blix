@@ -41,6 +41,7 @@ import {
 import { isAxiosCapturedFetch } from "./monitorStamp";
 import type { InitiatorFrame, MonitorEntry } from "./monitorTypes";
 import { networkMonitor } from "./networkMonitor";
+import { startResourceTiming } from "./resourceTiming";
 
 /**
  * A rule that keeps a request out of the log. A string matches as a substring,
@@ -73,7 +74,7 @@ export interface FetchMonitorOptions {
     | ((defaults: readonly FetchIgnoreRule[]) => readonly FetchIgnoreRule[]);
 }
 
-const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024;
+export const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024;
 
 const DEFAULT_IGNORE: readonly FetchIgnoreRule[] = Object.freeze([
   "/_next/",
@@ -108,7 +109,7 @@ function describeBytes(n: number): string {
  * tab says why instead of showing an empty body that looks like an empty
  * response. Same «…» convention as the file summaries in `serializeBody`.
  */
-function notCaptured(reason: string): string {
+export function notCaptured(reason: string): string {
   return `«body not captured: ${reason}»`;
 }
 
@@ -277,7 +278,7 @@ function describe(input: unknown, rawInit: unknown): Outgoing {
   };
 }
 
-function isIgnored(url: URL | null, rules: readonly FetchIgnoreRule[]): boolean {
+export function isIgnored(url: URL | null, rules: readonly FetchIgnoreRule[]): boolean {
   if (!url) return false;
   const target = url.pathname + url.search;
   for (const rule of rules) {
@@ -627,7 +628,7 @@ function isBlixWrapper(fn: unknown): boolean {
   );
 }
 
-function resolveIgnore(option: FetchMonitorOptions["ignore"]): readonly FetchIgnoreRule[] {
+export function resolveIgnore(option: FetchMonitorOptions["ignore"]): readonly FetchIgnoreRule[] {
   if (option === undefined) return DEFAULT_IGNORE;
   if (typeof option !== "function") return option;
   try {
@@ -672,6 +673,7 @@ export function attachFetchMonitor(options: FetchMonitorOptions = {}): () => voi
       ? options.maxBodyBytes
       : DEFAULT_MAX_BODY_BYTES;
   const ignore = resolveIgnore(options.ignore);
+  startResourceTiming();
 
   const wrapper = function blixFetch(
     this: unknown,

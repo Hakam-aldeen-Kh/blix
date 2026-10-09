@@ -1,5 +1,7 @@
 export { attachHttpMonitor } from "./attachHttp";
 export { attachFetchMonitor } from "./attachFetch";
+export { attachXhrMonitor } from "./attachXhr";
+export type { XhrMonitorOptions } from "./attachXhr";
 export type { FetchMonitorOptions, FetchIgnoreRule } from "./attachFetch";
 export { captureEncrypted } from "./captureEncrypted";
 export type { EncryptedPayload } from "./captureEncrypted";
@@ -19,6 +21,8 @@ export type {
   WsFrame,
   FrameDirection,
   TimingMarks,
+  WireTiming,
+  ServerTimingMetric,
   DiffOp,
   StateDiff,
   StateDiffEntry,

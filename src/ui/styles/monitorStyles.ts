@@ -2300,6 +2300,20 @@ const SURFACES = `
    had no rule of its own, so it neither filled the tab body nor scrolled - a
    long header list ran off the bottom of the pane and the wheel did nothing. */
 .nm-headers { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* The browser's own phases and the backend's Server-Timing, in the Timing
+   tab. They reuse the context rows; these are the two things those lack. */
+.nm-timing-wire .nm-timing-ctx-fill { background: var(--bx-info); }
+.nm-timing-wire-note {
+  font-size: var(--bx-fs-sm); line-height: 1.5; color: var(--bx-fg-3);
+}
+.nm-timing-wire-note code {
+  font-family: var(--bx-font-mono); color: var(--bx-fg-2);
+}
+.nm-timing-facts {
+  display: flex; flex-wrap: wrap; gap: var(--bx-2) var(--bx-5); margin-top: var(--bx-3);
+  font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm); color: var(--bx-fg);
+}
+.nm-timing-fact-k { padding-right: var(--bx-3); color: var(--bx-fg-3); }
 /* The detail pane with nothing selected yet. */
 .nm-empty-detail { background: var(--bx-bar); }
 

@@ -29,6 +29,7 @@ import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
 import { flattenCapturedHeaders } from "./monitorSerialize";
 import { stampAxiosFetchOptions, stampMonitorId } from "./monitorStamp";
+import { expectAxiosTransport, releaseAxiosTransport } from "./monitorTransport";
 import type { InitiatorFrame, MonitorEntry } from "./monitorTypes";
 import {
   estimateBytes,
@@ -36,6 +37,7 @@ import {
   serializeBody,
   serializeHeaders,
 } from "./networkMonitor";
+import { startResourceTiming } from "./resourceTiming";
 
 /**
  * The part of an axios interceptor manager Blix uses.
@@ -320,6 +322,7 @@ class Flight {
 
   settled(id: string): void {
     this.waiting.delete(id);
+    releaseAxiosTransport(id);
     const timer = this.timers.get(id);
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -530,6 +533,7 @@ export function attachHttpMonitor(
   attached.add(managers);
 
   if (options?.dbName) configureDbName(options.dbName);
+  startResourceTiming();
 
   const flight = new Flight();
   // Filled in once Blix's own response interceptor is registered, below.
@@ -590,6 +594,9 @@ export function attachHttpMonitor(
       );
       if (owner) networkMonitor.linkChild(owner.id, id);
       flight.begin(id, timeoutOf(config));
+      // So `attachXhrMonitor`, if installed, knows the XHR axios is about to
+      // open is this request and does not log it a second time.
+      expectAxiosTransport(id, config.method ?? "post", config.url ?? "", config.baseURL);
     } catch {
       /* capture must never break a request */
     }

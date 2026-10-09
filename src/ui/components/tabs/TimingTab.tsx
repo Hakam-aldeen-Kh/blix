@@ -16,7 +16,129 @@
  */
 
 import type { MonitorEntry } from "../../../capture/networkMonitor";
-import { formatDuration, requestName } from "../../helpers/format";
+import type { WireTiming } from "../../../capture/monitorTypes";
+import { serverTimingOf } from "../../../capture/resourceTiming";
+import { formatBytes, formatDuration, requestName } from "../../helpers/format";
+
+/** The browser's phases, in the order they happen. A phase the browser did
+ * not report is left out rather than shown as zero: a reused connection has
+ * no DNS lookup, which is not the same as one that took 0 ms. */
+const WIRE_PHASES: { key: keyof WireTiming; label: string; note: string }[] = [
+  { key: "redirectMs", label: "Redirect", note: "following redirects before the final URL" },
+  { key: "queueMs", label: "Queued", note: "waiting for a connection slot or the cache" },
+  { key: "dnsMs", label: "DNS", note: "resolving the host name" },
+  { key: "connectMs", label: "Connect", note: "opening the TCP connection" },
+  { key: "tlsMs", label: "TLS", note: "the HTTPS handshake" },
+  { key: "waitMs", label: "Waiting", note: "request sent to first byte back (TTFB)" },
+  { key: "downloadMs", label: "Download", note: "first byte to last" },
+];
+
+/**
+ * What the browser measured for this request, as opposed to what Blix timed
+ * around it. Its own section rather than more segments in the bar above: the
+ * two are different clocks answering different questions — "how long did my
+ * code wait" and "where on the network did that time go" — and one bar made of
+ * both would add up to neither.
+ */
+function WireSection({ entry }: { entry: MonitorEntry }) {
+  const wire = entry.wire;
+  const server = serverTimingOf(entry);
+  if (!wire && server.length === 0) return null;
+
+  const phases = wire
+    ? WIRE_PHASES.flatMap((p) => {
+        const value = wire[p.key];
+        if (typeof value !== "number") return [];
+        // A reused connection reports its lookup and handshake as zero-length
+        // rather than absent. Those rows say nothing; the two that are always
+        // real — the wait and the download — stay even at zero.
+        const always = p.key === "waitMs" || p.key === "downloadMs";
+        return value > 0 || always ? [{ ...p, value }] : [];
+      })
+    : [];
+  const span = Math.max(wire?.totalMs ?? 0, ...phases.map((p) => p.value), 1);
+
+  const facts: [string, string][] = [];
+  if (wire?.protocol) facts.push(["Protocol", wire.protocol]);
+  if (wire?.fromCache) facts.push(["Cache", "served from the browser cache"]);
+  if (wire?.transferSize) facts.push(["Transferred", formatBytes(wire.transferSize)]);
+  if (wire?.encodedBodySize) {
+    const compressed =
+      wire.decodedBodySize && wire.decodedBodySize > wire.encodedBodySize
+        ? ` → ${formatBytes(wire.decodedBodySize)} decoded`
+        : "";
+    facts.push(["Body", `${formatBytes(wire.encodedBodySize)}${compressed}`]);
+  }
+
+  return (
+    <>
+      {wire && (
+        <div className="nm-timing-ctx">
+          <div className="nm-timing-ctx-head">
+            ON THE WIRE · {formatDuration(wire.totalMs)} MEASURED BY THE BROWSER
+          </div>
+          {wire.restricted ? (
+            <div className="nm-timing-wire-note">
+              The browser withholds the phases and sizes of a cross-origin response unless it
+              sends <code>Timing-Allow-Origin</code>. Only the total is available.
+            </div>
+          ) : (
+            phases.map((p) => (
+              <div className="nm-timing-ctx-row nm-timing-wire" key={p.key} title={p.note}>
+                <span className="nm-timing-ctx-k">{p.label}</span>
+                <span className="nm-timing-ctx-track">
+                  <span
+                    className="nm-timing-ctx-fill"
+                    style={{ width: `${Math.max(p.value > 0 ? 2 : 0, (p.value / span) * 100)}%` }}
+                  />
+                </span>
+                <span className="nm-timing-ctx-v">{formatDuration(p.value)}</span>
+              </div>
+            ))
+          )}
+          {facts.length > 0 && (
+            <div className="nm-timing-facts">
+              {facts.map(([k, v]) => (
+                <span className="nm-timing-fact" key={k}>
+                  <span className="nm-timing-fact-k">{k}</span>
+                  {v}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {server.length > 0 && (
+        <div className="nm-timing-ctx">
+          <div className="nm-timing-ctx-head">SERVER-TIMING · REPORTED BY THE BACKEND</div>
+          {server.map((m, i) => {
+            const most = Math.max(...server.map((s) => s.durationMs ?? 0), 1);
+            return (
+              <div className="nm-timing-ctx-row nm-timing-wire" key={`${m.name}-${i}`} title={m.description}>
+                <span className="nm-timing-ctx-k">
+                  {m.name}
+                  {m.description ? ` · ${m.description}` : ""}
+                </span>
+                <span className="nm-timing-ctx-track">
+                  {m.durationMs != null && (
+                    <span
+                      className="nm-timing-ctx-fill"
+                      style={{ width: `${Math.max(2, (m.durationMs / most) * 100)}%` }}
+                    />
+                  )}
+                </span>
+                <span className="nm-timing-ctx-v">
+                  {m.durationMs != null ? formatDuration(m.durationMs) : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
 
 export function TimingTab({
   entry,
@@ -120,6 +242,8 @@ export function TimingTab({
           </div>
         ))}
       </div>
+
+      <WireSection entry={entry} />
 
       {context.length > 1 && (
         <div className="nm-timing-ctx">

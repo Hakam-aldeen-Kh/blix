@@ -135,6 +135,49 @@ export interface QueryMeta {
   causedIds?: string[];
 }
 
+/** One metric from a response's `Server-Timing` header. */
+export interface ServerTimingMetric {
+  name: string;
+  durationMs?: number;
+  description?: string;
+}
+
+/**
+ * A request as the browser timed it (`PerformanceResourceTiming`).
+ *
+ * Every phase is optional: the browser reports only the ones that happened —
+ * a reused connection has no DNS, connect or TLS — and withholds all of them
+ * for a cross-origin response without `Timing-Allow-Origin`.
+ */
+export interface WireTiming {
+  /** Start to last byte, as the browser saw it. Always present. */
+  totalMs: number;
+  /** The phases and sizes were withheld: cross-origin, no Timing-Allow-Origin. */
+  restricted?: boolean;
+  redirectMs?: number;
+  /** Before the request could start: a connection slot, the cache lookup. */
+  queueMs?: number;
+  dnsMs?: number;
+  /** TCP only; the TLS handshake is `tlsMs`. */
+  connectMs?: number;
+  tlsMs?: number;
+  /** Request sent to first byte back — the server's thinking time (TTFB). */
+  waitMs?: number;
+  /** First byte to last. */
+  downloadMs?: number;
+  /** Bytes that crossed the network, headers included. 0 when cached. */
+  transferSize?: number;
+  /** The body as sent — compressed, if it was. */
+  encodedBodySize?: number;
+  /** The body after decompression. */
+  decodedBodySize?: number;
+  /** Served from the browser's cache: a body, and nothing on the wire. */
+  fromCache?: boolean;
+  /** `h2`, `h3`, `http/1.1`. */
+  protocol?: string;
+  serverTiming?: ServerTimingMetric[];
+}
+
 export interface MonitorEntry {
   id: string;
   /** HTTP request or realtime connection. Defaults to `"http"` when absent, so
@@ -214,6 +257,10 @@ export interface MonitorEntry {
 
   /** Where the time went — encryption vs. network vs. decryption. */
   marks?: TimingMarks;
+  /** HTTP only: what the browser measured for this request — the phases, the
+   * bytes on the wire, the protocol. Absent until the browser reports it, and
+   * for good where it never does. See `resourceTiming.ts`. */
+  wire?: WireTiming;
 
   /**
    * Pinned entries survive Clear and buffer eviction, so a reference response
@@ -238,7 +285,7 @@ export interface MonitorEntry {
    * Absent on entries captured before this field existed. Absent means
    * unknown — never read it as "axios".
    */
-  client?: "axios" | "fetch";
+  client?: "axios" | "fetch" | "xhr";
   /** HTTP only: id of the query/mutation entry that caused this request,
    * when it could be determined — see `monitorContext.ts`. Absence means
    * "unknown", never "not caused by a query". */
