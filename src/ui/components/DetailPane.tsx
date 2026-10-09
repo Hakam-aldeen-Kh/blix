@@ -3,6 +3,7 @@
 /** Dev Tools — the detail pane: request summary plus tabbed payloads. */
 
 import { summarizeInitiator } from "../../capture/monitorInitiator";
+import { isCapturedError } from "../../capture/monitorError";
 import { networkMonitor, type MonitorEntry } from "../../capture/networkMonitor";
 import { HeadersTable } from "./HeadersTable";
 import { useContext, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -352,7 +353,13 @@ function reasonOf(entry: MonitorEntry): string {
       return q.sub === "mutation" ? "Mutation" : "Query";
     }
     default:
-      if (entry.state === "error") return "Failed";
+      if (entry.state === "error") {
+        // The failure's own words where it has them — "timeout of 5000ms
+        // exceeded" says more than "Failed" — and only without a status,
+        // where there is no reason phrase to prefer.
+        if (entry.status == null && isCapturedError(entry.error)) return entry.error.message;
+        return statusText(entry.status) || "Failed";
+      }
       if (entry.state === "aborted") return "Cancelled, or cut off by a page reload";
       return statusText(entry.status) || "OK";
   }

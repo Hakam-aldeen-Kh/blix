@@ -30,6 +30,7 @@
 import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
+import { captureError, captureHttpFailure } from "./monitorError";
 import { captureFrames } from "./monitorInitiator";
 import {
   estimateBytes,
@@ -497,7 +498,11 @@ function respond(id: string, response: Response, cap: number, signal: AbortSigna
     settle(id, {
       state: ok ? "success" : "error",
       endTime,
-      ...(ok ? { responsePayload: payload } : { error: payload }),
+      // A failure is recorded whole — status, reason phrase and body — in
+      // the same shape an axios failure has. See `monitorError.ts`.
+      ...(ok
+        ? { responsePayload: payload }
+        : { error: captureHttpFailure(response.status, response.statusText, payload) }),
       ...extra,
     });
 
@@ -570,7 +575,16 @@ function respond(id: string, response: Response, cap: number, signal: AbortSigna
         endTime: now(),
         ...(ok
           ? { responsePayload: notCaptured("the request was aborted while the body was downloading") }
-          : { error: notCaptured("the request was aborted while the body was downloading") }),
+          : {
+              error: {
+                ...captureHttpFailure(
+                  response.status,
+                  response.statusText,
+                  notCaptured("the request was aborted while the body was downloading"),
+                ),
+                kind: "aborted" as const,
+              },
+            }),
       });
     } else {
       finish(notCaptured(`the body stream failed while downloading (${describeError(result.error)})`));
@@ -595,7 +609,12 @@ function fail(id: string, error: unknown, signal: AbortSignal | null): void {
   settle(id, {
     state: aborted ? "aborted" : "error",
     endTime: now(),
-    error: describeError(error),
+    // `fetch` rejects a blocked, offline and refused request with the same
+    // bare TypeError; the kind says which family it was, and the name, cause
+    // and stack are kept for the cases where they say more.
+    error: captureError(error, {
+      kind: aborted ? "aborted" : name === "TimeoutError" ? "timeout" : undefined,
+    }),
   });
 }
 

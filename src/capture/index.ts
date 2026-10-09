@@ -32,3 +32,4 @@ export type {
   Size,
   Pos,
 } from "./monitorTypes";
+export type { CapturedError, FailureKind } from "./monitorError";

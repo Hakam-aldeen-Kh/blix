@@ -9,6 +9,7 @@
  * a HAR captured by the browser would contain nothing but ciphertext.
  */
 
+import { errorBody } from "../../capture/monitorError";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { endOf, startOf } from "../helpers/waterfall";
 import { downloadText, fileStamp } from "./download";
@@ -60,7 +61,7 @@ function toEntry(entry: MonitorEntry) {
       : -1;
 
   const requestBody = bodyText(entry.requestPayload);
-  const responseBody = bodyText(entry.responsePayload ?? entry.error);
+  const responseBody = bodyText(entry.responsePayload ?? errorBody(entry.error));
 
   return {
     startedDateTime: new Date(entry.at).toISOString(),

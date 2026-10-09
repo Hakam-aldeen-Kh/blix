@@ -1,5 +1,6 @@
 /** Dev Tools — display formatting. */
 
+import { failureKindOf } from "../../capture/monitorError";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { STATUS_TEXT } from "../constants/ui";
 
@@ -125,7 +126,13 @@ export function entryStatusLabel(entry: MonitorEntry): string {
       if (entry.state === "pending") return "pending";
       if (entry.state === "aborted") return "aborted";
       if (entry.status != null) return String(entry.status);
-      return entry.state === "error" ? "ERR" : "—";
+      // No status means no response, and then *why* is the status: a timeout
+      // and a dead network are different bugs, and both used to read ERR.
+      if (entry.state === "error") {
+        const kind = failureKindOf(entry.error);
+        return kind === "timeout" ? "timeout" : kind === "network" ? "network" : "ERR";
+      }
+      return "—";
   }
 }
 
