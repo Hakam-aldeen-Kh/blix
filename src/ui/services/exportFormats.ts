@@ -213,6 +213,8 @@ export function toNdjson(entries: MonitorEntry[]): string {
  * headers are masked, so the script needs a real token substituting before it
  * will authenticate.
  */
+const oneLine = (value: unknown): string => String(value).replace(/[\r\n]+/g, " ");
+
 export function toCurlScript(entries: MonitorEntry[]): string {
   const http = entries
     .filter((e) => (e.kind ?? "http") === "http")
@@ -228,7 +230,11 @@ export function toCurlScript(entries: MonitorEntry[]): string {
   ];
 
   const body = http.map(
-    (e) => `# ${statusOf(e)} · ${e.durationMs ?? "?"} ms\n${toCurl(e)}\n`,
+    // The comment is the one line here that is not a quoted curl argument, so
+    // what goes into it must not be able to end it: a status or a duration
+    // read back from storage is whatever was stored, and a line break in
+    // either would start a line of script.
+    (e) => `# ${oneLine(statusOf(e))} · ${oneLine(e.durationMs ?? "?")} ms\n${toCurl(e)}\n`,
   );
 
   return [...header, ...body].join("\n");

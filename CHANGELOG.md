@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `authorization`, `cookie`, `set-cookie` and `x-api-key` are masked as keys
   at any depth in data Blix copies — Redux payloads and diffs, query data, and
   everything written to IndexedDB.
+- "Copy as cURL", and the exported cURL script, now quote the method, header
+  names and every other value as single shell arguments. A request recorded
+  with a crafted method or header name could previously run commands when the
+  snippet was pasted into a shell. "Copy as fetch" serializes every value with
+  `JSON.stringify`.
 
 ### Added
 

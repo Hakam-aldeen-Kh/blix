@@ -74,6 +74,7 @@
     "check:prod-guard": "node scripts/check-prod-guard.mjs",
     "check:redaction": "node scripts/check-redaction.mjs",
     "check:isolation": "node scripts/check-isolation.mjs",
+    "check:snippets": "node scripts/check-snippets.mjs",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "peerDependencies": {

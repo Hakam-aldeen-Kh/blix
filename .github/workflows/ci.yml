@@ -48,6 +48,12 @@ jobs:
       - name: Check isolation from the host app
         run: pnpm check:isolation
 
+      # Runs the generated "Copy as cURL" text in bash, with curl stubbed, for
+      # a request made of shell-injection attempts — see
+      # scripts/check-snippets.mjs.
+      - name: Check copied snippets are shell-safe
+        run: pnpm check:snippets
+
       # The consuming app's bundler substitutes NODE_ENV at *its* build time,
       # which is what drops the panel from production. If our build defined or
       # replaced it, the panel would ship to every consumer's users.

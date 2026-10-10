@@ -917,7 +917,9 @@ frames, the encrypted envelope, Redux actions, and both Redux state views:
 
 Right-click any request for **Copy as cURL** or **Copy as fetch** — the latter
 pastes straight into the browser console, with the body as an editable object
-literal rather than a pre-serialized string.
+literal rather than a pre-serialized string. The cURL snippet is quoted for
+POSIX shells (bash, zsh, Git Bash); it is **not** safe to paste into Windows
+`cmd` or PowerShell, which quote differently.
 
 ### Exporting the log
 
