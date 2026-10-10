@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Query and mutation errors, and Redux actions whose payload is an error, no
+  longer store the axios request config, which exposed unmasked
+  `Authorization` and `Cookie` headers in the panel, in exports and in
+  persisted logs. Upgrade, and treat any log exported from an earlier version
+  as holding live credentials.
+- `authorization`, `cookie`, `set-cookie` and `x-api-key` are masked as keys
+  at any depth in data Blix copies — Redux payloads and diffs, query data, and
+  everything written to IndexedDB.
+
 ### Added
 
 - `top` and `left` dock modes, beside `bottom` and `right` — each with its own
@@ -28,9 +39,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still overlays, and still closes on an outside click.
 - Escape only closes Blix when focus is inside it, and an Escape Blix handles
   no longer reaches the host app.
+- The stored error for query and mutation rows is now the same described-error
+  shape as HTTP rows (`kind`, `message`, `status`, `response`, …) rather than
+  a copy of the thrown object.
+- Persisted logs from earlier versions are discarded once on upgrade. Panel
+  preferences are kept.
+- A Redux action whose payload is an error, or holds a masked key, cannot be
+  re-dispatched: what is stored is no longer what was dispatched.
 
 ### Fixed
 
+- The panel is wrapped in an error boundary, so a failure inside Blix can no
+  longer take down the host app: the panel is removed until reload and the
+  error is logged once as `[blix] the panel crashed`. A panel chunk that fails
+  to load is caught the same way.
+- Blocked web storage — a sandboxed iframe, strict privacy settings — no
+  longer throws; Blix runs with default preferences instead.
+- Invalid or outdated stored preferences fall back to their defaults field by
+  field instead of crashing the panel.
 - The `r` shortcut asks for the same confirmation as the Replay button before
   re-sending write requests. The palette's "Replay request" does too.
 

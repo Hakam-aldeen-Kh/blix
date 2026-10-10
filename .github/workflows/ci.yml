@@ -37,6 +37,17 @@ jobs:
       - name: Check the production guard
         run: pnpm check:prod-guard
 
+      # Builds a real AxiosError holding credentials and asserts none of them
+      # reaches a stored entry — see scripts/check-redaction.mjs.
+      - name: Check redaction
+        run: pnpm check:redaction
+
+      # Blocked storage, corrupt stored prefs and a render error inside the
+      # panel must all leave the host app standing — see
+      # scripts/check-isolation.mjs.
+      - name: Check isolation from the host app
+        run: pnpm check:isolation
+
       # The consuming app's bundler substitutes NODE_ENV at *its* build time,
       # which is what drops the panel from production. If our build defined or
       # replaced it, the panel would ship to every consumer's users.

@@ -1,6 +1,7 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { BlixBoundary } from "./BlixBoundary";
 import { BlixContext } from "./BlixContext";
 import type { StoreLike, HttpClientLike } from "./BlixContext";
 import { configureDbName } from "../capture/monitorConfig";
@@ -19,6 +20,11 @@ const noopSubscribe = () => () => {};
 export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // Must be called before any conditional return (Rules of Hooks).
   const panelRef = useRef<ReturnType<typeof lazy> | null>(null);
+
+  // One object for as long as the two handles are the same. A literal in the
+  // JSX below would be a new value on every render of the host component that
+  // mounts Blix, and every consumer of the context would re-render with it.
+  const ctx = useMemo(() => ({ store, apiClient }), [store, apiClient]);
 
   // `false` on the server *and* during hydration, `true` on every client
   // render after it. Branching on `typeof window` instead rendered `null` on
@@ -93,12 +99,18 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
 
     if (dbName) configureDbName(dbName);
 
+    // The boundary is outermost: everything Blix renders — the provider, the
+    // panel, the launcher inside it, and the lazy chunk's own load, whose
+    // failure surfaces as a throw from `<Panel />` — is on the inside of it,
+    // and the host app is on the outside. See `BlixBoundary`.
     return (
-      <BlixContext.Provider value={{ store, apiClient }}>
-        <Suspense fallback={null}>
-          <Panel />
-        </Suspense>
-      </BlixContext.Provider>
+      <BlixBoundary>
+        <BlixContext.Provider value={ctx}>
+          <Suspense fallback={null}>
+            <Panel />
+          </Suspense>
+        </BlixContext.Provider>
+      </BlixBoundary>
     );
   }
   return null;

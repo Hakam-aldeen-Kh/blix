@@ -1091,6 +1091,11 @@ its first client render matches the server's HTML; the panel mounts on the
 render right after. (Before 0.9.0 it branched on `typeof window` instead,
 which Next.js reported as a hydration mismatch on every load.)
 
+**If the panel disappears in development**, check the console for
+`[blix] the panel crashed`. Blix renders inside an error boundary of its own,
+so a failure in the panel removes the panel until the next reload and leaves
+your app running — the logged error is the thing to report.
+
 ### Enabling Blix in a production build (staging)
 
 A staging or test server usually runs a production build, where the panel is
@@ -1284,6 +1289,18 @@ the first 8 and last 4 survive, so you can still tell which token you sent.
 Shorter values are replaced outright. The Headers tab tags every masked row
 `MASKED` rather than leaving you to infer it from an ellipsis, and the stored
 value keeps a `(masked)` suffix so every export path carries the fact too.
+
+**Errors are described, never copied.** A failed TanStack query or mutation,
+and a Redux action whose payload is an error, are stored as a described error
+— kind, name, code, message, status, the response body, cause and stack —
+and never as the error object itself. An `AxiosError` carries the request's
+config and headers as ordinary properties; none of that is read.
+
+**The four names are also masked as keys, at any depth, in data Blix copies**:
+Redux payloads and state diffs, query and mutation data, and everything
+written to IndexedDB. An HTTP body is still shown as captured while it is
+live in the panel — a key named `authorization` inside one is masked only in
+the saved copy.
 
 #### Showing `Authorization` in full
 

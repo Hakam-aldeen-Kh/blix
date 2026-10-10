@@ -15,6 +15,7 @@
  */
 
 import { DB_PREFIX, getActiveDbName, LEGACY_DB_NAME } from "./monitorConfig";
+import { safeGet, safeSet } from "./safeStorage";
 
 /**
  * Names Blix has itself opened on this origin.
@@ -76,9 +77,8 @@ export type DeleteOutcome =
 /* ─────────────────────────────── registry ─────────────────────────────── */
 
 function readRegistry(): string[] {
-  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(REGISTRY_KEY);
+    const raw = safeGet(REGISTRY_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -90,13 +90,10 @@ function readRegistry(): string[] {
 }
 
 function writeRegistry(names: string[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(REGISTRY_KEY, JSON.stringify(names));
-  } catch {
-    /* quota / privacy mode — the registry is a convenience, not a source of
-       truth, and every engine that lacks it also has indexedDB.databases() */
-  }
+  // Quota or privacy mode drops the write: the registry is a convenience, not
+  // a source of truth, and every engine that lacks it also has
+  // indexedDB.databases().
+  safeSet(REGISTRY_KEY, JSON.stringify(names));
 }
 
 /** Records a name as belonging to Blix. Called from `openDb()`, so the

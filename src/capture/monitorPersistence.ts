@@ -34,8 +34,16 @@ import {
   type BudgetMeta,
 } from "./monitorStorage";
 import type { DeleteOutcome } from "./monitorDatabases";
+import { safeGet, safeRemove, safeSet } from "./safeStorage";
 import { truncateForPersist } from "./monitorTruncate";
-import type { DockMode, MonitorPrefs, PersistedEntry } from "./monitorTypes";
+import type {
+  Corner,
+  DockMode,
+  MonitorPrefs,
+  PersistedEntry,
+  Pos,
+  Size,
+} from "./monitorTypes";
 
 /**
  * The localStorage mirror's key, scoped to the active database.
@@ -117,24 +125,107 @@ export const DEFAULT_PREFS: MonitorPrefs = {
 /** Every dock mode, for validating one that came out of storage. */
 export const DOCK_MODES: readonly DockMode[] = ["bottom", "right", "top", "left", "float"];
 
+const CORNERS: readonly Corner[] = ["bottom-left", "bottom-right", "top-left", "top-right"];
+/** The panel's four sources and three row heights, restated: the capture layer
+ * must not import from `ui/`, and these two reach the layout unchecked — a
+ * section indexes the per-source tables, a density is looked up for its row
+ * height. */
+const SECTIONS: readonly string[] = ["network", "realtime", "redux", "query"];
+const DENSITIES: readonly string[] = ["compact", "normal", "comfy"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+/** A size, a split or a revision: finite and not negative. */
+const isExtent = (value: unknown): value is number => isFiniteNumber(value) && value >= 0;
+
+function toPos(value: unknown): Pos | null {
+  // A position may be negative: the floating panel can hang off the left edge.
+  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+    ? { x: value.x, y: value.y }
+    : null;
+}
+
+function toSize(value: unknown): Size | null {
+  return isRecord(value) && isExtent(value.w) && isExtent(value.h)
+    ? { w: value.w, h: value.h }
+    : null;
+}
+
 /**
- * Stored prefs over the defaults, with the dock geometry checked.
+ * What is usable in a stored prefs value — and nothing else.
  *
  * What is in storage was written by *some* version of Blix — an older one that
  * had no top or left dock, or a newer one with a mode this build has never
- * heard of — or by hand. A mode that is not one of ours falls back to the
- * default rather than reaching the layout as a class name with no rules, and a
- * dock size that is not a number takes its default too.
+ * heard of — or by hand, or by something else entirely that happened to use
+ * the key. It used to be spread over the defaults as it came, and the panel
+ * then read `prefs.float.size.w` off whatever `float` turned out to be.
+ *
+ * Each field is kept only if it has the type, and where there is a closed set
+ * the value, this build expects. A field that fails is simply absent from the
+ * result, so it takes its default while every valid field beside it survives:
+ * one bad value costs one preference, not all of them, and never a crash.
+ * Keys that are not preferences are dropped.
+ *
+ * `theme`, `dataFormat` and `fabRadius` are checked for type only. Their
+ * allowed values live in the panel, which already normalizes each one where
+ * it is read; a second list here would only be a second place to forget when
+ * a theme is added — and forgetting it would reset that theme on every reload.
  */
-function mergePrefs(stored: Partial<MonitorPrefs>): MonitorPrefs {
-  const merged: MonitorPrefs = { ...DEFAULT_PREFS, ...stored };
-  if (!DOCK_MODES.includes(merged.mode)) merged.mode = DEFAULT_PREFS.mode;
-  for (const key of ["bottomH", "rightW", "topH", "leftW"] as const) {
-    if (typeof merged[key] !== "number" || !Number.isFinite(merged[key])) {
-      merged[key] = DEFAULT_PREFS[key];
+export function sanitizePrefs(raw: unknown): Partial<MonitorPrefs> {
+  if (!isRecord(raw)) return {};
+  const out: Partial<MonitorPrefs> = {};
+
+  if (isExtent(raw.rev)) out.rev = raw.rev;
+
+  if (DOCK_MODES.includes(raw.mode as DockMode)) out.mode = raw.mode as DockMode;
+  if (CORNERS.includes(raw.corner as Corner)) out.corner = raw.corner as Corner;
+
+  for (const key of ["bottomH", "rightW", "topH", "leftW", "splitW", "splitH"] as const) {
+    const value = raw[key];
+    if (isExtent(value)) out[key] = value;
+  }
+
+  // The floating geometry is one preference with three parts. Without a
+  // usable size there is nothing to restore; with one, a bad position is
+  // "not placed yet" and a bad flag is "not maximized".
+  if (isRecord(raw.float)) {
+    const size = toSize(raw.float.size);
+    if (size) {
+      out.float = {
+        size,
+        pos: toPos(raw.float.pos),
+        maximized: raw.float.maximized === true,
+      };
     }
   }
-  return merged;
+
+  for (const key of [
+    "preserveLog",
+    "deepSearch",
+    "followLatest",
+    "captureInitiator",
+    "maskAuthorization",
+    "railCollapsed",
+  ] as const) {
+    const value = raw[key];
+    if (typeof value === "boolean") out[key] = value;
+  }
+
+  if (typeof raw.selectedId === "string" || raw.selectedId === null) {
+    out.selectedId = raw.selectedId;
+  }
+
+  if (typeof raw.section === "string" && SECTIONS.includes(raw.section)) out.section = raw.section;
+  if (typeof raw.density === "string" && DENSITIES.includes(raw.density)) out.density = raw.density;
+
+  for (const key of ["theme", "dataFormat", "fabRadius", "hiddenColumns"] as const) {
+    const value = raw[key];
+    if (typeof value === "string") out[key] = value;
+  }
+
+  return out;
 }
 
 export type HydrationState = "idle" | "loading" | "ready";
@@ -198,12 +289,14 @@ export const prefsStore = {
   getServerSnapshot: (): PrefsSnapshot => SERVER_SNAPSHOT,
 };
 
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
+/** Stored JSON as a value, or `null` for nothing, or for something that is
+ * not JSON. What it *is* is `sanitizePrefs`'s question, not this one's. */
+function safeParse(raw: string | null): unknown {
+  if (!raw) return null;
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(raw) as unknown;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
@@ -213,11 +306,10 @@ function safeParse<T>(raw: string | null, fallback: T): T {
 export function readPrefsSync(): MonitorPrefs {
   if (typeof window === "undefined") return DEFAULT_PREFS;
 
-  const stored = safeParse<Partial<MonitorPrefs> | null>(
-    window.localStorage.getItem(prefsKey()),
-    null,
-  );
-  if (stored) return mergePrefs(stored);
+  const stored = safeParse(safeGet(prefsKey()));
+  // Anything that parsed counts as "this project has prefs", even if nothing
+  // in it survives — the legacy keys below are only swept on a first run.
+  if (stored) return { ...DEFAULT_PREFS, ...sanitizePrefs(stored) };
 
   // Nothing under this project's key yet. The unscoped keys that may still be
   // sitting on the origin are *not* read: whatever is in them belongs to
@@ -225,11 +317,7 @@ export function readPrefsSync(): MonitorPrefs {
   // this project another app's geometry. They are dropped instead, so the
   // origin ends up with one key per project rather than those plus a pile of
   // shared ones nothing will ever read again.
-  try {
-    LEGACY_KEYS.forEach((k) => window.localStorage.removeItem(k));
-  } catch {
-    /* privacy mode — defaults are fine */
-  }
+  LEGACY_KEYS.forEach(safeRemove);
 
   return DEFAULT_PREFS;
 }
@@ -243,11 +331,7 @@ export function savePrefs(patch: Partial<MonitorPrefs>): void {
   emitPrefs();
 
   if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(prefsKey(), JSON.stringify(prefs));
-  } catch {
-    /* quota / privacy mode */
-  }
+  safeSet(prefsKey(), JSON.stringify(prefs));
 
   if (prefsWriteTimer) clearTimeout(prefsWriteTimer);
   prefsWriteTimer = setTimeout(() => {
@@ -470,17 +554,15 @@ export async function bootPersistence(): Promise<void> {
   ensurePrefs();
   setHydration("loading");
 
-  const stored = await getMeta<MonitorPrefs>("prefs");
+  const stored = await getMeta<Partial<MonitorPrefs>>("prefs");
   // The localStorage mirror is wiped whenever the host clears web storage
   // (sign-out, failed token refresh); when that happens the IndexedDB copy
   // wins and the mirror is reseeded, so geometry survives a logout.
-  if (stored && stored.rev >= prefs.rev) {
-    prefs = mergePrefs(stored);
-    try {
-      window.localStorage.setItem(prefsKey(), JSON.stringify(prefs));
-    } catch {
-      /* noop */
-    }
+  // `rev` is read off the raw record, so it is checked like everything else:
+  // a copy with no usable revision never wins over the one already loaded.
+  if (stored && typeof stored.rev === "number" && stored.rev >= prefs.rev) {
+    prefs = { ...DEFAULT_PREFS, ...sanitizePrefs(stored) };
+    safeSet(prefsKey(), JSON.stringify(prefs));
     emitPrefs();
   } else {
     await putMeta("prefs", prefs);

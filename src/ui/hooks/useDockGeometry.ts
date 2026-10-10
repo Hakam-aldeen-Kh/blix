@@ -208,7 +208,7 @@ export function useDockGeometry(
   const initial = prefsStore.getSnapshot().prefs;
 
   const [mode, setModeState] = useState<DockMode>(
-    // Stored prefs are validated on the way in (`mergePrefs`); this is the
+    // Stored prefs are validated on the way in (`sanitizePrefs`); this is the
     // same check at the point of use, for a value that arrived any other way.
     DOCK_MODES.includes(initial.mode) ? initial.mode : "float",
   );
