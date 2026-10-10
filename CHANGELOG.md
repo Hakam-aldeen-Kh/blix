@@ -103,8 +103,10 @@ every edge — and three credential leaks closed.
 - Restoring a preserved log no longer drops pinned rows, open realtime
   connections, or entries beyond 200 when other pools are busy: hydration now
   applies the same per-source limits as live capture.
-- Pinned rows in a preserved log survive a restore even when more than 200
-  records are stored.
+- Pinned rows already saved in a preserved log are no longer dropped when the
+  log is trimmed to 200 records on load. Saving is still bounded: a pin older
+  than the newest ~200 saved requests is evicted from storage like any other
+  record, and does not come back after a reload.
 - The panel is wrapped in an error boundary, so a failure inside Blix can no
   longer take down the host app: the panel is removed until reload and the
   error is logged once as `[blix] the panel crashed`. A panel chunk that fails

@@ -15,6 +15,7 @@ import {
   entryStatusLabel,
   formatBytes,
   formatDuration,
+  responseCopyText,
   splitRoute,
   statusText,
   statusTone,
@@ -763,6 +764,13 @@ export function DetailPane({
         {activeTab === "preview" && (
           <DataView
             value={entry.responsePayload ?? entry.error}
+            // A failure: the same text `c` and the context menu copy — the
+            // server's body, or the description when there is none.
+            copyOverride={
+              entry.responsePayload === undefined && isCapturedError(entry.error)
+                ? () => responseCopyText(entry)
+                : undefined
+            }
             query={query}
             entryId={`${entry.id}:preview`}
             sizeBytes={entry.sizeBytes}

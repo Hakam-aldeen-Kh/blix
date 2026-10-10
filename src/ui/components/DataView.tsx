@@ -134,6 +134,7 @@ export function DataView({
   format: requested,
   onFormat,
   extraFormat,
+  copyOverride,
   sizeBytes,
   children,
 }: {
@@ -145,6 +146,10 @@ export function DataView({
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
   extraFormat?: ExtraFormat;
+  /** What Copy produces instead of what is on screen. The Response tab of a
+   * failed request shows Blix's description of the failure; what a developer
+   * wants on the clipboard is the body the server sent. */
+  copyOverride?: () => string;
   /** The entry's captured size, for the formats that never build a flat
    * string. Tree and Table render from the parsed value, so stringifying one
    * just to measure it would put a full JSON.stringify in every render. */
@@ -271,6 +276,7 @@ export function DataView({
 
   /** What Copy puts on the clipboard: whatever is on screen. */
   const copyPayload = (): string => {
+    if (copyOverride) return copyOverride();
     if (format === extraFormat?.id) return extraFormat.copy();
     switch (format) {
       case "yaml":

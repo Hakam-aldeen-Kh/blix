@@ -94,8 +94,9 @@ const isRowDock = (mode: DockMode): mode is "top" | "bottom" =>
 
 const DOCK_VARS = [...DOCK_SIDES.map((side) => `--blix-dock-${side}`), "--nm-dock-h"];
 
-/** How many of its own past values a reservation remembers — see `ledger`. */
-const LEDGER_CAP = 64;
+/** How long a released reservation waits for its own value to be handed back
+ * — see `DockReservation`. */
+const CLEANUP_MS = 30_000;
 
 /**
  * The docked side's share of `<html>`: one inline `padding-*`, the four
@@ -110,25 +111,24 @@ const LEDGER_CAP = 64;
  * A scroll-lock is the usual case: a modal opens, saves `<html>`'s inline
  * `padding-right`, sets its own to make up for the scrollbar, and puts the
  * saved value back when it closes. If the panel is docked right while that
- * happens, the value it saves is the dock's. So the padding is not Blix's to
- * restore blindly, and the value Blix wrote can come back from somebody else
- * after the dock is gone. Two rules:
+ * happens, the value it saves is the dock's. Three rules:
  *
- * 1. **Blix only takes back what is still its own.** On release the saved
+ * 1. **While docked, Blix writes when the dock changes and at no other time.**
+ *    Taking a side, and each frame of a resize. Nothing watches `<html>` while
+ *    a side is reserved, and nothing is written in answer to somebody else's
+ *    write: a panel that re-asserted its padding froze the page as soon as a
+ *    second writer did the same. If the host changes the padding under the
+ *    dock, the host's value stands — a resize does not write over it either.
+ * 2. **Blix only takes back what is still its own.** On release the saved
  *    padding is restored only if the inline value is still exactly what Blix
  *    wrote; anything else is the host's, and is left alone.
- * 2. **A value Blix once wrote is never the host's.** Every value written is
- *    kept in a ledger beside the padding that was there before it. When one of
- *    them reappears — a scroll-lock handing back the "520px" it saved — it is
- *    exchanged for that original: re-reserved if the side is still docked, put
- *    back as it was if not. That is what keeps a closed panel from leaving its
- *    width on the page.
- *
- * A host value that is *new* while docked becomes the base the dock is added
- * to, so the two compose instead of taking turns overwriting each other.
- *
- * The observer behind rule 2 watches `<html>`'s `style` attribute and nothing
- * else, starts with the first reservation and stops at `dispose`.
+ * 3. **A value Blix left behind is removed if it comes back.** When rule 2
+ *    leaves the host's value standing, the value Blix last wrote may still be
+ *    in the host's hands — the scroll-lock that saved "520px". For a while
+ *    after the release a one-shot observer waits for exactly that value on
+ *    exactly that property, removes it, and stops. It removes and never sets,
+ *    so there is nothing for another writer to answer. It also stops after
+ *    `CLEANUP_MS`, when a side is docked again, and when the panel unmounts.
  */
 class DockReservation {
   private side: DockSide | null = null;
@@ -138,9 +138,9 @@ class DockReservation {
   private priority = "";
   /** The inline value as Blix last left it, read back from the style. */
   private written = "";
-  /** `side|value` Blix wrote → the host padding it stood on. */
-  private readonly ledger = new Map<string, { base: string; priority: string }>();
-  private observer: MutationObserver | null = null;
+  /** Rule 3's observer and its deadline, while one is waiting. */
+  private cleanup: { observer: MutationObserver; timer: ReturnType<typeof setTimeout> } | null =
+    null;
   private disposed = false;
 
   /** Reserves `px` on `side` — or nothing, for `null`. */
@@ -148,13 +148,16 @@ class DockReservation {
     if (this.disposed || typeof document === "undefined") return;
     const style = document.documentElement.style;
 
-    if (this.side && this.side !== side) this.giveBack(this.side);
+    if (this.side && this.side !== side) this.giveBack(this.side, true);
 
     if (!side) {
       this.side = null;
       for (const name of DOCK_VARS) style.removeProperty(name);
       return;
     }
+
+    // Docked: nothing of Blix's observes `<html>` from here on.
+    this.stopCleanup();
 
     for (const each of DOCK_SIDES) {
       style.setProperty(`--blix-dock-${each}`, each === side ? `${px}px` : "0px");
@@ -164,103 +167,74 @@ class DockReservation {
 
     const prop = `padding-${side}`;
     const current = style.getPropertyValue(prop);
-    // Taking the side, or finding it changed under the dock since the last
-    // write: what is there now is the host's — unless it is a value of Blix's
-    // own that something handed back in the meantime.
-    if (this.side !== side || current !== this.written) {
-      this.adopt(side, current, style.getPropertyPriority(prop));
+    if (this.side !== side) {
+      // Taking the side: what is there now is the host's.
+      this.base = current;
+      this.priority = style.getPropertyPriority(prop);
+    } else if (current !== this.written) {
+      // Changed under the dock since the last write. The host wins: the
+      // variables above follow the panel, the padding is left as it is.
+      this.px = px;
+      return;
     }
     this.side = side;
     this.px = px;
-    this.write();
-    this.watch();
+    style.setProperty(
+      prop,
+      this.base ? `calc(${this.base} + ${px}px)` : `${px}px`,
+      this.priority,
+    );
+    // Read back: the browser stores its own serialization, and that is what a
+    // host that saves the value will later hand back.
+    this.written = style.getPropertyValue(prop);
   }
 
   /** Stops for good: gives the side back and writes nothing afterwards. */
   dispose(): void {
     if (this.disposed) return;
     if (typeof document !== "undefined") {
-      if (this.side) this.giveBack(this.side);
+      if (this.side) this.giveBack(this.side, false);
       const style = document.documentElement.style;
       for (const name of DOCK_VARS) style.removeProperty(name);
     }
     this.side = null;
     this.disposed = true;
-    this.observer?.disconnect();
-    this.observer = null;
-    this.ledger.clear();
+    this.stopCleanup();
   }
 
-  /** Takes `value` as the host's padding on `side`, seeing through a value
-   * that was Blix's to the padding it replaced. */
-  private adopt(side: DockSide, value: string, priority: string): void {
-    const own = this.ledger.get(`${side}|${value}`);
-    this.base = own ? own.base : value;
-    this.priority = own ? own.priority : priority;
-  }
-
-  private write(): void {
-    if (!this.side) return;
-    const style = document.documentElement.style;
-    const prop = `padding-${this.side}`;
-    style.setProperty(
-      prop,
-      this.base ? `calc(${this.base} + ${this.px}px)` : `${this.px}px`,
-      this.priority,
-    );
-    // Read back: the browser stores its own serialization, and that is what a
-    // host that saves the value will later hand back.
-    this.written = style.getPropertyValue(prop);
-    const key = `${this.side}|${this.written}`;
-    this.ledger.delete(key);
-    this.ledger.set(key, { base: this.base, priority: this.priority });
-    if (this.ledger.size > LEDGER_CAP) {
-      const oldest = this.ledger.keys().next().value;
-      if (oldest !== undefined) this.ledger.delete(oldest);
-    }
-  }
-
-  /** Rule 1: restores the host's padding only where Blix's is still standing. */
-  private giveBack(side: DockSide): void {
+  /** Rule 2: restores the host's padding only where Blix's is still standing.
+   * Where it is not, and `watch` is set, rule 3 takes over. */
+  private giveBack(side: DockSide, watch: boolean): void {
     const style = document.documentElement.style;
     const prop = `padding-${side}`;
-    if (style.getPropertyValue(prop) !== this.written) return;
+    if (style.getPropertyValue(prop) !== this.written) {
+      if (watch && this.written) this.removeIfHandedBack(prop, this.written);
+      return;
+    }
     if (this.base) style.setProperty(prop, this.base, this.priority);
     else style.removeProperty(prop);
   }
 
-  private watch(): void {
-    if (this.observer || typeof MutationObserver === "undefined") return;
-    this.observer = new MutationObserver(() => this.onHostWrite());
-    this.observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["style"],
+  /** Rule 3: waits for `value` to reappear on `prop`, removes it once, stops. */
+  private removeIfHandedBack(prop: string, value: string): void {
+    this.stopCleanup();
+    if (typeof MutationObserver === "undefined") return;
+    const html = document.documentElement;
+    const observer = new MutationObserver(() => {
+      if (html.style.getPropertyValue(prop) !== value) return;
+      // Stopped first, so the removal below is not one of its own records.
+      this.stopCleanup();
+      html.style.removeProperty(prop);
     });
+    observer.observe(html, { attributes: true, attributeFilter: ["style"] });
+    this.cleanup = { observer, timer: setTimeout(() => this.stopCleanup(), CLEANUP_MS) };
   }
 
-  /** Rule 2, and composing with a host value that is new. */
-  private onHostWrite(): void {
-    if (this.disposed) return;
-    const style = document.documentElement.style;
-
-    if (this.side) {
-      const prop = `padding-${this.side}`;
-      const current = style.getPropertyValue(prop);
-      if (current !== this.written) {
-        this.adopt(this.side, current, style.getPropertyPriority(prop));
-        this.write();
-      }
-    }
-
-    // Sides Blix is not on: one of its old values there is a stale restore.
-    for (const side of DOCK_SIDES) {
-      if (side === this.side) continue;
-      const prop = `padding-${side}`;
-      const own = this.ledger.get(`${side}|${style.getPropertyValue(prop)}`);
-      if (!own) continue;
-      if (own.base) style.setProperty(prop, own.base, own.priority);
-      else style.removeProperty(prop);
-    }
+  private stopCleanup(): void {
+    if (!this.cleanup) return;
+    this.cleanup.observer.disconnect();
+    clearTimeout(this.cleanup.timer);
+    this.cleanup = null;
   }
 }
 

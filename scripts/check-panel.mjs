@@ -10,7 +10,9 @@
  *   goes away, the `--blix-dock-*` variables must exist only while a side is
  *   reserved, nothing may be written once the panel has unmounted, and a host
  *   that saved Blix's value — a scroll-lock does — must not be able to hand it
- *   back to a page with no dock on it.
+ *   back to a page with no dock on it. Blix never writes in answer to somebody
+ *   else's write: what cleans up after a release only removes its own value,
+ *   once, and stops after 30 s, on the next dock and on unmount.
  * - The Close button is there at every panel width.
  * - "Copy response" copies the server's body, not Blix's description of the
  *   failure.
@@ -240,18 +242,34 @@ const scenarios = [
     },
   },
   {
-    name: "5. …and a lock that starts before the dock and ends during it leaves nothing either",
+    name: "5. a host write under the dock stands: Blix does not write in answer to it",
     run: async () => {
       html.style.paddingRight = "17px";
       const panel = await mount(true);
+      const docked = prop("padding-right");
+      // The host takes its padding away while the panel is docked.
       html.style.paddingRight = "";
       await settle();
       const during = prop("padding-right");
+      // …and a resize does not write over what the host left there either.
+      const grip = dom.window.document.getElementById("grip");
+      pointer("pointerdown", grip, 500);
+      pointer("pointermove", dom.window, 420);
+      pointer("pointerup", dom.window, 420);
+      await settle();
+      const resized = [prop("padding-right"), prop("--blix-dock-right")];
+      pointer("pointerdown", dom.window.document.getElementById("grip"), 420);
+      pointer("pointermove", dom.window, 500);
+      pointer("pointerup", dom.window, 500);
+      await settle();
       await panel.render(false);
       const final = styleAttr();
       await panel.unmount();
       html.removeAttribute("style");
-      expect(during === "520px", `still docked, padding-right is ${JSON.stringify(during)}`);
+      expect(docked !== "17px" && docked !== "", `docked padding is ${JSON.stringify(docked)}`);
+      expect(during === "", `Blix wrote ${JSON.stringify(during)} back after the host cleared the padding`);
+      expect(resized[0] === "", `a resize wrote ${JSON.stringify(resized[0])} over the host's value`);
+      expect(resized[1] === "600px", `the variable did not follow the resize: ${JSON.stringify(resized[1])}`);
       expect(final === "", `closing leaves ${JSON.stringify(final)}`);
     },
   },
@@ -371,6 +389,160 @@ const scenarios = [
         console.warn = original;
         delete globalThis.__BLIX_DEBUG__;
       }
+    },
+  },
+  {
+    name: "12. a second writer of <html> padding is not answered: no write loop",
+    run: async () => {
+      // A host that puts its own padding back whenever it is changed.
+      html.style.paddingRight = "15px";
+      let hostWrites = 0;
+      const host = new dom.window.MutationObserver(() => {
+        if (html.style.paddingRight !== "15px") {
+          hostWrites += 1;
+          html.style.paddingRight = "15px";
+        }
+      });
+      host.observe(html, { attributes: true, attributeFilter: ["style"] });
+      const panel = await mount(true);
+      await settle();
+      const during = prop("padding-right");
+      await panel.render(false);
+      await settle();
+      host.disconnect();
+      const final = prop("padding-right");
+      await panel.unmount();
+      html.removeAttribute("style");
+      expect(hostWrites <= 2, `the host had to re-assert its padding ${hostWrites} times`);
+      expect(during === "15px" && final === "15px", `host padding is ${JSON.stringify([during, final])}`);
+
+      // Two panels docked to the same side.
+      let writes = 0;
+      const counter = new dom.window.MutationObserver((records) => (writes += records.length));
+      counter.observe(html, { attributes: true, attributeFilter: ["style"] });
+      const one = await mount(true);
+      const two = await mount(true);
+      await settle();
+      await two.unmount();
+      await one.unmount();
+      await settle();
+      counter.disconnect();
+      const left = styleAttr();
+      html.removeAttribute("style");
+      expect(writes < 60, `two docked panels wrote <html> style ${writes} times`);
+      expect(left === "", `two panels, unmounted in reverse order, leave ${JSON.stringify(left)}`);
+    },
+  },
+  {
+    name: "13. the cleanup after a release only ever removes Blix's own value, once",
+    run: async () => {
+      const panel = await mount(true);
+      html.style.paddingRight = "17px"; // the lock
+      await settle();
+      await panel.render(false);
+      // Other host values are none of its business.
+      html.style.paddingRight = "30px";
+      await settle();
+      const other = prop("padding-right");
+      html.style.paddingLeft = "520px";
+      await settle();
+      const otherSide = prop("padding-left");
+      // Blix's own value, handed back: removed, not replaced.
+      html.style.paddingRight = "520px";
+      await settle();
+      const handedBack = styleAttr();
+      // It has stopped: the same value a second time is the host's.
+      html.style.paddingRight = "520px";
+      await settle();
+      const second = prop("padding-right");
+      await panel.unmount();
+      html.removeAttribute("style");
+      expect(other === "30px", `a host value was changed to ${JSON.stringify(other)}`);
+      expect(otherSide === "520px", `another side's value was changed to ${JSON.stringify(otherSide)}`);
+      expect(handedBack === "padding-left: 520px;", `after the hand-back <html style> is ${JSON.stringify(handedBack)}`);
+      expect(second === "520px", `still acting after it had acted once: ${JSON.stringify(second)}`);
+    },
+  },
+  {
+    name: "14. …and stops after 30 s",
+    run: async () => {
+      const realSetTimeout = globalThis.setTimeout;
+      const long = [];
+      globalThis.setTimeout = (fn, ms, ...rest) => {
+        if (ms >= 10_000) {
+          long.push({ fn, ms });
+          return realSetTimeout(() => {}, 0);
+        }
+        return realSetTimeout(fn, ms, ...rest);
+      };
+      let stillWatching;
+      let afterDeadline;
+      let deadlines;
+      const panel = await mount(true);
+      try {
+        html.style.paddingRight = "17px";
+        await settle();
+        await panel.render(false);
+        deadlines = long.map((t) => t.ms);
+        // Before the deadline it is still waiting…
+        html.style.paddingRight = "520px";
+        await settle();
+        stillWatching = prop("padding-right");
+        // …so set the same stage again and let the deadline pass first.
+        await panel.render(true);
+        html.style.paddingRight = "17px";
+        await settle();
+        await panel.render(false);
+        for (const t of long.splice(0)) t.fn();
+        html.style.paddingRight = "520px";
+        await settle();
+        afterDeadline = prop("padding-right");
+      } finally {
+        globalThis.setTimeout = realSetTimeout;
+        await panel.unmount();
+        html.removeAttribute("style");
+      }
+      expect(deadlines.length === 1 && deadlines[0] === 30_000, `deadline timers: ${JSON.stringify(deadlines)}`);
+      expect(stillWatching === "", `before the deadline the hand-back left ${JSON.stringify(stillWatching)}`);
+      expect(afterDeadline === "520px", `after 30 s it still acted: ${JSON.stringify(afterDeadline)}`);
+    },
+  },
+  {
+    name: "15. …and when a side is docked again",
+    run: async () => {
+      const panel = await mount(true);
+      html.style.paddingRight = "17px";
+      await settle();
+      await panel.render(false);
+      await panel.render(true);
+      const docked = prop("padding-right");
+      // Docked again: nothing watches, so the host's write simply stands.
+      html.style.paddingRight = "520px";
+      await settle();
+      const during = prop("padding-right");
+      html.style.paddingRight = "17px";
+      await settle();
+      await panel.unmount();
+      const final = styleAttr();
+      html.removeAttribute("style");
+      expect(docked.startsWith("calc("), `docked again on 17px: ${JSON.stringify(docked)}`);
+      expect(during === "520px", `a write under the dock was changed to ${JSON.stringify(during)}`);
+      expect(final === "padding-right: 17px;", `unmount changed the host's value: ${JSON.stringify(final)}`);
+    },
+  },
+  {
+    name: "16. …and when the panel unmounts",
+    run: async () => {
+      const panel = await mount(true);
+      html.style.paddingRight = "17px";
+      await settle();
+      await panel.render(false);
+      await panel.unmount();
+      html.style.paddingRight = "520px";
+      await settle();
+      const final = prop("padding-right");
+      html.removeAttribute("style");
+      expect(final === "520px", `something still acted after unmount: ${JSON.stringify(final)}`);
     },
   },
 ];
