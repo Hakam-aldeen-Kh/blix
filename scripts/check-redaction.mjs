@@ -18,6 +18,7 @@ import { AxiosError, AxiosHeaders } from "axios";
 import { build } from "esbuild";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const src = path.resolve(process.argv[2] ?? path.join(root, "src"));
@@ -228,6 +229,89 @@ const scenarios = [
       noSecrets(entry);
       expect(entry.redux?.replayable === false, "the entry is still marked replayable");
       expect(entry.redux?.payload?.payload?.kind === "http", "the payload was not described");
+    },
+  },
+  // An error is recognized by what it is, never by what its keys are called.
+  // `config` and `stack` are the marks of an AxiosError — and of ordinary data.
+  ...[
+    { payload: { config: { theme: "dark" }, items: [1, 2, 3] } },
+    { data: { user: { id: 1 }, config: { a: 1 } } },
+    { stack: "react,node", team: "core" },
+  ].map((value, i) => ({
+    name: `${11 + i}. plain data ${JSON.stringify(value)} round-trips unchanged`,
+    run: () => {
+      const out = truncateForPersist(value, MAX);
+      expect(
+        JSON.stringify(out.value) === JSON.stringify(value),
+        `stored as ${JSON.stringify(out.value)}`,
+      );
+      expect(out.truncated === false, "it was flagged as truncated");
+      const described = describeError(value, MAX);
+      expect(
+        JSON.stringify(described) === JSON.stringify(value),
+        `describeError stored it as ${JSON.stringify(described)}`,
+      );
+    },
+  })),
+  {
+    name: "14. a Redux action with payload { config: { theme } } is stored as data, and stays replayable",
+    run: () => {
+      const dispatch = capture.createReduxMonitorMiddleware()({ getState: () => ({}) })(
+        (action) => action,
+      );
+      dispatch({ type: "settings/loaded", payload: { config: { theme: "dark" } } });
+      const entry = entryWhere((e) => e.kind === "redux" && e.url === "settings/loaded");
+      const stored = entry.redux?.payload?.payload;
+      expect(
+        JSON.stringify(stored) === JSON.stringify({ config: { theme: "dark" } }),
+        `payload stored as ${JSON.stringify(stored)}`,
+      );
+      expect(entry.redux?.replayable === true, "the entry is not replayable");
+      expect(entry.state === "success", `the entry's state is ${entry.state}`);
+    },
+  },
+  {
+    name: "15. a plain object's config is kept, with the Authorization inside it masked by key",
+    run: () => {
+      const out = truncateForPersist(
+        { config: { headers: { Authorization: "Bearer SECRET_TOKEN_123" }, retries: 2 } },
+        MAX,
+      ).value;
+      noSecrets(out);
+      expect(out.config?.retries === 2, "config was not kept");
+      expect(typeof out.config?.headers?.Authorization === "string", "the key was dropped");
+    },
+  },
+  {
+    name: "16. an error from another realm is still recognized as an error",
+    run: () => {
+      const foreign = vm.runInNewContext("new Error('x')");
+      expect(!(foreign instanceof Error), "the fixture is not from another realm");
+      const described = describeError(foreign, MAX);
+      expect(
+        described?.message === "x" && typeof described.kind === "string",
+        `described as ${JSON.stringify(described)}`,
+      );
+      const copied = truncateForPersist({ nested: foreign }, MAX);
+      expect(copied.value.nested?.message === "x", "truncateForPersist did not collapse it");
+      expect(copied.truncated === true, "the collapse was not flagged");
+    },
+  },
+  {
+    name: "17. an error from a second copy of axios (isAxiosError, not this realm's class) is recognized",
+    run: () => {
+      // What a duplicate axios in the bundle produces: the brand, the config,
+      // and a prototype that is not this realm's Error.
+      const real = axiosError();
+      const foreign = Object.assign(Object.create(null), {
+        isAxiosError: true,
+        message: real.message,
+        code: real.code,
+        config: real.config,
+        response: real.response,
+      });
+      noSecrets(describeError(foreign, MAX));
+      noSecrets(truncateForPersist({ nested: foreign }, MAX).value);
     },
   },
 ];

@@ -23,7 +23,8 @@ import {
   REDUX_COALESCE_MS,
   now,
 } from "./monitorConfig";
-import { describeError, isErrorLike } from "./monitorError";
+import { isErrorLike } from "./errorLike";
+import { describeError } from "./monitorError";
 import { networkMonitor } from "./networkMonitor";
 import { diffState } from "./stateDiff";
 import { truncateForPersist } from "./monitorTruncate";

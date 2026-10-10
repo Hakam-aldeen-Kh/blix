@@ -58,6 +58,31 @@ axios installed, not even for types.
 
 ---
 
+## Upgrading to 0.11
+
+Four things behave differently, and none needs a code change unless you read
+entries yourself:
+
+- **`entry.error` is an object.** A failed request stores a
+  [`CapturedError`](#entryerror--capturederror) — `kind`, `message`, `status`,
+  … — instead of the response body or a string. The body is on
+  `error.response`. Anything that read `entry.error` from an export has to
+  follow it there.
+- **Saved logs are cleared once.** Logs written by earlier versions are
+  discarded the first time 0.11 opens the database. Panel preferences are
+  kept.
+- **Docked panels push the page.** A panel docked to an edge reserves that side
+  with inline padding on `<html>` rather than covering the app, and no longer
+  closes on an outside click. `position: fixed` and `sticky` elements are not
+  moved by padding — opt them in with `--blix-dock-top`, `-right`, `-bottom`
+  and `-left`, e.g. `right: var(--blix-dock-right, 0px)`. See
+  [Finding your way around](#finding-your-way-around).
+- **Shortcuts only act inside the panel.** Single-key shortcuts no longer fire
+  while focus is in your app; `Ctrl/⌘` + backtick still toggles the panel from
+  anywhere.
+
+---
+
 ## The module-init call-order contract
 
 **This is the part that is easy to get wrong.** Capture functions must be
@@ -175,59 +200,56 @@ ordering is actually correct.
 
 #### Failed requests and the shape of your rejection
 
-Blix correlates a response — success **or** error — back to its entry through
-`error.config`. If your response interceptor normalises errors into your own
-domain type, a very common pattern, the value Blix receives is a plain object
-with no `config` on it:
+Blix records how a request ended **at the wire**: before the first of your
+response interceptors runs, while the value is still the `AxiosError` — or the
+response — that axios produced. So a response interceptor that normalises
+errors into your own domain type no longer costs you the entry:
 
 ```ts
-// ❌ Blix can no longer see the entry: no `.config` on the rejected value
+// Fine since 0.11: the failure was recorded before this ran
 instance.interceptors.response.use(undefined, (error) =>
   Promise.reject(error.response?.data ?? fallbackError),
 );
 ```
 
-The consequence is silent and total: **every non-2xx request stays `pending`
-in the panel for the rest of the session.** No error, no warning, no Failed
-filter. Nothing times the row out either: its duration keeps counting for as
-long as the page stays open.
+(Through 0.10 this left **every non-2xx request `pending`** for the rest of the
+session, because the value Blix received had no `config` to correlate by.)
 
-Two ways out, and you currently have to choose one:
+The entry carries the real failure — status, response body, the client's code.
+What your interceptor handed the caller *instead* is recorded beside it as
+`error.handledAs`, whenever Blix can tie the two together: your error keeps the
+original on `cause`, `response`, `originalError` or `error`, or still carries
+`config`. An error with no link back to the original is simply not shown; the
+entry is still settled correctly.
 
-1. **Keep the config on your normalised error** — attach `config` (or the
-   original `AxiosError`) to the object you reject with. This preserves
-   plaintext request capture and is the recommended fix.
-2. **Register Blix before your normalising handler**, so it runs first on the
-   response path:
+Three limits:
 
-   ```ts
-   attachHttpMonitor(apiClient);      // first on the response path
-   apiClient.interceptors.request.use(addAuth);
-   apiClient.interceptors.response.use(undefined, normaliseError);
-   ```
-
-   This costs you plaintext request capture, because Blix's request interceptor
-   now runs last — after encryption.
-
-From a single `attachHttpMonitor` call you cannot currently have both plaintext
-request bodies and correlated errors while also discarding the `AxiosError`.
+- **An error thrown by a request interceptor** never reaches the wire. It is
+  attributed to its request when that is the only one in the air; with several
+  it is left to the timeout watchdog below rather than guessed at.
+- **A request with a `timeout`** that is still pending 3 s past it is settled
+  as a timeout that says Blix saw no answer — and corrected if one arrives
+  after all. **A request with no `timeout`** that never answers stays
+  `pending`: nothing times it out.
+- The wire is observed by wrapping the first response interceptor already on
+  the instance. On an axios whose internals do not have the shape Blix expects
+  it is skipped, and the behaviour above falls back to correlating by
+  `error.config` alone.
 
 #### Response interceptors that unwrap
 
-The same thing happens on the success path. A response interceptor registered
-before Blix that returns something other than the response —
-`(response) => response.data` is the usual one — hands Blix a value with no
-`config` on it, so there is nothing to correlate:
+The same holds on the success path. A response interceptor registered before
+Blix that returns something other than the response —
+`(response) => response.data` is the usual one — used to leave the entry
+`pending`. The response is now recorded at the wire, status and headers
+included, before the interceptor unwraps it:
 
 - your request is unaffected: your code receives exactly what your interceptor
   returned. (Before 0.7.0 Blix threw at this point, and every request on the
   instance failed.)
-- the entry **stays `pending`** for the rest of the session. Blix does not
-  settle a request it cannot see settle.
-
-Register the unwrapping interceptor **after** `attachHttpMonitor` — response
-interceptors run in registration order, so Blix then sees the full response
-first — or unwrap at the call site instead.
+- the Response tab shows the body your code received — the unwrapped,
+  decrypted one — when Blix can recognise it as the same object, and the body
+  as it came off the wire otherwise.
 
 #### Which request headers the panel shows
 
@@ -585,8 +607,72 @@ logged exactly once. The order of the two calls does not matter.
   request.
 - **No `captureEncrypted`** — see
   [Encrypted payloads](#encrypted-payloads--captureencryptedconfig-payload).
-- **No timeout.** A request that never answers stays pending, exactly as an
-  axios request does.
+- **No timeout watchdog.** A `fetch` that never answers stays pending until
+  the page aborts it: a `fetch` has no timeout of its own for Blix to measure
+  against. (An `AbortSignal.timeout()` that fires is recorded, as a timeout.)
+  axios differs: a request with a `timeout` is settled 3 s past it — see
+  [Failed requests](#failed-requests-and-the-shape-of-your-rejection).
+
+### What a request records — `entry.error` and `entry.wire`
+
+Two fields of a captured entry are worth knowing by shape, because they are
+what the JSON and NDJSON exports carry and what the `MonitorEntry` type
+describes. Both are the same whichever client made the request.
+
+#### `entry.error` — `CapturedError`
+
+A failed request stores a description of the failure, not the thrown object
+and not just the response body:
+
+| Field | |
+| --- | --- |
+| `kind` | How it failed — see below. Always present. |
+| `message` | The error's message. Always present. |
+| `name`, `code` | The error's class (`AxiosError`, `TypeError`) and the client's code (`ERR_NETWORK`, `ECONNABORTED`). |
+| `status`, `statusText` | When the server answered. |
+| `response` | **The response body**, when there was one. |
+| `timeoutMs` | The timeout the request ran under, when that is what ended it. |
+| `cause` | What the error says caused it — the same fields, without `kind`. |
+| `stack` | The top frames of the error's stack. |
+| `handledAs` | What your interceptor rejected with instead, when it replaced the client's error — the same fields, without `kind`. |
+
+| `kind` | Meaning |
+| --- | --- |
+| `http` | The server answered with a status the client treats as an error. |
+| `timeout` | No answer inside the configured time. |
+| `network` | No answer at all: offline, DNS, refused, or blocked by CORS — the browser does not tell scripts which. |
+| `aborted` | Cancelled by the page: `AbortController`, a cancel token, navigation. |
+| `setup` | Thrown before the request left — by an interceptor, or while building it. |
+| `unknown` | None of the above could be established. |
+
+Query and mutation rows, and a Redux action whose payload is an error, store
+the same shape. Only named fields are ever read from an error: never its
+request config or headers.
+
+#### `entry.wire` — `WireTiming`
+
+Everything else Blix times is two clock reads in JavaScript. `wire` is what the
+*browser* measured for the same request — its `PerformanceResourceTiming`
+entry — attached automatically by every `attach*Monitor`, and shown in the
+Timing tab under **On the wire** and **Server-Timing**:
+
+| Field | |
+| --- | --- |
+| `totalMs` | The browser's total for the request. Always present. |
+| `queueMs`, `dnsMs`, `connectMs`, `tlsMs` | Waiting for a connection, DNS, TCP, TLS. |
+| `waitMs`, `downloadMs` | Request sent to first byte (TTFB), and first byte to last. |
+| `redirectMs` | Time spent in redirects, when there were any. |
+| `transferSize`, `encodedBodySize`, `decodedBodySize` | Bytes over the wire, the body as sent, and the body decoded. |
+| `fromCache` | Nothing crossed the wire, yet there was a body. |
+| `protocol` | `h2`, `http/1.1`, … |
+| `serverTiming` | The response's `Server-Timing` metrics: `name`, `durationMs`, `description`. |
+| `restricted` | See below. |
+
+For a **cross-origin** request the browser withholds the phases and the sizes
+unless the response carries `Timing-Allow-Origin`. Such an entry has
+`restricted: true` and `totalMs` only — add the header on the API to get the
+rest. An entry has no `wire` at all when the browser reported no timing for
+it, or when Blix could not match one to the request.
 
 ### Redux — `createReduxMonitorMiddleware(options?)`
 

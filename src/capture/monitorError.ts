@@ -13,6 +13,7 @@
  * never the request config (which carries headers Blix masks elsewhere).
  */
 
+import { isErrorLike } from "./errorLike";
 import { serializeBody } from "./monitorSerialize";
 import { truncateForPersist } from "./monitorTruncate";
 
@@ -45,13 +46,29 @@ export interface CapturedError {
   timeoutMs?: number;
   /** The response body, when there was a response. */
   response?: unknown;
-  /** What the error says caused it, one level down. */
-  cause?: CapturedError | string;
+  /** What the error says caused it, one level down. Context, not a second
+   * failure: it has no `kind` of its own. */
+  cause?: ErrorContext | string;
   /** The top of the stack, when the error carried one. */
   stack?: string[];
   /** Set when the app replaced the client's error with one of its own before
    * the caller saw it: what the caller actually received. */
-  handledAs?: CapturedError | string;
+  handledAs?: ErrorContext | string;
+}
+
+/**
+ * An error recorded as context for a failure — its `cause`, or what the app
+ * handed the caller in its place (`handledAs`). Everything a `CapturedError`
+ * has except `kind`: how the *request* failed is said once, on the failure
+ * itself.
+ */
+export type ErrorContext = Omit<CapturedError, "kind">;
+
+/** `error` as context for another failure — see `ErrorContext`. */
+export function asContext(error: CapturedError): ErrorContext {
+  const { kind, ...context } = error;
+  void kind;
+  return context;
 }
 
 const STACK_FRAMES = 8;
@@ -154,10 +171,11 @@ export function captureError(error: unknown, context: FailureContext = {}, depth
 
   const cause = read(error, "cause");
   if (cause !== undefined && cause !== null && depth < 2) {
-    out.cause =
-      typeof cause === "object" ? captureError(cause, { kind: "unknown" }, depth + 1) : String(cause);
     // A cause is context, not a second failure with a kind of its own.
-    if (typeof out.cause === "object") delete (out.cause as Partial<CapturedError>).kind;
+    out.cause =
+      typeof cause === "object"
+        ? asContext(captureError(cause, { kind: "unknown" }, depth + 1))
+        : String(cause);
   }
 
   const stack = stackOf(error);
@@ -166,27 +184,10 @@ export function captureError(error: unknown, context: FailureContext = {}, depth
   return out;
 }
 
-/**
- * True for thrown errors, as opposed to plain objects a host chose to throw.
- *
- * An `Error`, or anything carrying the marks of one: a `stack`, an axios
- * `config`, or `isAxiosError`. The `stack` has to be a string, as a thrown
- * error's is — a `CapturedError` keeps its own as an array of frames, and it
- * is already the described form, not something to describe again.
- */
-export function isErrorLike(value: unknown): value is object {
-  if (value === null || typeof value !== "object") return false;
-  try {
-    if (value instanceof Error) return true;
-    return (
-      typeof (value as { stack?: unknown }).stack === "string" ||
-      "config" in value ||
-      "isAxiosError" in value
-    );
-  } catch {
-    return false;
-  }
-}
+// True for thrown errors, as opposed to plain objects a host chose to throw.
+// Defined in `errorLike.ts`; re-exported because describing an error and
+// recognizing one are asked for together.
+export { isErrorLike };
 
 /**
  * Any stored error value.

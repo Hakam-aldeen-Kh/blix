@@ -24,7 +24,7 @@
  */
 
 import { readAuthorization } from "./monitorAuth";
-import { captureError, isCapturedError, type CapturedError } from "./monitorError";
+import { asContext, captureError, isCapturedError, type CapturedError } from "./monitorError";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
 import { flattenCapturedHeaders } from "./monitorSerialize";
@@ -656,9 +656,7 @@ export function attachHttpMonitor(
           const replaced = wire !== undefined && !config && !flight.isWireError(error);
           let captured: CapturedError;
           if (replaced) {
-            const handledAs: Partial<CapturedError> = captureError(error, { kind: "unknown" });
-            delete handledAs.kind;
-            captured = { ...wire, handledAs: handledAs as CapturedError };
+            captured = { ...wire, handledAs: asContext(captureError(error, { kind: "unknown" })) };
           } else {
             captured = describeAxiosError(error, config);
           }

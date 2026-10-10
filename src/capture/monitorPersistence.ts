@@ -581,10 +581,18 @@ export async function bootPersistence(): Promise<void> {
   }
 
   const records = await getAllEntries();
-  const valid = records
-    .filter((r) => r.schema === NM_SCHEMA_VERSION)
-    .sort((a, b) => b.seq - a.seq)
-    .slice(0, MAX_ENTRIES);
+  const current = records.filter((r) => r.schema === NM_SCHEMA_VERSION);
+  // The cut applies to unpinned records only. A pin exists so a row outlives
+  // the traffic around it — but it was sorted and sliced with everything else,
+  // so a pinned row with a low `seq` and 200 newer records beside it was
+  // dropped here, before `mergeHydrated`'s own protection of pins ever saw it.
+  const valid = [
+    ...current
+      .filter((r) => !r.pinned)
+      .sort((a, b) => b.seq - a.seq)
+      .slice(0, MAX_ENTRIES),
+    ...current.filter((r) => r.pinned),
+  ];
 
   budget = valid.reduce<BudgetMeta>(
     (acc, r) => {

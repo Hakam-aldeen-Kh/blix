@@ -5,7 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.0] - 2026-10-10
+
+Failures recorded whole, the browser's own timing on every request, docks on
+every edge — and three credential leaks closed.
+
+### Breaking
+
+- `entry.error` for a failed HTTP request is now a `CapturedError` object
+  (`kind`, `name`, `code`, `message`, `status`, `statusText`, `timeoutMs`,
+  `response`, `cause`, `stack`) instead of the response body or a string. The
+  body is on `error.response`. HAR export still writes the body.
+- The stored error for query and mutation rows has the same shape, rather than
+  a copy of the thrown object.
+- Persisted logs from earlier versions are discarded once on upgrade. Panel
+  preferences are kept.
+- Docked panels reserve their side of the screen with inline padding on
+  `<html>` — the page is pushed over instead of covered — and no longer close
+  on an outside click.
+- Single-key shortcuts apply only while focus is in the panel.
+- `MonitorPrefs` gains required `topH` and `leftW`; `DockMode` gains `"top"`
+  and `"left"`; `MonitorEntry.client` may be `"xhr"`.
 
 ### Security
 
@@ -25,38 +45,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `entry.wire`: the browser's `PerformanceResourceTiming` for each request —
+  queue, DNS, connect, TLS, wait (TTFB) and download, bytes transferred,
+  encoded and decoded size, protocol, and whether it came from the cache. A
+  cross-origin response without `Timing-Allow-Origin` keeps its total only and
+  is marked `restricted`. No setup: every `attach*Monitor` starts it.
+- The Timing tab gains "On the wire" and "Server-Timing" sections.
+- `CapturedError`, `FailureKind`, `WireTiming` and `ServerTimingMetric` types,
+  exported from both entry points.
 - `top` and `left` dock modes, beside `bottom` and `right` — each with its own
   saved size, and in the header's dock switcher and "Cycle dock position".
 - `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom` and
   `--blix-dock-left` CSS variables on `<html>`: the docked panel's size on that
   side, `0px` on the others. For `position: fixed`/`sticky` elements, which
   the reserved space does not move by itself.
+- Each source has its own icon and colour, in the sidebar, the launcher and
+  the detail pane's active tab.
 
 ### Changed
 
-- Shortcuts apply only while focus is in the panel, and ignore Ctrl/⌘/Alt
-  combinations, `contenteditable`, `<select>` and IME input. Ctrl/⌘ + backtick
-  still toggles the panel from anywhere.
+- The status column reads `timeout` or `network` instead of `ERR` when there
+  was no response, and the detail head shows the failure's own message.
+- The size column uses the browser's decoded size when it reports one.
+- A stacked panel too short for two panes shows one at a time, with a Back
+  button; the header, sidebar and payload bar degrade in steps at small sizes.
+- Top and bottom docks respect the safe-area insets.
+- Shortcuts ignore Ctrl/⌘/Alt combinations, `contenteditable`, `<select>` and
+  IME input. Ctrl/⌘ + backtick still toggles the panel from anywhere.
 - All shortcuts, including the toggle and Ctrl/⌘+K, work on non-Latin keyboard
   layouts: they follow the physical key, so nothing needs a layout switch.
-- Docked panels no longer close on an outside click, and reserve their side of
-  the screen — the page is pushed over instead of covered. The floating panel
-  still overlays, and still closes on an outside click.
 - Escape only closes Blix when focus is inside it, and an Escape Blix handles
   no longer reaches the host app.
-- The stored error for query and mutation rows is now the same described-error
-  shape as HTTP rows (`kind`, `message`, `status`, `response`, …) rather than
-  a copy of the thrown object.
-- Persisted logs from earlier versions are discarded once on upgrade. Panel
-  preferences are kept.
 - A Redux action whose payload is an error, or holds a masked key, cannot be
   re-dispatched: what is stored is no longer what was dispatched.
 
 ### Fixed
 
+- axios requests no longer stay `pending` when the app's own interceptors
+  reject with their own error, unwrap `r => r.data`, or retry under the same
+  config: the outcome is recorded before any app interceptor runs.
+- A request with a timeout that is still pending 3 s past it is settled as a
+  timeout, and corrected if an answer arrives later.
+- An error thrown by a request interceptor is attributed to its request.
+- A crash in the payload viewer that tore down the host app's tree when a
+  payload arrived after the pane mounted.
+- The Headers, Initiator and Query State tabs now fill the pane and scroll.
+- Menus no longer show a scrollbar; Copy is no longer clipped in a narrow pane.
 - Restoring a preserved log no longer drops pinned rows, open realtime
   connections, or entries beyond 200 when other pools are busy: hydration now
   applies the same per-source limits as live capture.
+- Pinned rows in a preserved log survive a restore even when more than 200
+  records are stored.
 - The panel is wrapped in an error boundary, so a failure inside Blix can no
   longer take down the host app: the panel is removed until reload and the
   error is logged once as `[blix] the panel crashed`. A panel chunk that fails
@@ -67,7 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   field instead of crashing the panel.
 - The `r` shortcut asks for the same confirmation as the Replay button before
   re-sending write requests. The palette's "Replay request" does too.
-
 - Reading `NEXT_PUBLIC_BLIX` no longer throws "process is not defined" in
   production builds on bundlers without a process polyfill (Vite, esbuild,
   Rollup).

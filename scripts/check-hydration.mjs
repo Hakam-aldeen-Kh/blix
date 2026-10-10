@@ -26,7 +26,8 @@ const bundled = await build({
   stdin: {
     contents: `
       export { networkMonitor } from ${from("networkMonitor.ts")};
-      export { LOAD_ID, POOL_OF, POOL_QUOTA } from ${from("monitorConfig.ts")};
+      export { LOAD_ID, NM_SCHEMA_VERSION, POOL_OF, POOL_QUOTA } from ${from("monitorConfig.ts")};
+      export { bootPersistence } from ${from("monitorPersistence.ts")};
     `,
     resolveDir: root,
     loader: "ts",
@@ -89,7 +90,89 @@ function hydrate(store, records) {
   return { entries, ids: new Set(entries.map((e) => e.id)), evicted, perPool, cleared };
 }
 
+/**
+ * Just enough IndexedDB for `bootPersistence` to read a stored log: one
+ * database, the two stores Blix uses, requests that settle on a later tick as
+ * real ones do. Seeded with the entries and the prefs a previous session left.
+ */
+function fakeIndexedDB(entries, prefs) {
+  const stores = {
+    entries: new Map(entries.map((r) => [r.id, r])),
+    meta: new Map([["prefs", { key: "prefs", value: prefs }]]),
+  };
+  const request = (compute) => {
+    const req = { result: undefined, error: null, onsuccess: null, onerror: null };
+    setTimeout(() => {
+      req.result = compute();
+      req.onsuccess?.();
+    }, 0);
+    return req;
+  };
+  const objectStore = (name) => ({
+    getAll: () => request(() => [...stores[name].values()]),
+    get: (key) => request(() => stores[name].get(key)),
+    put: (value) => request(() => void stores[name].set(value.id ?? value.key, value)),
+    delete: (key) => request(() => void stores[name].delete(key)),
+    clear: () => request(() => stores[name].clear()),
+    index: () => ({ openCursor: () => request(() => null) }),
+  });
+  const db = {
+    objectStoreNames: { contains: (name) => name in stores },
+    close() {},
+    transaction() {
+      const tx = { oncomplete: null, onerror: null, onabort: null, error: null, objectStore };
+      setTimeout(() => tx.oncomplete?.(), 5);
+      return tx;
+    },
+  };
+  return {
+    open() {
+      const req = { result: db, onsuccess: null, onerror: null, onblocked: null };
+      setTimeout(() => req.onsuccess?.(), 0);
+      return req;
+    },
+  };
+}
+
 const scenarios = [
+  {
+    name: "5. boot: a pinned record with the lowest seq, behind 300 newer ones, is restored",
+    run: async () => {
+      const store = await freshStore();
+      const stored = (id, seq, extra = {}) => ({
+        ...record(id, "http", 100_000 - seq, extra),
+        seq,
+        schema: store.NM_SCHEMA_VERSION,
+        bytes: 600,
+      });
+      const records = [
+        stored("pinned-old", 1, { pinned: true }),
+        ...Array.from({ length: 300 }, (_, i) => stored(`stored-${i}`, 1000 + i)),
+      ];
+      globalThis.indexedDB = fakeIndexedDB(records, { rev: 1, preserveLog: true });
+
+      // What boot hands to the store, as well as what the store then keeps:
+      // the pin used to be cut before `mergeHydrated` could protect it.
+      const handed = [];
+      const merge = store.networkMonitor.mergeHydrated.bind(store.networkMonitor);
+      store.networkMonitor.mergeHydrated = (list) => {
+        handed.push(...list.map((r) => r.id));
+        return merge(list);
+      };
+      try {
+        await store.bootPersistence();
+      } finally {
+        delete globalThis.indexedDB;
+      }
+
+      expect(handed.length > 0, "bootPersistence restored nothing — the fake database was not read");
+      expect(handed.includes("pinned-old"), "the pinned record never reached mergeHydrated");
+      const ids = new Set(store.networkMonitor.getSnapshot().map((e) => e.id));
+      expect(ids.has("pinned-old"), "the pinned record is not in the restored log");
+      expect(ids.has("stored-299") && !ids.has("stored-0"), "the unpinned cut kept the wrong end");
+      expect(ids.size === store.POOL_QUOTA.net + 1, `${ids.size} entries restored, expected 201`);
+    },
+  },
   {
     name: "1. 250 redux + 50 net (1 pinned, 1 open ws): nothing is dropped, pools within quota",
     run: async () => {

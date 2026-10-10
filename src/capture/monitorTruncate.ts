@@ -11,23 +11,9 @@
  * is too big — that is precisely the expensive operation we're avoiding.
  */
 
+import { isErrorLike } from "./errorLike";
 import { ARRAY_CAP, STRING_CAP } from "./monitorConfig";
 import { SENSITIVE_HEADERS, serializeHeaders } from "./monitorSerialize";
-
-/**
- * A thrown error, recognized without importing `monitorError.ts` — which
- * imports this file. The same test as `isErrorLike` there, and for the same
- * reason the `stack` must be a string: a `CapturedError` stores its stack as
- * an array, and it has to pass through here whole on its way to IndexedDB.
- */
-function isThrownError(node: object): boolean {
-  if (node instanceof Error) return true;
-  return (
-    typeof (node as { stack?: unknown }).stack === "string" ||
-    "config" in node ||
-    "isAxiosError" in node
-  );
-}
 
 /**
  * What a credential-named key is stored as: the same mask the Headers tab
@@ -112,8 +98,11 @@ export function truncateForPersist(
     // enumerable properties are its request config — headers and body
     // included — and its response; walking them is how a bearer token ended
     // up in a stored query error. The safety net for paths that hand an error
-    // over without going through `describeError` first.
-    if (isThrownError(node as object)) {
+    // over without going through `describeError` first. Recognized by what
+    // it is, not by its keys — see `errorLike.ts`: a plain object that happens
+    // to have a `config` or a `stack` is data, and is copied like any other.
+    const thrown: boolean = isErrorLike(node);
+    if (thrown) {
       truncated = true;
       const out: Record<string, string> = {};
       used += 2;
