@@ -3,3 +3,4 @@ dist/
 *.tgz
 playground/.out/
 playground/.react18/
+.release-check/

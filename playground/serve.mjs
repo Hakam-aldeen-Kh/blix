@@ -3,7 +3,11 @@
  * (already here as tsup's dependency) and serves a small mock API beside it,
  * so the panel has all four sources to show without a host app.
  *
- *   node playground/serve.mjs   →  http://localhost:5179
+ *   node playground/serve.mjs             →  http://localhost:5179
+ *   node playground/serve.mjs --react18   →  http://localhost:5180
+ *
+ * `--react18` bundles against the React 18 installed in `playground/.react18`
+ * instead of the project's own React, to check the panel on the older major.
  */
 
 import { createServer } from "node:http";
@@ -18,8 +22,11 @@ const require = createRequire(import.meta.url);
 const { context } = createRequire(require.resolve("tsup"))("esbuild");
 
 const here = dirname(fileURLToPath(import.meta.url));
-const out = join(here, ".out");
-const PORT = Number(process.env.PORT) || 5179;
+// Its own output directory and port, so both majors can be served side by side.
+const REACT18 = process.argv.includes("--react18");
+const out = REACT18 ? join(here, ".out", "react18") : join(here, ".out");
+const PORT = Number(process.env.PORT) || (REACT18 ? 5180 : 5179);
+const react18 = join(here, ".react18", "node_modules");
 
 const ctx = await context({
   entryPoints: [join(here, "main.tsx")],
@@ -29,6 +36,10 @@ const ctx = await context({
   splitting: true,
   sourcemap: true,
   jsx: "automatic",
+  // Aliased for every importer, so react-query and the panel share one React.
+  alias: REACT18
+    ? { react: join(react18, "react"), "react-dom": join(react18, "react-dom") }
+    : {},
   define: {
     "process.env.NODE_ENV": '"development"',
     "process.env.NEXT_PUBLIC_BLIX": '"false"',
@@ -50,8 +61,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function api(url, req, res) {
   const i = Number(url.searchParams.get("i")) || 0;
   const [, , mod = "misc", action = "getAll"] = url.pathname.split("/");
-  await wait(i % 11 === 0 ? 1400 : 40 + ((i * 37) % 320));
-  const status = i % 13 === 5 ? 500 : i % 17 === 9 ? 404 : req.method === "POST" ? 201 : 200;
+  // `?delay=` and `?status=` override the derived behaviour — the failure
+  // buttons in the playground use them to produce a timeout or a 500 on demand.
+  const delay = Number(url.searchParams.get("delay"));
+  await wait(delay > 0 ? delay : i % 11 === 0 ? 1400 : 40 + ((i * 37) % 320));
+  const forced = Number(url.searchParams.get("status"));
+  const status = forced >= 100 ? forced : i % 13 === 5 ? 500 : i % 17 === 9 ? 404 : req.method === "POST" ? 201 : 200;
   const rows = Array.from({ length: status === 200 ? 4 + (i % 40) : 0 }, (_, n) => ({
     id: `${mod}-${i}-${n}`,
     title: `${mod} item ${n}`,
@@ -59,7 +74,12 @@ async function api(url, req, res) {
     tags: ["alpha", "beta", "gamma"].slice(0, (n % 3) + 1),
     updatedAt: new Date(Date.now() - n * 60_000).toISOString(),
   }));
-  res.writeHead(status, { "content-type": "application/json", "x-request-id": `req-${i}` });
+  res.writeHead(status, {
+    "content-type": "application/json",
+    "x-request-id": `req-${i}`,
+    // Made-up numbers, so the Timing tab has a backend breakdown to show.
+    "server-timing": `db;dur=${12 + (i % 40)};desc="orders query", cache;desc=MISS, render;dur=${3 + (i % 9)}`,
+  });
   res.end(
     JSON.stringify(
       status >= 400

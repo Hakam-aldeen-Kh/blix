@@ -14,9 +14,54 @@ import {
   tapQueryClient,
   tapRealtimeAdapter,
 } from "../src/capture/index";
+import axios from "axios";
+import { attachHttpMonitor } from "../src/capture/index";
+// Not public yet, so not on the entry point — the playground still exercises it.
+import { attachXhrMonitor } from "../src/capture/attachXhr";
+import { networkMonitor } from "../src/capture/networkMonitor";
 import Blix from "../src/ui/Blix";
 
 attachFetchMonitor();
+attachXhrMonitor();
+
+/* ── axios: a client set up the way real apps set theirs up ──────────────
+   A short timeout, a response interceptor that unwraps `r.data`, and one that
+   replaces every failure with the app's own error class. Neither hands Blix's
+   tail anything it can tie back to a request, which is exactly the case the
+   capture has to survive. */
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "ApiError";
+  }
+}
+
+const api = axios.create({ timeout: 1500 });
+api.interceptors.request.use((config) => {
+  if (config.headers.get("x-throw")) throw new Error("request interceptor refused to sign this request");
+  config.headers.set("authorization", "Bearer demo.token.value");
+  return config;
+});
+api.interceptors.response.use(
+  (response) => response.data,
+  (error) =>
+    Promise.reject(
+      new ApiError(
+        error.response ? `The server said ${error.response.status}` : "Could not reach the server",
+        error.response?.status,
+      ),
+    ),
+);
+attachHttpMonitor(api);
+// For poking at captured entries from the console.
+(window as unknown as { blix: unknown }).blix = networkMonitor;
+
+const swallow = (p: Promise<unknown>) => void p.catch(() => {});
 
 const MODULES = ["tickets", "agents", "macros", "presence", "orders", "invoices"];
 const ACTIONS = ["getAll", "getById", "search", "update"];
@@ -139,6 +184,66 @@ function Page() {
         <button onClick={() => dispatchSome(10)}>10 Redux actions</button>
         <button onClick={() => setTick((t) => t + 1)}>New query key</button>
         <button onClick={() => save.mutate(counter + 1)}>Run a mutation</button>
+      </p>
+      <p>
+        axios (1.5s timeout, errors replaced by the app):{" "}
+        <button onClick={() => swallow(api.get("/api/tickets/getAll?i=2"))}>ok</button>
+        <button onClick={() => swallow(api.post("/api/tickets/update?status=500", { id: 1 }))}>500</button>
+        <button onClick={() => swallow(api.get("/api/tickets/getAll?delay=4000"))}>timeout</button>
+        <button onClick={() => swallow(api.get("http://localhost:1/api/down"))}>network down</button>
+        <button onClick={() => swallow(api.get("/api/tickets/getAll", { headers: { "x-throw": "1" } }))}>
+          interceptor throws
+        </button>
+        <button
+          onClick={() => {
+            const controller = new AbortController();
+            swallow(api.get("/api/tickets/getAll?delay=3000", { signal: controller.signal }));
+            setTimeout(() => controller.abort(), 300);
+          }}
+        >
+          abort
+        </button>
+      </p>
+      <p>
+        raw XHR:{" "}
+        <button
+          onClick={() => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", "/api/orders/search?i=14");
+            xhr.setRequestHeader("x-demo", "raw-xhr");
+            xhr.send();
+          }}
+        >
+          ok
+        </button>
+        <button
+          onClick={() => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/orders/update?status=503");
+            xhr.setRequestHeader("content-type", "application/json");
+            xhr.send(JSON.stringify({ id: 9 }));
+          }}
+        >
+          503
+        </button>
+        <button
+          onClick={() => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", "/api/orders/search?delay=4000");
+            xhr.timeout = 800;
+            xhr.send();
+          }}
+        >
+          timeout
+        </button>
+      </p>
+      <p>
+        fetch:{" "}
+        <button onClick={() => swallow(fetch("/api/tickets/update?status=500", { method: "POST" }))}>500</button>
+        <button onClick={() => swallow(fetch("/api/x?delay=4000", { signal: AbortSignal.timeout(1000) }))}>
+          timeout
+        </button>
+        <button onClick={() => swallow(fetch("http://localhost:1/api/down"))}>network down</button>
       </p>
       <p>Tickets query: {tickets.status}</p>
     </main>

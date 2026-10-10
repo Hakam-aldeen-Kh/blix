@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["playground/serve.mjs"],
       "port": 5179
+    },
+    {
+      "name": "blix-playground-react18",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["playground/serve.mjs", "--react18"],
+      "port": 5180
     }
   ]
 }
