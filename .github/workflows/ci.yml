@@ -32,6 +32,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Bundles dist/ the way a consumer's production build does and evaluates
+      # it with no `process` global — see scripts/check-prod-guard.mjs.
+      - name: Check the production guard
+        run: pnpm check:prod-guard
+
       # The consuming app's bundler substitutes NODE_ENV at *its* build time,
       # which is what drops the panel from production. If our build defined or
       # replaced it, the panel would ship to every consumer's users.

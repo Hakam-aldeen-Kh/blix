@@ -27,6 +27,9 @@ importers:
       axios:
         specifier: ^1.19.0
         version: 1.19.0
+      esbuild:
+        specifier: 0.27.7
+        version: 0.27.7
       react:
         specifier: ^19.0.0
         version: 19.2.8

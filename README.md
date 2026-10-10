@@ -1088,6 +1088,11 @@ The variable is read under its `NEXT_PUBLIC_` name, which is a Next.js
 convention. The opt-in has been verified with Next.js 16 (Turbopack) only;
 other bundlers do not inline that name by default.
 
+So `NEXT_PUBLIC_BLIX` is honoured only where the bundler inlines it. On Vite,
+esbuild, Rollup and the like it is ignored, safely: the read is guarded, so it
+does not depend on a `process` global existing in the browser, and Blix stays
+off in production.
+
 ### Guard your call sites
 
 **No-op is not the same as eliminated.** The argument above works for the

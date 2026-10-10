@@ -23,16 +23,25 @@
  * users. Keep it out of the production env file.
  *
  * Both halves are literal `process.env.X` comparisons so the bundler inlines
- * them and folds the whole expression to `false` when neither is set.
+ * them and folds the whole expression to `false` when neither is set. The
+ * opt-in half is additionally guarded — see `BLIX_OPT_IN` below.
  *
  * The `typeof window` half keeps the server-side module singleton empty: this
  * file is reachable from the host's HTTP-client module, which typically also
  * runs during SSR, and a module-level array on the Node server would
  * accumulate every user's payloads for the lifetime of the process.
  */
+// Only Next.js inlines NEXT_PUBLIC_* at build time. Elsewhere `process` may not exist in the
+// browser, so guard the read. The literal `process.env.NEXT_PUBLIC_BLIX` must stay verbatim so
+// Next can still inline it. Do NOT guard NODE_ENV: every bundler inlines it, and a typeof check
+// there would disable Blix in Vite dev (no real `process` in the browser).
+const BLIX_OPT_IN =
+  typeof process !== "undefined" &&
+  !!process.env &&
+  process.env.NEXT_PUBLIC_BLIX === "true";
+
 export const MONITOR_ENABLED =
-  (process.env.NODE_ENV === "development" ||
-    process.env.NEXT_PUBLIC_BLIX === "true") &&
+  (process.env.NODE_ENV === "development" || BLIX_OPT_IN) &&
   typeof window !== "undefined";
 
 /** Bumped when `MonitorEntry`'s persisted shape changes. Records written under

@@ -42,9 +42,14 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // NODE_ENV check keeps it out of production builds the same way the panel
   // itself is kept out.
   useEffect(() => {
+    // Same guarded read as the render check below — see the note there.
     if (
       process.env.NODE_ENV !== "development" &&
-      process.env.NEXT_PUBLIC_BLIX !== "true"
+      !(
+        typeof process !== "undefined" &&
+        !!process.env &&
+        process.env.NEXT_PUBLIC_BLIX === "true"
+      )
     )
       return;
     if (dbName) return;
@@ -65,8 +70,16 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   if (
     mounted &&
     (process.env.NODE_ENV === "development" ||
-      process.env.NEXT_PUBLIC_BLIX === "true")
+      (typeof process !== "undefined" &&
+        !!process.env &&
+        process.env.NEXT_PUBLIC_BLIX === "true"))
   ) {
+    // Only Next.js inlines NEXT_PUBLIC_*; elsewhere `process` may not exist in
+    // the browser, so the opt-in read is guarded. `NODE_ENV` is not: every
+    // bundler inlines it. Written inline, here and in the effect above, and
+    // not hoisted into a const — a minifier folds the guarded expression in
+    // place but does not carry a const into this `if`, and the panel's chunk
+    // would then survive a build made with `NEXT_PUBLIC_BLIX=false`.
     // The import() is inside literal env checks so webpack/Turbopack
     // constant-fold the condition to false in production and eliminate the
     // chunk reference entirely. `NEXT_PUBLIC_BLIX` is the explicit opt-in for
