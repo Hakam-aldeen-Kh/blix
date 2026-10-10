@@ -13,6 +13,9 @@
  * never the request config (which carries headers Blix masks elsewhere).
  */
 
+import { serializeBody } from "./monitorSerialize";
+import { truncateForPersist } from "./monitorTruncate";
+
 /** How a request failed — the first thing to know, and what the list shows
  * in place of a status code when there is none. */
 export type FailureKind =
@@ -161,6 +164,59 @@ export function captureError(error: unknown, context: FailureContext = {}, depth
   if (stack) out.stack = stack;
 
   return out;
+}
+
+/**
+ * True for thrown errors, as opposed to plain objects a host chose to throw.
+ *
+ * An `Error`, or anything carrying the marks of one: a `stack`, an axios
+ * `config`, or `isAxiosError`. The `stack` has to be a string, as a thrown
+ * error's is — a `CapturedError` keeps its own as an array of frames, and it
+ * is already the described form, not something to describe again.
+ */
+export function isErrorLike(value: unknown): value is object {
+  if (value === null || typeof value !== "object") return false;
+  try {
+    if (value instanceof Error) return true;
+    return (
+      typeof (value as { stack?: unknown }).stack === "string" ||
+      "config" in value ||
+      "isAxiosError" in value
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Any stored error value.
+ *
+ * Real errors go through `captureError` — named fields only, never the axios
+ * config, request or headers. That is the whole point: an `AxiosError` carries
+ * its request config as an enumerable property, and the config's headers are
+ * the unmasked `Authorization` and `Cookie` that were sent. Copying the error
+ * structurally, as the query and mutation paths used to, put both on the entry.
+ *
+ * Plain objects — a host that rejects with `{ message, errors: […] }` — keep
+ * their own fields via `truncateForPersist`, which masks sensitive keys at any
+ * depth.
+ */
+export function describeError(value: unknown, maxBytes: number): unknown {
+  if (!isErrorLike(value)) return truncateForPersist(value, maxBytes).value;
+
+  // The response is read for its status and body alone. Not `config`, not
+  // `request`, and not the response's headers either (`set-cookie`).
+  const res = read(value, "response");
+  const data = read(res, "data");
+  return captureError(value, {
+    status: num(read(res, "status")),
+    statusText: str(read(res, "statusText")),
+    // Explicit, so a 500 with an empty body is still an HTTP failure rather
+    // than falling through to "unknown" for want of a body.
+    hasResponse: res !== undefined && res !== null,
+    response:
+      data === undefined ? undefined : truncateForPersist(serializeBody(data), maxBytes).value,
+  });
 }
 
 /** A response the client treats as a failure, with no thrown error behind it

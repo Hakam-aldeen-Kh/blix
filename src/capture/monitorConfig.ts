@@ -47,7 +47,7 @@ export const MONITOR_ENABLED =
 /** Bumped when `MonitorEntry`'s persisted shape changes. Records written under
  * a different version are dropped on read rather than migrated — this is a
  * devtool, and migration code is not worth maintaining. */
-export const NM_SCHEMA_VERSION = 1;
+export const NM_SCHEMA_VERSION = 2;
 
 /**
  * Namespace for every database Blix opens.
@@ -75,7 +75,11 @@ export const LEGACY_DB_NAME = "nm-devtools";
 /** IndexedDB database name + version. See `monitorStorage.ts` for why IDB and
  * not localStorage. */
 export const NM_DB_NAME = `${DB_PREFIX}default`;
-export const NM_DB_VERSION = 1;
+// 2: with NM_SCHEMA_VERSION 2. The schema check only *skips* old records on
+// read; bumping this as well runs the existing upgrade path, which recreates
+// the stores — so records written before errors were described (and which may
+// hold an unmasked Authorization header) leave the disk, not just the panel.
+export const NM_DB_VERSION = 2;
 
 /**
  * The one rule turning a caller's `dbName` into a database name.

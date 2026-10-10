@@ -12,6 +12,31 @@
  */
 
 import { ARRAY_CAP, STRING_CAP } from "./monitorConfig";
+import { SENSITIVE_HEADERS, serializeHeaders } from "./monitorSerialize";
+
+/**
+ * A thrown error, recognized without importing `monitorError.ts` — which
+ * imports this file. The same test as `isErrorLike` there, and for the same
+ * reason the `stack` must be a string: a `CapturedError` stores its stack as
+ * an array, and it has to pass through here whole on its way to IndexedDB.
+ */
+function isThrownError(node: object): boolean {
+  if (node instanceof Error) return true;
+  return (
+    typeof (node as { stack?: unknown }).stack === "string" ||
+    "config" in node ||
+    "isAxiosError" in node
+  );
+}
+
+/**
+ * What a credential-named key is stored as: the same mask the Headers tab
+ * shows, from the one place that masks. A value `serializeHeaders` has no
+ * string form for — an object, say — is replaced outright.
+ */
+function maskedValue(key: string, value: unknown): string {
+  return serializeHeaders({ [key]: value })[key] ?? "••••";
+}
 
 /** Marker left in place of content that was dropped. The panel renders these
  * as an inline chip rather than as literal object data. */
@@ -83,6 +108,24 @@ export function truncateForPersist(
     }
     seen.add(node as object);
 
+    // An error is never copied structurally, at any depth. An AxiosError's
+    // enumerable properties are its request config — headers and body
+    // included — and its response; walking them is how a bearer token ended
+    // up in a stored query error. The safety net for paths that hand an error
+    // over without going through `describeError` first.
+    if (isThrownError(node as object)) {
+      truncated = true;
+      const out: Record<string, string> = {};
+      used += 2;
+      for (const field of ["name", "message", "code"] as const) {
+        const value = (node as Record<string, unknown>)[field];
+        if (typeof value !== "string" || value === "") continue;
+        out[field] = value.length > STRING_CAP ? value.slice(0, STRING_CAP) : value;
+        used += field.length + out[field].length + 5;
+      }
+      return out;
+    }
+
     if (Array.isArray(node)) {
       const limit = Math.min(node.length, ARRAY_CAP);
       const out: unknown[] = [];
@@ -123,6 +166,16 @@ export function truncateForPersist(
       }
       const [key, val] = entries[i];
       used += key.length + 3;
+      // Credentials are masked by name wherever they sit, not only in a
+      // header map: a payload, a diffed slice or a response body that carries
+      // an `authorization` or `cookie` key is stored the way a header is.
+      if (val != null && SENSITIVE_HEADERS.has(key.toLowerCase())) {
+        truncated = true;
+        const masked = maskedValue(key, val);
+        used += masked.length + 2;
+        out[key] = masked;
+        continue;
+      }
       out[key] = walk(val);
     }
     return out;

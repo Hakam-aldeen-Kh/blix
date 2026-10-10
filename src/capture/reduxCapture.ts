@@ -23,6 +23,7 @@ import {
   REDUX_COALESCE_MS,
   now,
 } from "./monitorConfig";
+import { describeError, isErrorLike } from "./monitorError";
 import { networkMonitor } from "./networkMonitor";
 import { diffState } from "./stateDiff";
 import { truncateForPersist } from "./monitorTruncate";
@@ -153,15 +154,28 @@ export function createReduxMonitorMiddleware<S>(
       const isError = (action as { error?: unknown }).error === true;
       const at = Date.now();
 
+      // A payload that is itself an error — `rejectWithValue(axiosError)` is
+      // the usual way one gets here — is described rather than copied, for the
+      // reason in `describeError`: its enumerable `config` is the request,
+      // headers included.
+      const rawPayload = (action as { payload?: unknown }).payload;
+      const errorPayload = isErrorLike(rawPayload);
       const truncatedPayload = truncateForPersist(
         {
-          payload: (action as { payload?: unknown }).payload,
+          payload: errorPayload ? undefined : rawPayload,
           meta: (action as { meta?: unknown }).meta,
         },
         MAX_REDUX_PAYLOAD_BYTES,
       );
-      const payload = truncatedPayload.value;
-      const replayable = !truncatedPayload.truncated;
+      const payload = errorPayload
+        ? {
+            ...(truncatedPayload.value as Record<string, unknown>),
+            payload: describeError(rawPayload, MAX_REDUX_PAYLOAD_BYTES),
+          }
+        : truncatedPayload.value;
+      // Not replayable when what is stored is no longer what was dispatched:
+      // cut short, a credential masked, or an error replaced by its description.
+      const replayable = !errorPayload && !truncatedPayload.truncated;
 
       const diff = changed && !flooding ? diffState(prevState, nextState) : undefined;
       const slice = type.includes("/") ? type.slice(0, type.indexOf("/")) : type;

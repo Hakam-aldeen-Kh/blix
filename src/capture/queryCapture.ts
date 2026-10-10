@@ -27,6 +27,7 @@ import {
   now,
 } from "./monitorConfig";
 import { openOwnerWindow } from "./monitorContext";
+import { describeError } from "./monitorError";
 import { networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
 import type { QueryMeta, WsFrame } from "./monitorTypes";
@@ -214,7 +215,9 @@ function handleQueryEvent(event: CacheEventLike): void {
       networkMonitor.update(id, {
         state: "error",
         endTime: now(),
-        error: truncateForPersist(q.state.error, MAX_QUERY_DATA_BYTES).value,
+        // Described, never copied: a queryFn that uses axios rejects with an
+        // error whose enumerable `config` holds the request's headers.
+        error: describeError(q.state.error, MAX_QUERY_DATA_BYTES),
         query: toQueryMeta(q),
       });
       break;
@@ -275,7 +278,7 @@ function handleMutationEvent(event: CacheEventLike): void {
     networkMonitor.update(id, {
       state: "error",
       endTime: now(),
-      error: truncateForPersist(m.state.error, MAX_QUERY_DATA_BYTES).value,
+      error: describeError(m.state.error, MAX_QUERY_DATA_BYTES),
       query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "error", observers: 0 },
     });
   }

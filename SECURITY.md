@@ -47,6 +47,14 @@ copied snippets and the saved log still carry the masked one. This is intended b
 debugger that hid the payload would be useless — but it has a practical
 consequence:
 
+Errors are the one place Blix does more than mask. A failed TanStack query or
+mutation, and a Redux action whose payload is an error, are stored as a
+described error — kind, name, code, message, status, response body, cause and
+stack — never the request config or headers an `AxiosError` carries. The four
+header names are also masked as object keys, at any depth, in the data Blix
+copies (Redux payloads and diffs, query data, and everything saved to
+IndexedDB); a live HTTP body in the panel is not rewritten.
+
 **Treat a captured log, and any exported HAR, as a credential-bearing
 artifact.** A HAR export is a plain JSON file containing decrypted request and
 response bodies. Do not attach one to a public issue, do not commit one, and
