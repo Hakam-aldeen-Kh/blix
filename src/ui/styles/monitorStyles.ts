@@ -67,6 +67,10 @@ const BASE = `
   --nm-state-glow: var(--nm-state-all-glow);
 }
 .nm-root * { box-sizing: border-box; }
+/* The root takes focus from script — when the panel opens, and on a press
+   that lands on nothing focusable — so the panel's shortcuts have somewhere
+   to be. That is bookkeeping, not something to draw a ring around. */
+.nm-root:focus, .nm-root:focus-visible { outline: none; }
 .nm-ico { display: block; flex-shrink: 0; }
 /* Selecting a payload is half of what this panel is for, and the browser's
    default selection blue sits badly on eight of the twelve palettes. */
@@ -216,6 +220,23 @@ const PANEL = `
   border-left: 1px solid var(--nm-line-strong);
   box-shadow: var(--nm-shadow-dock-r);
 }
+/* The mirror images. No shadow token points down or to the right, so these
+   two read against the app by their border alone. */
+.nm-panel.nm-dock-top {
+  border-radius: 0; border-left: none; border-right: none; border-top: none;
+  border-bottom: 1px solid var(--nm-line-strong);
+  box-shadow: none;
+}
+.nm-panel.nm-dock-left {
+  border-radius: 0; border-top: none; border-left: none; border-bottom: none;
+  border-right: 1px solid var(--nm-line-strong);
+  box-shadow: none;
+}
+/* A notch or a home indicator is the edge of the screen as far as content is
+   concerned. Padding rather than an offset, so the panel still paints up to
+   the physical edge and the reserved strip is not left showing the page. */
+.nm-panel.nm-dock-top { padding-top: env(safe-area-inset-top, 0px); }
+.nm-panel.nm-dock-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .nm-panel.nm-max { border-radius: var(--bx-r-modal); }
 .nm-panel.nm-anim {
   transition: left .3s var(--nm-ease), top .3s var(--nm-ease),
@@ -241,6 +262,9 @@ const PANEL = `
 .nm-dock-grip:hover::after { background: var(--nm-accent); }
 .nm-dock-grip-h { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
 .nm-dock-grip-v { top: 0; bottom: 0; left: 0; width: 5px; cursor: ew-resize; }
+/* The inner edge is the opposite one on the mirrored docks. */
+.nm-dock-top > .nm-dock-grip-h { top: auto; bottom: 0; }
+.nm-dock-left > .nm-dock-grip-v { left: auto; right: 0; }
 `;
 
 const HEADER = `

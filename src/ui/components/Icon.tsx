@@ -21,6 +21,8 @@ export type IconName =
   | "preserve"
   | "dock-bottom"
   | "dock-right"
+  | "dock-top"
+  | "dock-left"
   | "dock-float"
   | "replay"
   | "copy"
@@ -181,6 +183,18 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
         <>
           <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
           <path d="M9.6 2.6v10.8" />
+        </>
+      )}
+      {name === "dock-top" && (
+        <>
+          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
+          <path d="M2.4 6.4h11.2" />
+        </>
+      )}
+      {name === "dock-left" && (
+        <>
+          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
+          <path d="M6.4 2.6v10.8" />
         </>
       )}
       {name === "dock-float" && (

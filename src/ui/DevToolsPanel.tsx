@@ -31,7 +31,7 @@ import {
   savePrefs,
   setPreserveLog,
 } from "../capture/monitorPersistence";
-import type { Corner, MonitorState } from "../capture/monitorTypes";
+import type { Corner, DockMode, MonitorState } from "../capture/monitorTypes";
 import { networkMonitor, type MonitorEntry } from "../capture/networkMonitor";
 import {
   useCallback,
@@ -165,7 +165,8 @@ import { useMonitorSelection } from "./hooks/useMonitorSelection";
 import { PANEL_CHROME_H, TINY_PANEL_BELOW, usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
 import { parseFilter } from "./services/filterQuery";
-import { canReplay, replayEntry } from "./services/replayRequest";
+import { isInside, isTypingEvent, shortcutKey } from "./services/keyboard";
+import { canReplay, requestReplay } from "./services/replayRequest";
 import { toCurl, toFetch } from "./services/snippets";
 import { MONITOR_STYLES } from "./styles/monitorStyles";
 import {
@@ -177,6 +178,11 @@ import {
   type SortKey,
   type StateFilter,
 } from "./types/monitorUi";
+
+/** The order "Cycle dock position" steps through. */
+const DOCK_CYCLE: DockMode[] = ["bottom", "right", "top", "left", "float"];
+const nextDock = (mode: DockMode): DockMode =>
+  DOCK_CYCLE[(DOCK_CYCLE.indexOf(mode) + 1) % DOCK_CYCLE.length];
 
 export default function DevTools() {
   const { apiClient } = useContext(BlixContext);
@@ -516,172 +522,208 @@ export default function DevTools() {
   const onDockCorner = useCallback((corner: Corner) => dock.setCorner(corner), [dock]);
   const fab = useFabDrag(openPanel, onDockCorner);
 
+  /**
+   * Replays an HTTP entry — for the Replay button, the `r` shortcut and the
+   * palette alike, so a write is confirmed the same way wherever it was asked
+   * for: the first ask arms it, the second sends it. See `requestReplay`.
+   *
+   * Armed by entry id rather than a bare boolean, so selecting another request
+   * never leaves it one keypress from being re-fired.
+   */
+  const [replayArmedId, setReplayArmedId] = useState<string | null>(null);
+  const runReplay = useCallback(
+    (entry: MonitorEntry) => {
+      const outcome = requestReplay(entry, apiClient, replayArmedId === entry.id);
+      if (outcome !== "armed") {
+        setReplayArmedId(null);
+        return;
+      }
+      setReplayArmedId(entry.id);
+      window.setTimeout(
+        () => setReplayArmedId((id) => (id === entry.id ? null : id)),
+        3000,
+      );
+    },
+    [apiClient, replayArmedId],
+  );
+
   /* ── Keyboard ─────────────────────────────────────────────────────────
-     Everything is read through a ref so the listeners attach once instead of
-     being torn down and re-attached on every captured request. */
-  const kb = useRef({
-    open: false,
-    selection,
-    list,
-    section,
-    paused,
-    preserveLog: prefs.preserveLog,
-    menuOpen: false,
-  });
-  useEffect(() => {
-    kb.current = {
-      open,
-      selection,
-      list,
-      section,
-      paused,
-      preserveLog: prefs.preserveLog,
-      menuOpen: menu.menu !== null,
-    };
-  }, [open, selection, list, section, paused, prefs.preserveLog, menu.menu]);
+     Two listeners, because there are two scopes. Opening and closing the
+     panel works from anywhere on the page; everything else belongs to the
+     panel and only runs for a key pressed inside it. */
 
+  // Ctrl+` toggles the panel from anywhere, even while typing — by the
+  // physical key, so it is the same key on an Arabic layout, where it types ذ.
   useEffect(() => {
-    const isTyping = (target: EventTarget | null) => {
-      const tag = (target as HTMLElement | null)?.tagName;
-      return tag === "INPUT" || tag === "TEXTAREA";
-    };
-
     const onKey = (e: KeyboardEvent) => {
-      // Ctrl+` toggles the panel from anywhere, even while typing.
-      if (e.key === "`" && (e.ctrlKey || e.metaKey)) {
+      if (shortcutKey(e) === "`" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setOpen((o) => {
           if (!o) dock.ensureFloatPos();
           return !o;
         });
-        return;
-      }
-
-      if (!kb.current.open) return;
-
-      // The palette is reachable from anywhere in the panel, including from
-      // inside the filter field — it is the one shortcut that has to work
-      // while typing, since half of what it offers is filter syntax.
-      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setShowPalette((p) => !p);
-        return;
-      }
-
-      // Something inside the panel already acted on this key. Without this,
-      // the payload tree's arrow keys moved the tree *and* stepped the list
-      // selection underneath it — which swapped the entry out from under the
-      // tree the developer was walking. Any inner widget that handles a key
-      // now suppresses the global shortcut for it, which is the behaviour a
-      // focused control should have anyway.
-      if (e.defaultPrevented) return;
-
-      if (e.key === "Escape") {
-        // The context menu has its own Escape listener (`useContextMenu`)
-        // that closes just the menu — without this branch, that listener and
-        // this one both fire on the same keypress, and the panel closed
-        // underneath the menu the developer was still using.
-        if (showPalette) setShowPalette(false);
-        else if (showDatabases) setShowDatabases(false);
-        else if (showShortcuts) setShowShortcuts(false);
-        else if (kb.current.menuOpen) menu.close();
-        else if (menuState || columnAnchor) closeMenus();
-        else setOpen(false);
-        return;
-      }
-
-      if (isTyping(e.target)) return;
-
-      const { selection: sel, list: rows } = kb.current;
-      const selected = sel.resolved.entry;
-
-      switch (e.key) {
-        case "?":
-          e.preventDefault();
-          setShowShortcuts((s) => !s);
-          return;
-        case "/":
-          e.preventDefault();
-          searchRef.current?.focus();
-          return;
-        case "1":
-          onSection("network");
-          return;
-        case "2":
-          onSection("realtime");
-          return;
-        case "3":
-          onSection("redux");
-          return;
-        case "4":
-          onSection("query");
-          return;
-        case "ArrowDown":
-        case "j":
-          e.preventDefault();
-          sel.step(1, rows.filtered);
-          return;
-        case "ArrowUp":
-        case "k":
-          e.preventDefault();
-          sel.step(-1, rows.filtered);
-          return;
-        case "g":
-          if (rows.filtered[0]) sel.pin(rows.filtered[0].id);
-          return;
-        case "G":
-          if (rows.filtered.length) {
-            sel.pin(rows.filtered[rows.filtered.length - 1].id);
-          }
-          return;
-        case "x":
-          sel.clear();
-          return;
-        case " ":
-          e.preventDefault();
-          togglePause();
-          return;
-        case "L":
-          setPreserveLog(!kb.current.preserveLog);
-          return;
-        case "C":
-          networkMonitor.clear();
-          sel.clear();
-          return;
-      }
-
-      if (!selected) return;
-
-      switch (e.key) {
-        case "p":
-          togglePin(selected.id);
-          break;
-        case "u":
-          void copyText(`${selected.baseURL ?? ""}${selected.url}`);
-          break;
-        case "c":
-          void copyText(
-            JSON.stringify(selected.responsePayload ?? selected.error ?? null, null, 2),
-          );
-          break;
-        case "r":
-          // The `apiClient &&` is redundant with canReplay's own check, but
-          // narrows the type for replayEntry's non-optional parameter.
-          if (apiClient && canReplay(selected, apiClient).can) {
-            void replayEntry(selected, apiClient).catch(() => {});
-          }
-          break;
       }
     };
-
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // `menu.close` is a `useCallback` with an empty dep array — stable across
-    // renders. Depending on `menu` itself (a fresh object literal every
-    // render) would defeat the point of this effect: attach the listener
-    // once, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock, menuState, columnAnchor, closeMenus, onSection, showShortcuts, showPalette, showDatabases, togglePause, togglePin, menu.close]);
+  }, [dock]);
+
+  /**
+   * The panel's own shortcuts — `onKeyDown` on the monitor root.
+   *
+   * These are single unmodified keys, so where they listen is the whole
+   * safety story. They used to hang on `window` and fire for a key pressed
+   * anywhere on the page: typing in the host app's rich-text editor paused
+   * capture and cleared the log, Ctrl+Shift+C wiped it on the way to the
+   * browser's element picker, and Ctrl+R re-sent the selected request before
+   * reloading. Now a key counts only when it was pressed inside the panel,
+   * with no Ctrl, ⌘ or Alt held, and not into text.
+   *
+   * On the root rather than as a native listener, so it runs *after* the
+   * widgets inside it: a payload tree that has already handled an arrow key
+   * has called `preventDefault`, and stopping propagation here keeps a key
+   * the panel consumed from reaching the host app's own handlers.
+   */
+  const onPanelKey = (event: React.KeyboardEvent) => {
+    if (!open) return;
+    const e = event.nativeEvent;
+    if (!isInside(rootRef.current, e)) return;
+
+    // The palette is reachable from anywhere in the panel, including from
+    // inside the filter field — it is the one shortcut that has to work
+    // while typing, since half of what it offers is filter syntax.
+    if (shortcutKey(e).toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      setShowPalette((p) => !p);
+      return;
+    }
+
+    // Something inside the panel already acted on this key. Without this,
+    // the payload tree's arrow keys moved the tree *and* stepped the list
+    // selection underneath it — which swapped the entry out from under the
+    // tree the developer was walking.
+    if (e.defaultPrevented) return;
+
+    // Before the typing check: Escape leaves the filter field too. An Escape
+    // that is cancelling an IME composition is the input method's, not ours.
+    if (shortcutKey(e) === "Escape") {
+      if (e.isComposing) return;
+      // Consumed here, so the same keypress does not also close a dialog of
+      // the host app's that happens to be open behind the panel.
+      event.stopPropagation();
+      if (showPalette) setShowPalette(false);
+      else if (showDatabases) setShowDatabases(false);
+      else if (showShortcuts) setShowShortcuts(false);
+      else if (menu.menu) menu.close();
+      else if (menuState || columnAnchor) closeMenus();
+      else setOpen(false);
+      return;
+    }
+
+    // Ctrl, ⌘ and Alt combinations are the browser's and the host app's.
+    // Shift is allowed: it is what tells `c` from `⇧C`.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isTypingEvent(e)) return;
+
+    const rows = list.filtered;
+    const selected = selection.resolved.entry;
+
+    switch (shortcutKey(e)) {
+      case "?":
+        event.preventDefault();
+        setShowShortcuts((s) => !s);
+        return;
+      case "/":
+        event.preventDefault();
+        searchRef.current?.focus();
+        return;
+      case "1":
+        onSection("network");
+        return;
+      case "2":
+        onSection("realtime");
+        return;
+      case "3":
+        onSection("redux");
+        return;
+      case "4":
+        onSection("query");
+        return;
+      case "ArrowDown":
+      case "j":
+        event.preventDefault();
+        selection.step(1, rows);
+        return;
+      case "ArrowUp":
+      case "k":
+        event.preventDefault();
+        selection.step(-1, rows);
+        return;
+      case "g":
+        if (rows[0]) selection.pin(rows[0].id);
+        return;
+      case "G":
+        if (rows.length) selection.pin(rows[rows.length - 1].id);
+        return;
+      case "x":
+        selection.clear();
+        return;
+      case " ":
+        event.preventDefault();
+        togglePause();
+        return;
+      case "L":
+        setPreserveLog(!prefs.preserveLog);
+        return;
+      case "C":
+        networkMonitor.clear();
+        selection.clear();
+        return;
+    }
+
+    if (!selected) return;
+
+    switch (shortcutKey(e)) {
+      case "p":
+        togglePin(selected.id);
+        break;
+      case "u":
+        void copyText(`${selected.baseURL ?? ""}${selected.url}`);
+        break;
+      case "c":
+        void copyText(
+          JSON.stringify(selected.responsePayload ?? selected.error ?? null, null, 2),
+        );
+        break;
+      case "r":
+        // The same path as the Replay button: a write is armed by the first
+        // press and sent by the second, never sent outright.
+        runReplay(selected);
+        break;
+    }
+  };
+
+  // The shortcuts above only hear keys pressed inside the root, so opening
+  // the panel has to put focus there — otherwise it opens on a page whose
+  // focus is still in the host app and nothing responds until a click.
+  useEffect(() => {
+    if (!open) return;
+    const root = rootRef.current;
+    if (root && !root.contains(document.activeElement)) {
+      root.focus({ preventScroll: true });
+    }
+  }, [open]);
+
+  // And a press on something that takes no focus of its own — the header, a
+  // pane's background — would otherwise leave focus on the host page. A press
+  // on a control still moves focus on to that control afterwards.
+  const keepFocusInside = () => {
+    const root = rootRef.current;
+    if (root && !root.contains(document.activeElement)) {
+      root.focus({ preventScroll: true });
+    }
+  };
 
   // The anchor is a viewport coordinate, so anything that moves the toolbar
   // invalidates it. Cheaper and less surprising than re-measuring.
@@ -700,9 +742,15 @@ export default function DevTools() {
     if (!themeAnchor) setPreviewPref(null);
   }, [themeAnchor]);
 
-  // Click outside closes. Captured on `pointerdown` so it fires even while a
-  // Radix modal dialog has the rest of the page pointer-locked. The badge opens
-  // via a click, so the opening interaction never reaches here.
+  // A press outside the monitor. Captured on `pointerdown` so it fires even
+  // while a Radix modal dialog has the rest of the page pointer-locked. The
+  // badge opens via a click, so the opening interaction never reaches here.
+  //
+  // It always dismisses what is transient — the menus, the palette. It closes
+  // the *panel* only when the panel floats: a floating panel is in the way of
+  // the page under it, while a docked one has its own side of the screen, and
+  // exists so the app can be used while the log is read.
+  const dockMode = dock.mode;
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -710,16 +758,16 @@ export default function DevTools() {
       // export menu and shortcut sheet are siblings of the panel, and the
       // listener is registered in the capture phase — so a `stopPropagation`
       // inside them fires too late and every menu click closed the panel.
-      const root = rootRef.current;
-      if (root && !root.contains(e.target as Node)) {
-        setOpen(false);
+      if (rootRef.current && !isInside(rootRef.current, e)) {
+        if (dockMode === "float") setOpen(false);
+        setShowPalette(false);
         menu.close();
         closeMenus();
       }
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     return () => window.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open, menu, closeMenus]);
+  }, [open, dockMode, menu, closeMenus]);
 
   /**
    * Pressing anywhere that is not a menu closes the open one.
@@ -990,10 +1038,10 @@ export default function DevTools() {
           // A disabled row with no reason reads as a bug. Fetch entries are the
           // common case now: replay is axios-only.
           note: replayCheck && !replayCheck.can ? replayCheck.reason : undefined,
+          // Arms a write rather than sending it — the palette is a keyboard
+          // path like `r`, and gets the same confirmation.
           run: () => {
-            if (selectedEntry && apiClient) {
-              void replayEntry(selectedEntry, apiClient).catch(() => {});
-            }
+            if (selectedEntry) runReplay(selectedEntry);
           },
         },
         {
@@ -1091,8 +1139,7 @@ export default function DevTools() {
           id: "dock",
           label: "Cycle dock position",
           note: dock.mode,
-          run: () =>
-            onMode(dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom"),
+          run: () => onMode(nextDock(dock.mode)),
         },
         {
           id: "rail",
@@ -1129,6 +1176,10 @@ export default function DevTools() {
     <div
       ref={rootRef}
       className={`nm-root nm-theme-${theme.id} nm-${theme.base}`}
+      // Focusable from script only: see `keepFocusInside`.
+      tabIndex={-1}
+      onKeyDown={onPanelKey}
+      onPointerDownCapture={keepFocusInside}
       style={
         {
           ...CORNER_STYLE[dock.corner],
@@ -1180,14 +1231,14 @@ export default function DevTools() {
           style={dock.panelStyle}
         >
           {/* Dock edge grips. The floating panel keeps its corner grip instead. */}
-          {!dock.maximized && dock.mode === "bottom" && (
+          {!dock.maximized && (dock.mode === "bottom" || dock.mode === "top") && (
             <div
               className="nm-dock-grip nm-dock-grip-h"
               onPointerDown={dock.startDockResize}
               title="Drag to resize"
             />
           )}
-          {!dock.maximized && dock.mode === "right" && (
+          {!dock.maximized && (dock.mode === "right" || dock.mode === "left") && (
             <div
               className="nm-dock-grip nm-dock-grip-v"
               onPointerDown={dock.startDockResize}
@@ -1379,6 +1430,8 @@ export default function DevTools() {
                 format={dataFormat}
                 onFormat={onDataFormat}
                 authUnmasked={authUnmasked}
+                replayArmedId={replayArmedId}
+                onReplay={runReplay}
               />
             </div>
           </div>
@@ -1610,9 +1663,7 @@ export default function DevTools() {
               value
               state={dock.mode.toUpperCase()}
               onSelect={() => {
-                onMode(
-                  dock.mode === "bottom" ? "right" : dock.mode === "right" ? "float" : "bottom",
-                );
+                onMode(nextDock(dock.mode));
                 closeMenus();
               }}
             >

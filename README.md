@@ -816,8 +816,56 @@ Query, each with its rail icon — and, in red beside a count, how many of that
 source's entries failed. The dot is capture state: green while capturing,
 amber while paused, pulsing while something is in flight.
 
-The panel opens **floating** the first time. Dock it to the bottom or the
-right from the header; the choice is saved per project.
+The panel opens **floating** the first time. From the header it can be docked
+to any edge instead; the choice, and each dock's size, is saved per project.
+
+| Mode | Layout | A press outside the panel |
+| --- | --- | --- |
+| Float | Overlays the page; drag it by the header, resize from the corner | Closes it |
+| Bottom, right, top, left | Takes that side of the screen — the page is pushed over, not covered | Leaves it open |
+
+A docked panel is there so the app can be used while the log is read, so it
+stays put; a floating one is in the way of whatever is under it, so a press
+elsewhere dismisses it. In every mode a press outside still closes an open
+menu or the command palette.
+
+**Docked panels reserve their side with inline padding on `<html>`**, removed
+again — and whatever inline value was there before restored — when the panel
+closes, floats, moves to another side or unmounts. The same numbers are
+published as four custom properties on `<html>`:
+
+| Property | Value |
+| --- | --- |
+| `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom`, `--blix-dock-left` | The docked panel's size on that side, in px; `0px` on the other three, and on all four while the panel is closed or floating |
+
+Padding moves what is in the page's flow. An element with `position: fixed`
+or `sticky` is positioned against the viewport, so it is **not** pushed
+automatically — a fixed header still spans the full width, and ends up under a
+side dock. Opt those elements in with the variables:
+
+```css
+.app-header   { left: var(--blix-dock-left, 0px); right: var(--blix-dock-right, 0px);
+                top: var(--blix-dock-top, 0px); }
+.chat-launcher { bottom: calc(16px + var(--blix-dock-bottom, 0px)); }
+```
+
+The fallback matters: the properties exist only while `<Blix />` is mounted,
+which in production it is not. The same goes for a layout sized with `100vh`
+or `100vw` — those ignore padding; `100%` of a padded `<html>` does not.
+
+**Shortcuts belong to the panel.** Single-key shortcuts — `j`/`k`, `r`,
+`⇧C`, Space and the rest — act only while focus is inside the panel, which it
+is as soon as you open it or click anywhere in it. Typing in your app, in an
+input, a `<select>`, a rich-text editor or through an IME, never triggers
+one. Combinations with Ctrl, ⌘ or Alt are left to the browser and to your app,
+with two exceptions: Ctrl/⌘ + backtick opens and closes the panel from anywhere
+on the page, and `Ctrl/⌘ K` opens the palette from inside it. Shortcuts
+follow the physical key on non-Latin layouts such as Arabic — the toggle and
+`Ctrl/⌘ K` included — so the same key works without switching layout.
+`Esc` closes the innermost open thing — palette, menu, then the panel — and
+only when focus is in the panel; an Escape meant for a dialog in your app is
+not Blix's. `r` re-sends a read at once and asks for a second press before
+re-sending a write, exactly as the Replay button does.
 
 **`Ctrl/⌘ K` opens the command palette**, and for several things it is the only
 way in — sort order, row density, dock position, the copy formats, the filter

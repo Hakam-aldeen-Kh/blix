@@ -112,3 +112,35 @@ export async function replayEntry(
     __monitorReplayOf: entry.id,
   });
 }
+
+/** What `requestReplay` did with the request it was handed. */
+export type ReplayOutcome =
+  /** Not replayable — see `canReplay` for the reason. */
+  | "blocked"
+  /** A write, not yet confirmed: nothing was sent. Ask again to send it. */
+  | "armed"
+  | "sent";
+
+/**
+ * The one way the panel replays a request — the head's Replay button, the `r`
+ * shortcut and the palette's command all come through here.
+ *
+ * A write is never sent on the first ask: it reports `"armed"`, the caller
+ * shows that it is waiting, and the *second* ask (`confirmed`) sends it. The
+ * shortcut used to call `replayEntry` directly, which re-ran a write on a
+ * single keypress while the button beside it wanted two clicks.
+ *
+ * A failed replay is captured as its own error row, which is the useful place
+ * to read it — nothing is surfaced here.
+ */
+export function requestReplay(
+  entry: MonitorEntry,
+  apiClient: HttpClientLike | undefined,
+  confirmed: boolean,
+): ReplayOutcome {
+  const check = canReplay(entry, apiClient);
+  if (!check.can || !apiClient) return "blocked";
+  if (check.needsConfirm && !confirmed) return "armed";
+  void replayEntry(entry, apiClient).catch(() => {});
+  return "sent";
+}

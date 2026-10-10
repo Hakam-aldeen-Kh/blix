@@ -23,7 +23,7 @@ import { linkLabel, sectionOf } from "../helpers/entryLinks";
 import { useMeasuredSize } from "../hooks/useMeasuredSize";
 import { canActOnQuery, invalidateQuery } from "../services/queryActions";
 import { canRedispatch, redispatchAction } from "../services/reduxActions";
-import { canReplay, replayEntry } from "../services/replayRequest";
+import { canReplay } from "../services/replayRequest";
 import { toCurl } from "../services/snippets";
 import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
@@ -411,7 +411,14 @@ export function DetailPane({
   format,
   onFormat,
   authUnmasked,
+  replayArmedId,
+  onReplay,
 }: {
+  /** The entry whose write-replay is waiting for its second ask, if any. Owned
+   * by the panel, so the button here and the `r` shortcut share one armed
+   * state and one way of sending — see `requestReplay`. */
+  replayArmedId: string | null;
+  onReplay: (entry: MonitorEntry) => void;
   /** `Authorization` masking is switched off — see `capture/monitorAuth.ts`. */
   authUnmasked: boolean;
   resolved: Resolved;
@@ -445,7 +452,6 @@ export function DetailPane({
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
-  const [armedId, setArmedId] = useState<string | null>(null);
   // The tab row lends its trailing half to whatever payload viewer is mounted
   // below it; see `PayloadToolbarSlot`. State rather than a ref, because the
   // consumers only learn the node exists when a render tells them so.
@@ -540,11 +546,8 @@ export function DetailPane({
         can: check.can,
         reason: check.reason,
         confirm: check.needsConfirm,
-        // A failed replay is captured as its own error row, which is the
-        // useful place to read it — nothing to surface here.
-        run: () => {
-          if (apiClient) void replayEntry(entry, apiClient).catch(() => {});
-        },
+        // Arms a write on the first click and sends it on the second.
+        run: () => onReplay(entry),
       };
     }
     if (isRedux) {
@@ -574,15 +577,9 @@ export function DetailPane({
 
   // Armed by entry id rather than a bare boolean, so clicking away and back
   // never leaves a different request one click from being re-fired.
-  const armed = armedId === entry.id;
+  const armed = replayArmedId === entry.id;
   const runPrimary = () => {
     if (!primary?.can) return;
-    if (primary.confirm && !armed) {
-      setArmedId(entry.id);
-      window.setTimeout(() => setArmedId((id) => (id === entry.id ? null : id)), 3000);
-      return;
-    }
-    setArmedId(null);
     primary.run();
   };
 
@@ -667,7 +664,7 @@ export function DetailPane({
                 primary.reason ??
                 (primary.confirm
                   ? "This re-runs a write against the live backend — click twice"
-                  : `${primary.label} (Shift+R)`)
+                  : `${primary.label}${isHttp ? " (r)" : ""}`)
               }
             >
               <Icon name="replay" size={11} />

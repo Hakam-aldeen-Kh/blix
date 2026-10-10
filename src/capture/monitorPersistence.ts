@@ -35,7 +35,7 @@ import {
 } from "./monitorStorage";
 import type { DeleteOutcome } from "./monitorDatabases";
 import { truncateForPersist } from "./monitorTruncate";
-import type { MonitorPrefs, PersistedEntry } from "./monitorTypes";
+import type { DockMode, MonitorPrefs, PersistedEntry } from "./monitorTypes";
 
 /**
  * The localStorage mirror's key, scoped to the active database.
@@ -74,6 +74,8 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   mode: "float",
   bottomH: 420,
   rightW: 520,
+  topH: 420,
+  leftW: 520,
   float: { pos: null, size: { w: 920, h: 600 }, maximized: false },
   // Wide enough for the full column set in a bottom dock. The old 320px
   // default could not fit the fixed columns at all, which is what made the
@@ -111,6 +113,29 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   // host app whose own language is rounder than this one's.
   fabRadius: "sharp",
 };
+
+/** Every dock mode, for validating one that came out of storage. */
+export const DOCK_MODES: readonly DockMode[] = ["bottom", "right", "top", "left", "float"];
+
+/**
+ * Stored prefs over the defaults, with the dock geometry checked.
+ *
+ * What is in storage was written by *some* version of Blix — an older one that
+ * had no top or left dock, or a newer one with a mode this build has never
+ * heard of — or by hand. A mode that is not one of ours falls back to the
+ * default rather than reaching the layout as a class name with no rules, and a
+ * dock size that is not a number takes its default too.
+ */
+function mergePrefs(stored: Partial<MonitorPrefs>): MonitorPrefs {
+  const merged: MonitorPrefs = { ...DEFAULT_PREFS, ...stored };
+  if (!DOCK_MODES.includes(merged.mode)) merged.mode = DEFAULT_PREFS.mode;
+  for (const key of ["bottomH", "rightW", "topH", "leftW"] as const) {
+    if (typeof merged[key] !== "number" || !Number.isFinite(merged[key])) {
+      merged[key] = DEFAULT_PREFS[key];
+    }
+  }
+  return merged;
+}
 
 export type HydrationState = "idle" | "loading" | "ready";
 
@@ -192,7 +217,7 @@ export function readPrefsSync(): MonitorPrefs {
     window.localStorage.getItem(prefsKey()),
     null,
   );
-  if (stored) return { ...DEFAULT_PREFS, ...stored };
+  if (stored) return mergePrefs(stored);
 
   // Nothing under this project's key yet. The unscoped keys that may still be
   // sitting on the origin are *not* read: whatever is in them belongs to
@@ -450,7 +475,7 @@ export async function bootPersistence(): Promise<void> {
   // (sign-out, failed token refresh); when that happens the IndexedDB copy
   // wins and the mirror is reseeded, so geometry survives a logout.
   if (stored && stored.rev >= prefs.rev) {
-    prefs = { ...DEFAULT_PREFS, ...stored };
+    prefs = mergePrefs(stored);
     try {
       window.localStorage.setItem(prefsKey(), JSON.stringify(prefs));
     } catch {

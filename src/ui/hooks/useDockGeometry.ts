@@ -1,17 +1,26 @@
 "use client";
 
 /**
- * Dev Tools — panel geometry across the three dock modes.
+ * Dev Tools — panel geometry across the five dock modes.
  *
- * ## Overlay, not push
+ * ## Docked panels reserve their side; the float overlays
  *
- * The bottom dock overlays the host app rather than shrinking it. Pushing
- * would work, but it would force a full app reflow on every pixel of a resize
- * drag — any nested scroll containers would all recompute their heights — and
- * it would make production layout depend on a devtool. The only thing written
- * to the
- * document is a `--nm-dock-h` custom property, read solely by the monitor's own
- * badge so it can sit above the dock.
+ * A panel docked to an edge takes that side of the screen for itself: the host
+ * page is pushed over rather than covered, the way a browser's own devtools
+ * do. The bottom dock used to overlay, on the reasoning that pushing forces a
+ * reflow on every pixel of a resize drag — so the reservation is written at
+ * most once per animation frame while dragging, not once per pointer event.
+ *
+ * The space is reserved with inline `padding` on `<html>`, for the docked side
+ * only, and the value that was there before is put back exactly when the dock
+ * goes away. Four custom properties — `--blix-dock-top`, `-right`, `-bottom`,
+ * `-left` — carry the same numbers for anything the padding cannot move: a
+ * `position: fixed` or `sticky` element is laid out against the viewport, so
+ * the host has to opt those in itself (`right: var(--blix-dock-right, 0px)`).
+ * `--nm-dock-h` is the bottom dock's height under its original name, kept for
+ * anything already reading it.
+ *
+ * The floating panel reserves nothing.
  *
  * ## Commit on pointerup
  *
@@ -22,6 +31,7 @@
  */
 
 import {
+  DOCK_MODES,
   prefsStore,
   savePrefs,
 } from "../../capture/monitorPersistence";
@@ -31,7 +41,7 @@ import type {
   Pos,
   Size,
 } from "../../capture/monitorTypes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DOCK_EDGE_GAP,
   KEEP_VISIBLE,
@@ -68,11 +78,91 @@ export function defaultPosForCorner(corner: Corner, size: Size): Pos {
   };
 }
 
+/** The four edges a panel can dock to — every `DockMode` but `float`. */
+export type DockSide = Exclude<DockMode, "float">;
+
+const DOCK_SIDES: readonly DockSide[] = ["top", "right", "bottom", "left"];
+
+/** Docks along the top or bottom edge are sized by height; the side docks by
+ * width. */
+const isRowDock = (mode: DockMode): mode is "top" | "bottom" =>
+  mode === "top" || mode === "bottom";
+
+/* ───────────────────────── reserving the docked side ──────────────────── */
+
+/** The inline padding `<html>` carried before a dock took that side. */
+interface Reservation {
+  side: DockSide;
+  value: string;
+  priority: string;
+}
+
+/** Puts back exactly what was on `<html>` before `held` was reserved. */
+function restorePadding(held: Reservation): void {
+  const style = document.documentElement.style;
+  const prop = `padding-${held.side}`;
+  if (held.value) style.setProperty(prop, held.value, held.priority);
+  else style.removeProperty(prop);
+}
+
+/**
+ * Reserves `px` on `side` of the page — or nothing, for `null` — and returns
+ * what is now held, for the next call to release.
+ *
+ * Only ever touches `<html>`'s *inline* style: the four `--blix-dock-*`
+ * properties, `--nm-dock-h`, and one `padding-*`. A host that already had an
+ * inline padding on that side keeps it — the dock is added to it, and it is
+ * restored verbatim afterwards.
+ */
+function reserveSide(
+  held: Reservation | null,
+  side: DockSide | null,
+  px: number,
+): Reservation | null {
+  const style = document.documentElement.style;
+
+  for (const each of DOCK_SIDES) {
+    style.setProperty(`--blix-dock-${each}`, each === side ? `${px}px` : "0px");
+  }
+  if (side === "bottom") style.setProperty("--nm-dock-h", `${px}px`);
+  else style.removeProperty("--nm-dock-h");
+
+  let next = held;
+  if (next && next.side !== side) {
+    restorePadding(next);
+    next = null;
+  }
+  if (!side) return null;
+
+  const prop = `padding-${side}`;
+  if (!next) {
+    next = {
+      side,
+      value: style.getPropertyValue(prop),
+      priority: style.getPropertyPriority(prop),
+    };
+  }
+  style.setProperty(
+    prop,
+    next.value ? `calc(${next.value} + ${px}px)` : `${px}px`,
+    next.priority,
+  );
+  return next;
+}
+
+/** Undoes everything `reserveSide` wrote. */
+function releaseAll(held: Reservation | null): void {
+  const style = document.documentElement.style;
+  if (held) restorePadding(held);
+  for (const each of DOCK_SIDES) style.removeProperty(`--blix-dock-${each}`);
+  style.removeProperty("--nm-dock-h");
+}
+
 export interface UseDockGeometry {
   mode: DockMode;
   setMode: (mode: DockMode) => void;
   /** Splitter runs vertically (list beside detail) in the wide docks, and
-   * horizontally (list above detail) in the narrow right dock. */
+   * horizontally (list above detail) in the narrow side docks. */
   splitAxis: "x" | "y";
   splitSize: number;
   maximized: boolean;
@@ -117,9 +207,15 @@ export function useDockGeometry(
 ): UseDockGeometry {
   const initial = prefsStore.getSnapshot().prefs;
 
-  const [mode, setModeState] = useState<DockMode>(initial.mode);
+  const [mode, setModeState] = useState<DockMode>(
+    // Stored prefs are validated on the way in (`mergePrefs`); this is the
+    // same check at the point of use, for a value that arrived any other way.
+    DOCK_MODES.includes(initial.mode) ? initial.mode : "float",
+  );
   const [bottomH, setBottomH] = useState(initial.bottomH);
   const [rightW, setRightW] = useState(initial.rightW);
+  const [topH, setTopH] = useState(initial.topH);
+  const [leftW, setLeftW] = useState(initial.leftW);
   const [size, setSize] = useState<Size>(initial.float.size);
   const [pos, setPos] = useState<Pos | null>(initial.float.pos);
   const [corner, setCornerState] = useState<Corner>(initial.corner);
@@ -128,7 +224,8 @@ export function useDockGeometry(
   const [maximized, setMaximized] = useState(false);
   const [animating, setAnimating] = useState(false);
 
-  const splitAxis: "x" | "y" = mode === "right" || forceStacked ? "y" : "x";
+  const splitAxis: "x" | "y" =
+    mode === "right" || mode === "left" || forceStacked ? "y" : "x";
 
   const setMode = useCallback((next: DockMode) => {
     setModeState(next);
@@ -166,7 +263,14 @@ export function useDockGeometry(
   useEffect(() => {
     if (!open) return;
     const onResize = () =>
-      setViewport({ w: window.innerWidth, h: window.innerHeight });
+      setViewport((v) =>
+        v.w === window.innerWidth && v.h === window.innerHeight
+          ? v
+          : { w: window.innerWidth, h: window.innerHeight },
+      );
+    // The viewport may have changed while the panel was closed and nothing
+    // was listening — and a docked panel reserves exactly what is rendered.
+    onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
@@ -179,18 +283,54 @@ export function useDockGeometry(
     return () => window.removeEventListener("resize", onResize);
   }, [open, mode, size]);
 
-  // Expose the dock's height so the badge can sit clear of it.
+  // Sizes are clamped to the viewport at render time, so a panel sized on a
+  // large monitor can never overflow a smaller one — while the stored
+  // preference itself is left intact.
+  //
+  // The viewport wins over the minimum. A minimum that is wider than the
+  // screen is not a floor, it is an overflow: on a 375px phone the 440px
+  // floor put the panel's right edge, and the close button on it, off-screen.
+  const fit = (value: number, min: number, rawRoom: number) => {
+    // Never negative: a window narrower than the inset (or a hidden one, which
+    // reports 0×0) would otherwise size the panel, and reserve, below zero.
+    const room = Math.max(0, rawRoom);
+    const floor = Math.min(min, room);
+    return clamp(value, floor, Math.max(floor, room));
+  };
+  const fitH = (value: number, min: number, inset: number) =>
+    fit(value, min, viewport.h - inset);
+  const fitW = (value: number, min: number, inset: number) =>
+    fit(value, min, viewport.w - inset);
+
+  /** The docked panel's size along the axis it is docked on, as rendered. */
+  const dockExtent =
+    mode === "bottom"
+      ? fitH(bottomH, MIN_DOCK_H, DOCK_EDGE_GAP)
+      : mode === "top"
+        ? fitH(topH, MIN_DOCK_H, DOCK_EDGE_GAP)
+        : mode === "right"
+          ? fitW(rightW, MIN_DOCK_W, DOCK_EDGE_GAP)
+          : mode === "left"
+            ? fitW(leftW, MIN_DOCK_W, DOCK_EDGE_GAP)
+            : 0;
+
+  // Which side is reserved right now: none while closed or floating.
+  const reservedSide: DockSide | null = open && mode !== "float" ? mode : null;
+  const reservation = useRef<Reservation | null>(null);
+
   useEffect(() => {
-    const root = document.documentElement;
-    if (open && mode === "bottom") {
-      root.style.setProperty("--nm-dock-h", `${bottomH}px`);
-    } else {
-      root.style.removeProperty("--nm-dock-h");
-    }
-    return () => {
-      root.style.removeProperty("--nm-dock-h");
-    };
-  }, [open, mode, bottomH]);
+    reservation.current = reserveSide(reservation.current, reservedSide, dockExtent);
+  }, [reservedSide, dockExtent]);
+
+  // Unmount only — closing and switching sides go through the effect above,
+  // which hands the old side back before taking the new one.
+  useEffect(
+    () => () => {
+      releaseAll(reservation.current);
+      reservation.current = null;
+    },
+    [],
+  );
 
   const startPanelDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -269,45 +409,61 @@ export function useDockGeometry(
       e.preventDefault();
       e.stopPropagation();
 
+      const side: DockSide = mode;
+      const row = isRowDock(side);
       const node = panelRef.current;
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startH = bottomH;
-      const startW = rightW;
-      let nextH = startH;
-      let nextW = startW;
+      const startAt = row ? e.clientY : e.clientX;
+      const start =
+        side === "bottom" ? bottomH : side === "top" ? topH : side === "right" ? rightW : leftW;
+      // The inner edge is the one that moves. For the bottom and right docks
+      // that is the edge nearer the origin, so dragging towards it grows them;
+      // the top and left docks are the mirror image.
+      const grows = side === "top" || side === "left" ? 1 : -1;
+      let next = start;
+
+      // The page follows the drag, but a reflow of the whole host per pointer
+      // event is the cost the old overlay dock existed to avoid — so the
+      // reservation is rewritten once per frame at most.
+      let frame = 0;
+      const reserveNow = () => {
+        frame = 0;
+        reservation.current = reserveSide(reservation.current, side, next);
+      };
 
       dragLoop(
         (ev) => {
-          if (mode === "bottom") {
-            // Dragging up grows the dock.
-            nextH = clamp(
-              startH - (ev.clientY - startY),
-              MIN_DOCK_H,
-              window.innerHeight - DOCK_EDGE_GAP,
-            );
-            if (node) node.style.height = `${nextH}px`;
-          } else {
-            nextW = clamp(
-              startW - (ev.clientX - startX),
-              MIN_DOCK_W,
-              window.innerWidth - DOCK_EDGE_GAP,
-            );
-            if (node) node.style.width = `${nextW}px`;
+          const at = row ? ev.clientY : ev.clientX;
+          next = clamp(
+            start + grows * (at - startAt),
+            row ? MIN_DOCK_H : MIN_DOCK_W,
+            (row ? window.innerHeight : window.innerWidth) - DOCK_EDGE_GAP,
+          );
+          if (node) {
+            if (row) node.style.height = `${next}px`;
+            else node.style.width = `${next}px`;
           }
+          if (!frame) frame = requestAnimationFrame(reserveNow);
         },
         () => {
-          if (mode === "bottom") {
-            setBottomH(nextH);
-            savePrefs({ bottomH: nextH });
+          if (frame) cancelAnimationFrame(frame);
+          reserveNow();
+          if (side === "bottom") {
+            setBottomH(next);
+            savePrefs({ bottomH: next });
+          } else if (side === "top") {
+            setTopH(next);
+            savePrefs({ topH: next });
+          } else if (side === "right") {
+            setRightW(next);
+            savePrefs({ rightW: next });
           } else {
-            setRightW(nextW);
-            savePrefs({ rightW: nextW });
+            setLeftW(next);
+            savePrefs({ leftW: next });
           }
         },
       );
     },
-    [bottomH, mode, panelRef, rightW],
+    [bottomH, leftW, mode, panelRef, rightW, topH],
   );
 
   const startSplit = useCallback(
@@ -361,22 +517,6 @@ export function useDockGeometry(
     [panelRef, splitAxis, splitH, splitW],
   );
 
-  // Sizes are clamped to the viewport at render time, so a panel sized on a
-  // large monitor can never overflow a smaller one — while the stored
-  // preference itself is left intact.
-  //
-  // The viewport wins over the minimum. A minimum that is wider than the
-  // screen is not a floor, it is an overflow: on a 375px phone the 440px
-  // floor put the panel's right edge, and the close button on it, off-screen.
-  const fit = (value: number, min: number, room: number) => {
-    const floor = Math.min(min, room);
-    return clamp(value, floor, Math.max(floor, room));
-  };
-  const fitH = (value: number, min: number, inset: number) =>
-    fit(value, min, viewport.h - inset);
-  const fitW = (value: number, min: number, inset: number) =>
-    fit(value, min, viewport.w - inset);
-
   const panelStyle: React.CSSProperties = maximized
     ? {
         left: MARGIN,
@@ -385,27 +525,19 @@ export function useDockGeometry(
         height: `calc(100vh - ${MARGIN * 2}px)`,
       }
     : mode === "bottom"
-      ? {
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: "100vw",
-          height: fitH(bottomH, MIN_DOCK_H, DOCK_EDGE_GAP),
-        }
-      : mode === "right"
-        ? {
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: fitW(rightW, MIN_DOCK_W, DOCK_EDGE_GAP),
-            height: "100vh",
-          }
-        : {
-            left: pos?.x ?? MARGIN,
-            top: pos?.y ?? MARGIN,
-            width: fitW(size.w, MIN_W, MARGIN * 2),
-            height: fitH(size.h, MIN_H, MARGIN * 2),
-          };
+      ? { left: 0, right: 0, bottom: 0, width: "100vw", height: dockExtent }
+      : mode === "top"
+        ? { left: 0, right: 0, top: 0, width: "100vw", height: dockExtent }
+        : mode === "right"
+          ? { top: 0, right: 0, bottom: 0, width: dockExtent, height: "100vh" }
+          : mode === "left"
+            ? { top: 0, left: 0, bottom: 0, width: dockExtent, height: "100vh" }
+            : {
+                left: pos?.x ?? MARGIN,
+                top: pos?.y ?? MARGIN,
+                width: fitW(size.w, MIN_W, MARGIN * 2),
+                height: fitH(size.h, MIN_H, MARGIN * 2),
+              };
 
   return {
     mode,

@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `top` and `left` dock modes, beside `bottom` and `right` — each with its own
+  saved size, and in the header's dock switcher and "Cycle dock position".
+- `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom` and
+  `--blix-dock-left` CSS variables on `<html>`: the docked panel's size on that
+  side, `0px` on the others. For `position: fixed`/`sticky` elements, which
+  the reserved space does not move by itself.
+
+### Changed
+
+- Shortcuts apply only while focus is in the panel, and ignore Ctrl/⌘/Alt
+  combinations, `contenteditable`, `<select>` and IME input. Ctrl/⌘ + backtick
+  still toggles the panel from anywhere.
+- All shortcuts, including the toggle and Ctrl/⌘+K, work on non-Latin keyboard
+  layouts: they follow the physical key, so nothing needs a layout switch.
+- Docked panels no longer close on an outside click, and reserve their side of
+  the screen — the page is pushed over instead of covered. The floating panel
+  still overlays, and still closes on an outside click.
+- Escape only closes Blix when focus is inside it, and an Escape Blix handles
+  no longer reaches the host app.
+
 ### Fixed
+
+- The `r` shortcut asks for the same confirmation as the Replay button before
+  re-sending write requests. The palette's "Replay request" does too.
 
 - Reading `NEXT_PUBLIC_BLIX` no longer throws "process is not defined" in
   production builds on bundlers without a process polyfill (Vite, esbuild,

@@ -21,7 +21,7 @@ export const SHORTCUT_GROUPS: {
     title: "PANEL",
     col: 0,
     items: [
-      { keys: "Ctrl + `", desc: "Open or close the monitor" },
+      { keys: "Ctrl + `", desc: "Open or close the monitor, from anywhere" },
       { keys: "Ctrl + K", desc: "Command palette — everything, searchable" },
       { keys: "Esc", desc: "Close the palette, then the panel" },
       { keys: "?", desc: "Show this sheet" },
@@ -59,7 +59,7 @@ export const SHORTCUT_GROUPS: {
     col: 1,
     items: [
       { keys: "p", desc: "Pin — survives Clear and eviction" },
-      { keys: "r", desc: "Replay through the HTTP client" },
+      { keys: "r", desc: "Replay — a write asks for a second press" },
       { keys: "c", desc: "Copy the response as JSON" },
       { keys: "u", desc: "Copy the URL" },
       { keys: "x", desc: "Clear the selection" },
@@ -109,7 +109,9 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="nm-sheet-lead">
-          Sorting, density, the dock, the copy formats and the filter syntax all live
+          Apart from <b>Ctrl + `</b>, these act while focus is in the panel — click
+          it, or open it, and they are live; type in your app and they stay out of
+          the way. Sorting, density, the dock, the copy formats and the filter syntax all live
           in the command palette rather than each having a button — the header keeps
           only what you read constantly. Payloads render as <b>Tree</b>, <b>Table</b>,{" "}
           <b>JSON</b>, <b>YAML</b> or <b>Text</b>, and <b>Copy</b> gives you whichever

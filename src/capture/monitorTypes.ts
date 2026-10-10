@@ -348,7 +348,7 @@ export interface PersistedEntry extends MonitorEntry {
   bytes: number;
 }
 
-export type DockMode = "bottom" | "right" | "float";
+export type DockMode = "bottom" | "right" | "top" | "left" | "float";
 export type Corner = "bottom-left" | "bottom-right" | "top-left" | "top-right";
 
 export interface Size {
@@ -383,6 +383,8 @@ export interface MonitorPrefs {
    * geometry when switching. */
   bottomH: number;
   rightW: number;
+  topH: number;
+  leftW: number;
   float: { pos: Pos | null; size: Size; maximized: boolean };
   /** List/detail splitter, one per split axis. */
   splitW: number;

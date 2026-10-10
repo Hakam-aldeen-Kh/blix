@@ -70,11 +70,13 @@ export interface ToolbarProps {
 
 const DOCKS: {
   mode: DockMode;
-  icon: "dock-bottom" | "dock-right" | "dock-float";
+  icon: "dock-bottom" | "dock-right" | "dock-top" | "dock-left" | "dock-float";
   title: string;
 }[] = [
   { mode: "bottom", icon: "dock-bottom", title: "Dock to the bottom" },
   { mode: "right", icon: "dock-right", title: "Dock to the right" },
+  { mode: "top", icon: "dock-top", title: "Dock to the top" },
+  { mode: "left", icon: "dock-left", title: "Dock to the left" },
   { mode: "float", icon: "dock-float", title: "Float the panel" },
 ];
 
