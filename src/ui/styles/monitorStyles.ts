@@ -1459,6 +1459,7 @@ const LAYOUT = `
 .nm-statusbar-mono { font-family: var(--nm-mono); }
 .nm-statusbar-sep { width: 1px; height: 12px; flex: none; background: var(--nm-line); }
 .nm-statusbar-spacer { flex: 1; }
+.nm-statusbar-storage { color: var(--bx-warn); white-space: nowrap; cursor: help; }
 .nm-statusbar-err { display: inline-flex; align-items: center; gap: 5px; color: var(--nm-faint); }
 .nm-statusbar-err::before { content: ""; width: 5px; height: 5px; border-radius: 999px; background: var(--nm-error); }
 .nm-statusbar-err b { color: var(--nm-error); font-weight: 700; }

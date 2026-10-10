@@ -12,13 +12,15 @@
  * most once per animation frame while dragging, not once per pointer event.
  *
  * The space is reserved with inline `padding` on `<html>`, for the docked side
- * only, and the value that was there before is put back exactly when the dock
- * goes away. Four custom properties — `--blix-dock-top`, `-right`, `-bottom`,
+ * only, and the value that was there before is put back when the dock goes
+ * away — see `DockReservation` for what "put back" means when the host has
+ * written there in the meantime. Four custom properties — `--blix-dock-top`, `-right`, `-bottom`,
  * `-left` — carry the same numbers for anything the padding cannot move: a
  * `position: fixed` or `sticky` element is laid out against the viewport, so
  * the host has to opt those in itself (`right: var(--blix-dock-right, 0px)`).
  * `--nm-dock-h` is the bottom dock's height under its original name, kept for
- * anything already reading it.
+ * anything already reading it. All five exist only while a side is reserved:
+ * closed or floating, `<html>` carries nothing of Blix's.
  *
  * The floating panel reserves nothing.
  *
@@ -90,72 +92,176 @@ const isRowDock = (mode: DockMode): mode is "top" | "bottom" =>
 
 /* ───────────────────────── reserving the docked side ──────────────────── */
 
-/** The inline padding `<html>` carried before a dock took that side. */
-interface Reservation {
-  side: DockSide;
-  value: string;
-  priority: string;
-}
+const DOCK_VARS = [...DOCK_SIDES.map((side) => `--blix-dock-${side}`), "--nm-dock-h"];
 
-/** Puts back exactly what was on `<html>` before `held` was reserved. */
-function restorePadding(held: Reservation): void {
-  const style = document.documentElement.style;
-  const prop = `padding-${held.side}`;
-  if (held.value) style.setProperty(prop, held.value, held.priority);
-  else style.removeProperty(prop);
-}
+/** How many of its own past values a reservation remembers — see `ledger`. */
+const LEDGER_CAP = 64;
 
 /**
- * Reserves `px` on `side` of the page — or nothing, for `null` — and returns
- * what is now held, for the next call to release.
+ * The docked side's share of `<html>`: one inline `padding-*`, the four
+ * `--blix-dock-*` properties and `--nm-dock-h`. One per mounted panel.
  *
- * Only ever touches `<html>`'s *inline* style: the four `--blix-dock-*`
- * properties, `--nm-dock-h`, and one `padding-*`. A host that already had an
- * inline padding on that side keeps it — the dock is added to it, and it is
- * restored verbatim afterwards.
+ * Only ever touches `<html>`'s *inline* style. A host that already had an
+ * inline padding on the docked side keeps it — the dock is added to it — and
+ * the variables exist only while a side is actually reserved.
+ *
+ * ## The host writes there too
+ *
+ * A scroll-lock is the usual case: a modal opens, saves `<html>`'s inline
+ * `padding-right`, sets its own to make up for the scrollbar, and puts the
+ * saved value back when it closes. If the panel is docked right while that
+ * happens, the value it saves is the dock's. So the padding is not Blix's to
+ * restore blindly, and the value Blix wrote can come back from somebody else
+ * after the dock is gone. Two rules:
+ *
+ * 1. **Blix only takes back what is still its own.** On release the saved
+ *    padding is restored only if the inline value is still exactly what Blix
+ *    wrote; anything else is the host's, and is left alone.
+ * 2. **A value Blix once wrote is never the host's.** Every value written is
+ *    kept in a ledger beside the padding that was there before it. When one of
+ *    them reappears — a scroll-lock handing back the "520px" it saved — it is
+ *    exchanged for that original: re-reserved if the side is still docked, put
+ *    back as it was if not. That is what keeps a closed panel from leaving its
+ *    width on the page.
+ *
+ * A host value that is *new* while docked becomes the base the dock is added
+ * to, so the two compose instead of taking turns overwriting each other.
+ *
+ * The observer behind rule 2 watches `<html>`'s `style` attribute and nothing
+ * else, starts with the first reservation and stops at `dispose`.
  */
-function reserveSide(
-  held: Reservation | null,
-  side: DockSide | null,
-  px: number,
-): Reservation | null {
-  const style = document.documentElement.style;
+class DockReservation {
+  private side: DockSide | null = null;
+  private px = 0;
+  /** The host's own inline padding on `side`, and its priority. */
+  private base = "";
+  private priority = "";
+  /** The inline value as Blix last left it, read back from the style. */
+  private written = "";
+  /** `side|value` Blix wrote → the host padding it stood on. */
+  private readonly ledger = new Map<string, { base: string; priority: string }>();
+  private observer: MutationObserver | null = null;
+  private disposed = false;
 
-  for (const each of DOCK_SIDES) {
-    style.setProperty(`--blix-dock-${each}`, each === side ? `${px}px` : "0px");
+  /** Reserves `px` on `side` — or nothing, for `null`. */
+  reserve(side: DockSide | null, px: number): void {
+    if (this.disposed || typeof document === "undefined") return;
+    const style = document.documentElement.style;
+
+    if (this.side && this.side !== side) this.giveBack(this.side);
+
+    if (!side) {
+      this.side = null;
+      for (const name of DOCK_VARS) style.removeProperty(name);
+      return;
+    }
+
+    for (const each of DOCK_SIDES) {
+      style.setProperty(`--blix-dock-${each}`, each === side ? `${px}px` : "0px");
+    }
+    if (side === "bottom") style.setProperty("--nm-dock-h", `${px}px`);
+    else style.removeProperty("--nm-dock-h");
+
+    const prop = `padding-${side}`;
+    const current = style.getPropertyValue(prop);
+    // Taking the side, or finding it changed under the dock since the last
+    // write: what is there now is the host's — unless it is a value of Blix's
+    // own that something handed back in the meantime.
+    if (this.side !== side || current !== this.written) {
+      this.adopt(side, current, style.getPropertyPriority(prop));
+    }
+    this.side = side;
+    this.px = px;
+    this.write();
+    this.watch();
   }
-  if (side === "bottom") style.setProperty("--nm-dock-h", `${px}px`);
-  else style.removeProperty("--nm-dock-h");
 
-  let next = held;
-  if (next && next.side !== side) {
-    restorePadding(next);
-    next = null;
+  /** Stops for good: gives the side back and writes nothing afterwards. */
+  dispose(): void {
+    if (this.disposed) return;
+    if (typeof document !== "undefined") {
+      if (this.side) this.giveBack(this.side);
+      const style = document.documentElement.style;
+      for (const name of DOCK_VARS) style.removeProperty(name);
+    }
+    this.side = null;
+    this.disposed = true;
+    this.observer?.disconnect();
+    this.observer = null;
+    this.ledger.clear();
   }
-  if (!side) return null;
 
-  const prop = `padding-${side}`;
-  if (!next) {
-    next = {
-      side,
-      value: style.getPropertyValue(prop),
-      priority: style.getPropertyPriority(prop),
-    };
+  /** Takes `value` as the host's padding on `side`, seeing through a value
+   * that was Blix's to the padding it replaced. */
+  private adopt(side: DockSide, value: string, priority: string): void {
+    const own = this.ledger.get(`${side}|${value}`);
+    this.base = own ? own.base : value;
+    this.priority = own ? own.priority : priority;
   }
-  style.setProperty(
-    prop,
-    next.value ? `calc(${next.value} + ${px}px)` : `${px}px`,
-    next.priority,
-  );
-  return next;
-}
 
-/** Undoes everything `reserveSide` wrote. */
-function releaseAll(held: Reservation | null): void {
-  const style = document.documentElement.style;
-  if (held) restorePadding(held);
-  for (const each of DOCK_SIDES) style.removeProperty(`--blix-dock-${each}`);
-  style.removeProperty("--nm-dock-h");
+  private write(): void {
+    if (!this.side) return;
+    const style = document.documentElement.style;
+    const prop = `padding-${this.side}`;
+    style.setProperty(
+      prop,
+      this.base ? `calc(${this.base} + ${this.px}px)` : `${this.px}px`,
+      this.priority,
+    );
+    // Read back: the browser stores its own serialization, and that is what a
+    // host that saves the value will later hand back.
+    this.written = style.getPropertyValue(prop);
+    const key = `${this.side}|${this.written}`;
+    this.ledger.delete(key);
+    this.ledger.set(key, { base: this.base, priority: this.priority });
+    if (this.ledger.size > LEDGER_CAP) {
+      const oldest = this.ledger.keys().next().value;
+      if (oldest !== undefined) this.ledger.delete(oldest);
+    }
+  }
+
+  /** Rule 1: restores the host's padding only where Blix's is still standing. */
+  private giveBack(side: DockSide): void {
+    const style = document.documentElement.style;
+    const prop = `padding-${side}`;
+    if (style.getPropertyValue(prop) !== this.written) return;
+    if (this.base) style.setProperty(prop, this.base, this.priority);
+    else style.removeProperty(prop);
+  }
+
+  private watch(): void {
+    if (this.observer || typeof MutationObserver === "undefined") return;
+    this.observer = new MutationObserver(() => this.onHostWrite());
+    this.observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+  }
+
+  /** Rule 2, and composing with a host value that is new. */
+  private onHostWrite(): void {
+    if (this.disposed) return;
+    const style = document.documentElement.style;
+
+    if (this.side) {
+      const prop = `padding-${this.side}`;
+      const current = style.getPropertyValue(prop);
+      if (current !== this.written) {
+        this.adopt(this.side, current, style.getPropertyPriority(prop));
+        this.write();
+      }
+    }
+
+    // Sides Blix is not on: one of its old values there is a stale restore.
+    for (const side of DOCK_SIDES) {
+      if (side === this.side) continue;
+      const prop = `padding-${side}`;
+      const own = this.ledger.get(`${side}|${style.getPropertyValue(prop)}`);
+      if (!own) continue;
+      if (own.base) style.setProperty(prop, own.base, own.priority);
+      else style.removeProperty(prop);
+    }
+  }
 }
 
 export interface UseDockGeometry {
@@ -178,19 +284,34 @@ export interface UseDockGeometry {
   startSplit: (e: React.PointerEvent) => void;
 }
 
-/** Shared pointer-capture loop: `onMove` writes to the DOM, `onDone` commits. */
+/**
+ * Shared pointer-capture loop: `onMove` writes to the DOM, `onDone` commits.
+ *
+ * Returns a function that abandons the drag — listeners off, nothing
+ * committed, `onAbandon` run. The listeners are on `window`, so without it a
+ * drag still in progress when the panel closed or unmounted went on moving
+ * things that were no longer there.
+ */
 function dragLoop(
   onMove: (e: PointerEvent) => void,
   onDone: () => void,
-): void {
+  onAbandon?: () => void,
+): () => void {
   const move = (e: PointerEvent) => onMove(e);
-  const up = () => {
+  const stop = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
+  };
+  const up = () => {
+    stop();
     onDone();
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
+  return () => {
+    stop();
+    onAbandon?.();
+  };
 }
 
 /**
@@ -316,21 +437,37 @@ export function useDockGeometry(
 
   // Which side is reserved right now: none while closed or floating.
   const reservedSide: DockSide | null = open && mode !== "float" ? mode : null;
-  const reservation = useRef<Reservation | null>(null);
+  const reservation = useRef<DockReservation | null>(null);
+  /** Abandons the drag in progress, if there is one. */
+  const drag = useRef<(() => void) | null>(null);
+  const abandonDrag = () => {
+    drag.current?.();
+    drag.current = null;
+  };
+
+  // Created in an effect, not during render, and per mount: under Strict Mode
+  // the cleanup below disposes the first one, and a disposed reservation
+  // writes nothing — which is the point of disposing it.
+  useEffect(() => {
+    const own = new DockReservation();
+    reservation.current = own;
+    return () => {
+      // A drag outliving the panel would keep reserving through the frame it
+      // had scheduled and the pointer events still to come.
+      abandonDrag();
+      own.dispose();
+      if (reservation.current === own) reservation.current = null;
+    };
+  }, []);
 
   useEffect(() => {
-    reservation.current = reserveSide(reservation.current, reservedSide, dockExtent);
+    reservation.current?.reserve(reservedSide, dockExtent);
   }, [reservedSide, dockExtent]);
 
-  // Unmount only — closing and switching sides go through the effect above,
-  // which hands the old side back before taking the new one.
-  useEffect(
-    () => () => {
-      releaseAll(reservation.current);
-      reservation.current = null;
-    },
-    [],
-  );
+  // Closing the panel ends a drag too: the node being dragged is gone.
+  useEffect(() => {
+    if (!open) abandonDrag();
+  }, [open]);
 
   const startPanelDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -345,7 +482,8 @@ export function useDockGeometry(
       const node = panelRef.current;
       let next = base;
 
-      dragLoop(
+      abandonDrag();
+      drag.current = dragLoop(
         (ev) => {
           next = clampPos(
             {
@@ -360,6 +498,7 @@ export function useDockGeometry(
           }
         },
         () => {
+          drag.current = null;
           setPos(next);
           savePrefs({ float: { pos: next, size, maximized: false } });
         },
@@ -380,7 +519,8 @@ export function useDockGeometry(
       const node = panelRef.current;
       let next = size;
 
-      dragLoop(
+      abandonDrag();
+      drag.current = dragLoop(
         (ev) => {
           const maxW = Math.max(MIN_W, window.innerWidth - Math.max(0, origin.x));
           const maxH = Math.max(MIN_H, window.innerHeight - Math.max(0, origin.y));
@@ -394,6 +534,7 @@ export function useDockGeometry(
           }
         },
         () => {
+          drag.current = null;
           setSize(next);
           savePrefs({ float: { pos, size: next, maximized: false } });
         },
@@ -427,10 +568,11 @@ export function useDockGeometry(
       let frame = 0;
       const reserveNow = () => {
         frame = 0;
-        reservation.current = reserveSide(reservation.current, side, next);
+        reservation.current?.reserve(side, next);
       };
 
-      dragLoop(
+      abandonDrag();
+      drag.current = dragLoop(
         (ev) => {
           const at = row ? ev.clientY : ev.clientX;
           next = clamp(
@@ -445,6 +587,7 @@ export function useDockGeometry(
           if (!frame) frame = requestAnimationFrame(reserveNow);
         },
         () => {
+          drag.current = null;
           if (frame) cancelAnimationFrame(frame);
           reserveNow();
           if (side === "bottom") {
@@ -460,6 +603,12 @@ export function useDockGeometry(
             setLeftW(next);
             savePrefs({ leftW: next });
           }
+        },
+        // Abandoned: the frame it scheduled must not fire into a page the
+        // panel has left.
+        () => {
+          if (frame) cancelAnimationFrame(frame);
+          frame = 0;
         },
       );
     },
@@ -480,7 +629,8 @@ export function useDockGeometry(
         : (panel?.offsetHeight ?? MIN_LIST_H + MIN_DETAIL_H);
       let next = start;
 
-      dragLoop(
+      abandonDrag();
+      drag.current = dragLoop(
         (ev) => {
           next = horizontal
             ? clamp(
@@ -504,6 +654,7 @@ export function useDockGeometry(
           }
         },
         () => {
+          drag.current = null;
           if (horizontal) {
             setSplitW(next);
             savePrefs({ splitW: next });

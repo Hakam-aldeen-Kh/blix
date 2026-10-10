@@ -40,6 +40,49 @@ export interface BudgetMeta {
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 
+/**
+ * Where the database stands, for the panel to say so.
+ *
+ * - `"idle"` — not asked for yet.
+ * - `"ready"` — open; writes land.
+ * - `"blocked"` — the open is waiting on another tab. A version upgrade cannot
+ *   start while any connection to the old version is open, and a tab still
+ *   running a Blix from before the upgrade holds one. Nothing is read or
+ *   written until that tab closes or reloads; then the open completes by
+ *   itself and everything waiting on it proceeds.
+ * - `"unavailable"` — no IndexedDB here, or the open failed (a newer Blix on
+ *   this origin has already upgraded the database past this build's version).
+ *
+ * The last two used to be indistinguishable from "ready" — every call simply
+ * did nothing — which is how the panel came to report entries as saved that
+ * had never been written.
+ */
+export type StorageStatus = "idle" | "ready" | "blocked" | "unavailable";
+
+let status: StorageStatus = "idle";
+const statusListeners = new Set<() => void>();
+
+function setStatus(next: StorageStatus): void {
+  if (status === next) return;
+  status = next;
+  statusListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      /* a listener's failure is not storage's */
+    }
+  });
+}
+
+export const getStorageStatus = (): StorageStatus => status;
+
+export function onStorageStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => {
+    statusListeners.delete(listener);
+  };
+}
+
 function req<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -59,12 +102,18 @@ function txDone(tx: IDBTransaction): Promise<void> {
  * Opens (and if necessary creates) the database. Resolves to `null` when IDB is
  * unavailable — private browsing modes and some embedded webviews block it —
  * so every caller degrades to "no persistence" rather than throwing.
+ *
+ * While the open is blocked by another tab the promise stays pending: see
+ * `StorageStatus`. Resolving `null` there gave up on a request that was still
+ * going to succeed — the upgrade ran the moment the other tab closed, into a
+ * connection nothing held a reference to and nothing would ever close.
  */
 export function openDb(): Promise<IDBDatabase | null> {
   if (dbPromise) return dbPromise;
 
-  dbPromise = new Promise<IDBDatabase | null>((resolve) => {
+  const opening = new Promise<IDBDatabase | null>((resolve) => {
     if (typeof indexedDB === "undefined") {
+      setStatus("unavailable");
       resolve(null);
       return;
     }
@@ -79,6 +128,7 @@ export function openDb(): Promise<IDBDatabase | null> {
     try {
       request = indexedDB.open(name, NM_DB_VERSION);
     } catch {
+      setStatus("unavailable");
       resolve(null);
       return;
     }
@@ -98,11 +148,29 @@ export function openDb(): Promise<IDBDatabase | null> {
       db.createObjectStore(META_STORE, { keyPath: "key" });
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-    request.onblocked = () => resolve(null);
+    request.onsuccess = () => {
+      const db = request.result;
+      // The other half of the same bargain: when a later Blix in another tab
+      // wants to upgrade (or the database is being deleted), get out of its
+      // way instead of being the tab that blocks it. The next call reopens.
+      db.onversionchange = () => {
+        db.close();
+        if (dbPromise === opening) dbPromise = null;
+        setStatus("idle");
+      };
+      setStatus("ready");
+      resolve(db);
+    };
+    request.onerror = () => {
+      setStatus("unavailable");
+      resolve(null);
+    };
+    // Not an outcome — the request is still pending and will fire `success`
+    // (or `error`) once the tab holding the old version lets go.
+    request.onblocked = () => setStatus("blocked");
   });
 
+  dbPromise = opening;
   return dbPromise;
 }
 
@@ -120,17 +188,24 @@ export async function getAllEntries(): Promise<PersistedEntry[]> {
   }
 }
 
-export async function bulkPut(records: PersistedEntry[]): Promise<void> {
-  if (records.length === 0) return;
+/**
+ * Whether the records were written. The log is best-effort, so a failure is
+ * not an error — but it is not a success either, and the caller keeps count of
+ * what is on disk.
+ */
+export async function bulkPut(records: PersistedEntry[]): Promise<boolean> {
+  if (records.length === 0) return true;
   const db = await openDb();
-  if (!db) return;
+  if (!db) return false;
   try {
     const tx = db.transaction(ENTRY_STORE, "readwrite");
     const store = tx.objectStore(ENTRY_STORE);
     for (const record of records) store.put(record);
     await txDone(tx);
+    return true;
   } catch {
     /* quota exceeded or DB closed — the log is best-effort */
+    return false;
   }
 }
 
@@ -261,5 +336,6 @@ export async function destroyDb(): Promise<DeleteOutcome> {
   // rather than hand out the closed connection, whether or not the delete
   // itself succeeded.
   dbPromise = null;
+  setStatus("idle");
   return deleteDatabaseByName(name);
 }

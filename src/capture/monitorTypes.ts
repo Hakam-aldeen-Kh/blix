@@ -285,7 +285,7 @@ export interface MonitorEntry {
    * Absent on entries captured before this field existed. Absent means
    * unknown — never read it as "axios".
    */
-  client?: "axios" | "fetch" | "xhr";
+  client?: "axios" | "fetch";
   /** HTTP only: id of the query/mutation entry that caused this request,
    * when it could be determined — see `monitorContext.ts`. Absence means
    * "unknown", never "not caused by a query". */

@@ -131,6 +131,11 @@ let ran = false;
  */
 export function assertThemes(): void {
   if (ran || process.env.NODE_ENV === "production") return;
+  // Opt-in. These are findings about Blix's own palettes, for whoever is
+  // editing them — printed unasked, they were a dozen warnings in the console
+  // of every app that mounted the panel. Set `globalThis.__BLIX_DEBUG__ = true`
+  // before the panel mounts to see them.
+  if ((globalThis as { __BLIX_DEBUG__?: unknown }).__BLIX_DEBUG__ !== true) return;
   ran = true;
 
   const missing = missingSlots();

@@ -134,6 +134,18 @@ export function MonitorToolbar(props: ToolbarProps) {
       : null;
   };
 
+  const closeButton = (
+    <button
+      type="button"
+      className="nm-ibtn"
+      onClick={onClose}
+      aria-label="Close the panel"
+      title="Close (Esc)"
+    >
+      <Icon name="close" size={13} />
+    </button>
+  );
+
   return (
     <div
       className={`nm-header${mode === "float" && !maximized ? " nm-draggable" : ""}`}
@@ -301,18 +313,17 @@ export function MonitorToolbar(props: ToolbarProps) {
                 <Icon name={maximized ? "restore" : "maximize"} size={13} />
               </button>
             )}
-            <button
-              type="button"
-              className="nm-ibtn"
-              onClick={onClose}
-              aria-label="Close the panel"
-              title="Close (Esc)"
-            >
-              <Icon name="close" size={13} />
-            </button>
+            {closeButton}
           </div>
         </>
       )}
+
+      {/* The dock switcher can move into the overflow menu when the panel is
+          narrow; the way out cannot. A docked panel no longer closes on a
+          press outside it, so below 620px — which is every side dock at its
+          default width — this button is the only thing a pointer can close
+          the panel with. */}
+      {tiny && <div className="nm-actions">{closeButton}</div>}
     </div>
   );
 }

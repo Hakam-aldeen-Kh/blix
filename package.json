@@ -77,6 +77,9 @@
     "check:snippets": "node scripts/check-snippets.mjs",
     "check:keyboard": "node scripts/check-keyboard.mjs",
     "check:hydration": "node scripts/check-hydration.mjs",
+    "check:http": "node scripts/check-http.mjs",
+    "check:storage": "node scripts/check-storage.mjs",
+    "check:panel": "node scripts/check-panel.mjs",
     "prepublishOnly": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {

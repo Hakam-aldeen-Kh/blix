@@ -54,7 +54,7 @@ import { MonitorToolbar } from "./components/MonitorToolbar";
 import { RequestTable } from "./components/RequestTable";
 import { ShortcutsSheet } from "./components/ShortcutsSheet";
 import { SourcesRail, SECTION_DEFS } from "./components/SourcesRail";
-import { StatusBar } from "./components/StatusBar";
+import { StatusBar, STORAGE_NOTES, type StorageNote } from "./components/StatusBar";
 import {
   DENSITY_ROW_H,
   MIN_DETAIL_H,
@@ -152,7 +152,7 @@ const EMPTY_COPY: Record<
     snippets: [{ code: "useEffect(() => tapQueryClient(queryClient), [queryClient])" }],
   },
 };
-import { copyText, formatBytes } from "./helpers/format";
+import { copyText, formatBytes, responseCopyText } from "./helpers/format";
 import { niceScale, rowTiming, type RowTiming } from "./helpers/waterfall";
 import { buildLinkGraph, linkedEntries, sectionOf } from "./helpers/entryLinks";
 import { useHostTheme } from "./hooks/useHostTheme";
@@ -191,7 +191,7 @@ export default function DevTools() {
     networkMonitor.getSnapshot,
     networkMonitor.getServerSnapshot,
   );
-  const { prefs, hydration } = useSyncExternalStore(
+  const { prefs, hydration, storage } = useSyncExternalStore(
     prefsStore.subscribe,
     prefsStore.getSnapshot,
     prefsStore.getServerSnapshot,
@@ -692,9 +692,7 @@ export default function DevTools() {
         void copyText(`${selected.baseURL ?? ""}${selected.url}`);
         break;
       case "c":
-        void copyText(
-          JSON.stringify(selected.responsePayload ?? selected.error ?? null, null, 2),
-        );
+        void copyText(responseCopyText(selected));
         break;
       case "r":
         // The same path as the Replay button: a write is armed by the first
@@ -714,6 +712,31 @@ export default function DevTools() {
       root.focus({ preventScroll: true });
     }
   }, [open]);
+
+  // The palette and the two sheets hold focus while they are up, and take it
+  // with them when they go: the element that had it is unmounted, focus falls
+  // to `<body>`, and the panel's shortcuts — which only hear keys pressed
+  // inside the root — went dead until a click. That included the second `r`
+  // of a write confirmation armed from the palette. So when the last of them
+  // closes with the panel still open, focus comes back to the root. Only if it
+  // would otherwise be on `<body>`: a command that moved focus itself (the
+  // filter field) or a press on the host page keeps what it chose.
+  const overlayOpen = showPalette || showShortcuts || showDatabases;
+  const hadOverlay = useRef(false);
+  useEffect(() => {
+    if (overlayOpen) {
+      hadOverlay.current = true;
+      return;
+    }
+    if (!hadOverlay.current) return;
+    hadOverlay.current = false;
+    if (!open) return;
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (root && (!active || active === document.body)) {
+      root.focus({ preventScroll: true });
+    }
+  }, [overlayOpen, open]);
 
   // And a press on something that takes no focus of its own — the header, a
   // pane's background — would otherwise leave focus on the host page. A press
@@ -840,6 +863,15 @@ export default function DevTools() {
   if (!networkMonitor.enabled) return null;
 
   const persisted = getPersistedStats();
+  // Said instead of a saved count, never beside one: while the database cannot
+  // be written, whatever the count says is not on disk. "Unavailable" only
+  // matters to someone who asked for the log to be kept.
+  const storageNote: StorageNote | null =
+    storage === "blocked"
+      ? STORAGE_NOTES.blocked
+      : storage === "unavailable" && prefs.preserveLog
+        ? STORAGE_NOTES.unavailable
+        : null;
   // Worst state wins: the badge and the header logo are a health light, so an
   // error has to outrank an in-flight request outranking "all quiet".
   const nouns = SECTION_NOUNS[section];
@@ -1295,8 +1327,9 @@ export default function DevTools() {
                 transferred: list.totalBytes,
                 slowestMs,
                 failing: list.counts.error,
-                persistedLabel:
-                  prefs.preserveLog && hydration === "ready"
+                persistedLabel: storageNote
+                  ? storageNote.short
+                  : prefs.preserveLog && hydration === "ready"
                     ? formatBytes(persisted.bytes)
                     : hydration === "loading"
                       ? "restoring…"
@@ -1448,10 +1481,11 @@ export default function DevTools() {
             pinnedCount={pinnedCount}
             persistedCount={persisted.count}
             persistedLabel={
-              prefs.preserveLog && hydration === "ready"
+              !storageNote && prefs.preserveLog && hydration === "ready"
                 ? `${persisted.count} saved · ${formatBytes(persisted.bytes)}`
                 : null
             }
+            storageNote={storageNote}
             dbName={getActiveDbName()}
             dbShared={isSharedDefaultDb()}
             onShowDatabases={() => setShowDatabases(true)}

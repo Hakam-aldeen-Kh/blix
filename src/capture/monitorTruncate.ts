@@ -16,11 +16,10 @@ import { ARRAY_CAP, STRING_CAP } from "./monitorConfig";
 import { SENSITIVE_HEADERS, serializeHeaders } from "./monitorSerialize";
 
 /**
- * What a credential-named key is stored as: the same mask the Headers tab
- * shows, from the one place that masks. A value `serializeHeaders` has no
- * string form for — an object, say — is replaced outright.
+ * What a credential string under a credential-named key is stored as: the
+ * same mask the Headers tab shows, from the one place that masks.
  */
-function maskedValue(key: string, value: unknown): string {
+function maskedValue(key: string, value: string): string {
   return serializeHeaders({ [key]: value })[key] ?? "••••";
 }
 
@@ -158,12 +157,33 @@ export function truncateForPersist(
       // Credentials are masked by name wherever they sit, not only in a
       // header map: a payload, a diffed slice or a response body that carries
       // an `authorization` or `cookie` key is stored the way a header is.
-      if (val != null && SENSITIVE_HEADERS.has(key.toLowerCase())) {
-        truncated = true;
-        const masked = maskedValue(key, val);
-        used += masked.length + 2;
-        out[key] = masked;
-        continue;
+      //
+      // Strings only. A credential is a string; `cookie: { accepted: true }`
+      // is a consent record and `authorization: { role: "admin" }` a
+      // permissions object, and both used to be stored as "••••" — data
+      // destroyed on the strength of what its key was called, and a Redux
+      // action made unreplayable with it. Anything that is not a string is
+      // walked like any other value, so a credential nested inside it is still
+      // caught by its own key. A list is the one other shape a header takes
+      // (`set-cookie`), so the strings in one are masked in place.
+      if (SENSITIVE_HEADERS.has(key.toLowerCase())) {
+        const mask = (secret: string): string => {
+          truncated = true;
+          const masked = maskedValue(key, secret);
+          used += masked.length + 2;
+          return masked;
+        };
+        if (typeof val === "string" && val !== "") {
+          out[key] = mask(val);
+          continue;
+        }
+        if (Array.isArray(val) && val.some((item) => typeof item === "string" && item !== "")) {
+          out[key] = val
+            .slice(0, ARRAY_CAP)
+            .map((item) => (typeof item === "string" && item !== "" ? mask(item) : walk(item)));
+          if (val.length > ARRAY_CAP) truncated = true;
+          continue;
+        }
       }
       out[key] = walk(val);
     }

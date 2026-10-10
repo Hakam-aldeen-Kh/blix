@@ -16,7 +16,7 @@
  */
 
 import { build } from "esbuild";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -127,6 +127,25 @@ const scenarios = [
       });
       if (!code.includes(PANEL_MARK)) throw new Error(`the output does not contain "${PANEL_MARK}"`);
       return `${ownBytes} B of Blix`;
+    },
+  },
+  {
+    // `attachXhrMonitor` is not exported yet, so nothing a consumer can call
+    // produces an "xhr" entry — and a type that promises one makes every
+    // exhaustive switch over `entry.client` handle a case that cannot occur.
+    name: 'dist/**/*.d.ts does not mention "xhr" or the unreleased XHR monitor',
+    run: () => {
+      const files = readdirSync(dist, { recursive: true })
+        .map(String)
+        .filter((file) => file.endsWith(".d.ts"));
+      if (files.length === 0) throw new Error("no .d.ts files in dist/");
+      for (const file of files) {
+        const text = readFileSync(path.join(dist, file), "utf8");
+        for (const banned of ['"xhr"', "attachXhrMonitor", "XhrMonitorOptions", "XhrClient"]) {
+          if (text.includes(banned)) throw new Error(`${posix(file)} contains ${banned}`);
+        }
+      }
+      return `${files.length} declaration files`;
     },
   },
 ];

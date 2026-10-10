@@ -22,10 +22,11 @@ every edge — and three credential leaks closed.
   preferences are kept.
 - Docked panels reserve their side of the screen with inline padding on
   `<html>` — the page is pushed over instead of covered — and no longer close
-  on an outside click.
+  on an outside click. A developer whose panel was already docked sees their
+  page re-laid-out the first time they open it after upgrading.
 - Single-key shortcuts apply only while focus is in the panel.
 - `MonitorPrefs` gains required `topH` and `leftW`; `DockMode` gains `"top"`
-  and `"left"`; `MonitorEntry.client` may be `"xhr"`.
+  and `"left"`.
 
 ### Security
 
@@ -34,9 +35,9 @@ every edge — and three credential leaks closed.
   `Authorization` and `Cookie` headers in the panel, in exports and in
   persisted logs. Upgrade, and treat any log exported from an earlier version
   as holding live credentials.
-- `authorization`, `cookie`, `set-cookie` and `x-api-key` are masked as keys
-  at any depth in data Blix copies — Redux payloads and diffs, query data, and
-  everything written to IndexedDB.
+- String values under `authorization`, `cookie`, `set-cookie` and `x-api-key`
+  keys are masked at any depth in data Blix copies — Redux payloads and diffs,
+  query data, and everything written to IndexedDB.
 - "Copy as cURL", and the exported cURL script, now quote the method, header
   names and every other value as single shell arguments. A request recorded
   with a crafted method or header name could previously run commands when the
@@ -58,7 +59,8 @@ every edge — and three credential leaks closed.
 - `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom` and
   `--blix-dock-left` CSS variables on `<html>`: the docked panel's size on that
   side, `0px` on the others. For `position: fixed`/`sticky` elements, which
-  the reserved space does not move by itself.
+  the reserved space does not move by itself. Set only while a panel is
+  docked, so read them with a fallback: `var(--blix-dock-right, 0px)`.
 - Each source has its own icon and colour, in the sidebar, the launcher and
   the detail pane's active tab.
 
@@ -78,6 +80,13 @@ every edge — and three credential leaks closed.
   no longer reaches the host app.
 - A Redux action whose payload is an error, or holds a masked key, cannot be
   re-dispatched: what is stored is no longer what was dispatched.
+- While another tab on the same origin is still running an earlier version of
+  Blix, the saved log cannot be upgraded. The status bar says that nothing is
+  being saved, and saving starts by itself — with what was captured meanwhile
+  — once that tab is closed or reloaded.
+- The theme contrast report is no longer printed to the console on every
+  mount. Set `globalThis.__BLIX_DEBUG__ = true` before the panel mounts to see
+  it.
 
 ### Fixed
 
@@ -106,6 +115,10 @@ every edge — and three credential leaks closed.
   field instead of crashing the panel.
 - The `r` shortcut asks for the same confirmation as the Replay button before
   re-sending write requests. The palette's "Replay request" does too.
+- The Close button is shown at every panel width. Below 620px — every side
+  dock at its default width — the header had none.
+- The status bar no longer reports entries as saved when IndexedDB is
+  unavailable and nothing was written; it says storage is unavailable.
 - Reading `NEXT_PUBLIC_BLIX` no longer throws "process is not defined" in
   production builds on bundlers without a process polyfill (Vite, esbuild,
   Rollup).

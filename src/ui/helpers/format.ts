@@ -1,6 +1,6 @@
 /** Dev Tools — display formatting. */
 
-import { failureKindOf } from "../../capture/monitorError";
+import { failureKindOf, isCapturedError } from "../../capture/monitorError";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { STATUS_TEXT } from "../constants/ui";
 
@@ -138,6 +138,23 @@ export function entryStatusLabel(entry: MonitorEntry): string {
 
 /** Best-effort copy that resolves to whether it succeeded, so callers can flash
  * a confirmation. */
+/**
+ * What "Copy response" puts on the clipboard — the `c` shortcut and the two
+ * context-menu rows all come through here.
+ *
+ * For a failure that is the body the server sent, which is what this copied
+ * before errors had a shape and what a developer pastes into a bug report —
+ * not Blix's description of the failure with the body one level down. The
+ * description stands in only when there is no body to give: a network error,
+ * a timeout, an abort. Exports are a different matter and keep the whole
+ * `CapturedError`.
+ */
+export function responseCopyText(entry: MonitorEntry): string {
+  const error = entry.error;
+  const failure = isCapturedError(error) && error.response !== undefined ? error.response : error;
+  return JSON.stringify(entry.responsePayload ?? failure ?? null, null, 2);
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard?.writeText(text);

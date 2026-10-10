@@ -64,6 +64,24 @@ jobs:
       - name: Check log hydration
         run: pnpm check:hydration
 
+      # A host interceptor that unwraps (r => r.data) or replaces errors must
+      # not change what is recorded, or against which request — see
+      # scripts/check-http.mjs.
+      - name: Check axios capture behind host interceptors
+        run: pnpm check:http
+
+      # A database upgrade blocked by another tab: keep waiting, say so, and
+      # count nothing as saved that was not written — see
+      # scripts/check-storage.mjs.
+      - name: Check storage while an upgrade is blocked
+        run: pnpm check:storage
+
+      # What a docked panel writes to <html> and takes back, the Close button
+      # at every width, Copy response, the opt-in theme report — see
+      # scripts/check-panel.mjs.
+      - name: Check the panel's footprint on the host page
+        run: pnpm check:panel
+
       # The consuming app's bundler substitutes NODE_ENV at *its* build time,
       # which is what drops the panel from production. If our build defined or
       # replaced it, the panel would ship to every consumer's users.

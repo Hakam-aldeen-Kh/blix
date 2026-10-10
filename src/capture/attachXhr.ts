@@ -37,6 +37,16 @@ import { startResourceTiming } from "./resourceTiming";
  * the same thing whichever API a request went through. */
 export type XhrMonitorOptions = FetchMonitorOptions;
 
+/**
+ * The `client` this monitor stamps on its entries.
+ *
+ * Internal: `attachXhrMonitor` is not exported yet, so the public
+ * `MonitorEntry["client"]` union does not promise a value no released code
+ * path can produce. Widen the public type when this monitor ships.
+ */
+export type XhrClient = NonNullable<MonitorEntry["client"]> | "xhr";
+const XHR_CLIENT = "xhr" as XhrClient as NonNullable<MonitorEntry["client"]>;
+
 interface Pending {
   method: string;
   url: string;
@@ -212,7 +222,9 @@ function begin(
   networkMonitor.start(
     {
       id,
-      client: "xhr",
+      // Not in the public `MonitorEntry["client"]` union while this monitor is
+      // unreleased — see `XhrClient` above.
+      client: XHR_CLIENT,
       method: pending.method,
       url: pending.url,
       at: Date.now(),

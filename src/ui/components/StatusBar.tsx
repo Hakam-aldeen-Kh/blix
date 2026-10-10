@@ -24,6 +24,30 @@ import { Icon } from "./Icon";
  * separator has no way to know that what followed it is gone. The bar used to
  * collapse to a row of orphan slashes.
  */
+/** What the status bar says where the saved count would go, when the database
+ * cannot be written — see `StorageStatus`. */
+export interface StorageNote {
+  /** For the sources rail's "On disk" row. */
+  short: string;
+  text: string;
+  title: string;
+}
+
+export const STORAGE_NOTES: Record<"blocked" | "unavailable", StorageNote> = {
+  blocked: {
+    short: "waiting for other tabs",
+    text: "not saving · waiting for other tabs",
+    title:
+      "Another tab on this origin has this database open with an older version of Blix, so it cannot be upgraded yet. Nothing is being saved. Close or reload that tab — saving starts by itself, with what has been captured since.",
+  },
+  unavailable: {
+    short: "storage unavailable",
+    text: "not saving · storage unavailable",
+    title:
+      "IndexedDB is not available here, or this database was upgraded by a newer version of Blix on this origin. Preserve log has nothing to write to; the log is kept for this page load only.",
+  },
+};
+
 function Seg({
   className,
   first,
@@ -59,6 +83,7 @@ export function StatusBar({
   pinnedCount,
   persistedLabel,
   persistedCount,
+  storageNote,
   purgeArmed,
   dbName,
   dbShared,
@@ -86,6 +111,8 @@ export function StatusBar({
   pinnedCount: number;
   persistedLabel: string | null;
   persistedCount: number;
+  /** Set while nothing can be written; shown instead of the saved count. */
+  storageNote: StorageNote | null;
   purgeArmed: boolean;
   dbName: string;
   dbShared: boolean;
@@ -197,6 +224,16 @@ export function StatusBar({
             {dbShared && <span className="nm-statusbar-db-tag">shared</span>}
           </button>
         </Seg>
+
+        {/* Not hidden at any width, unlike the count below: "nothing is being
+            saved" is the one thing about storage that cannot wait. */}
+        {storageNote && (
+          <Seg className="nm-status-storage">
+            <span className="nm-statusbar-storage" role="status" title={storageNote.title}>
+              {storageNote.text}
+            </span>
+          </Seg>
+        )}
 
         {persistedLabel && (
           <Seg className="nm-status-persisted">

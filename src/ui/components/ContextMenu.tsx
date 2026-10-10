@@ -6,7 +6,7 @@
  * `services/reduxActions.ts` / `services/queryActions.ts`. */
 
 import { useContext, useLayoutEffect, useRef, useState } from "react";
-import { copyText } from "../helpers/format";
+import { copyText, responseCopyText } from "../helpers/format";
 import { toCurl, toFetch } from "../services/snippets";
 import { canReplay, replayEntry } from "../services/replayRequest";
 import {
@@ -154,11 +154,7 @@ export function ContextMenu({
               </button>
               <button
                 className="nm-menu-item"
-                onClick={run(() =>
-                  copyText(
-                    JSON.stringify(entry.responsePayload ?? entry.error ?? null, null, 2),
-                  ),
-                )}
+                onClick={run(() => copyText(responseCopyText(entry)))}
               >
                 <Icon name="copy" size={13} />
                 Copy response
@@ -259,11 +255,7 @@ export function ContextMenu({
               </button>
               <button
                 className="nm-menu-item"
-                onClick={run(() =>
-                  copyText(
-                    JSON.stringify(entry.responsePayload ?? entry.error ?? null, null, 2),
-                  ),
-                )}
+                onClick={run(() => copyText(responseCopyText(entry)))}
               >
                 <Icon name="copy" size={13} />
                 Copy data

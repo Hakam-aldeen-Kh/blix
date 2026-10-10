@@ -30,8 +30,11 @@ import {
   evictToFit,
   getAllEntries,
   getMeta,
+  getStorageStatus,
+  onStorageStatus,
   putMeta,
   type BudgetMeta,
+  type StorageStatus,
 } from "./monitorStorage";
 import type { DeleteOutcome } from "./monitorDatabases";
 import { safeGet, safeRemove, safeSet } from "./safeStorage";
@@ -241,21 +244,28 @@ export type HydrationState = "idle" | "loading" | "ready";
 export interface PrefsSnapshot {
   prefs: MonitorPrefs;
   hydration: HydrationState;
+  /** Whether the database behind the saved log can be written right now. */
+  storage: StorageStatus;
 }
 
 let prefs: MonitorPrefs = DEFAULT_PREFS;
 let hydration: HydrationState = "idle";
-let snapshot: PrefsSnapshot = { prefs, hydration };
+let snapshot: PrefsSnapshot = { prefs, hydration, storage: getStorageStatus() };
 const SERVER_SNAPSHOT: PrefsSnapshot = {
   prefs: DEFAULT_PREFS,
   hydration: "idle",
+  storage: "idle",
 };
 const prefsListeners = new Set<() => void>();
 
 function emitPrefs() {
-  snapshot = { prefs, hydration };
+  snapshot = { prefs, hydration, storage: getStorageStatus() };
   prefsListeners.forEach((l) => l());
 }
+
+// The panel has to be able to say that nothing is being saved — see
+// `StorageStatus`. Registering is all this does at module load.
+onStorageStatus(emitPrefs);
 
 function setHydration(next: HydrationState) {
   hydration = next;
@@ -271,7 +281,7 @@ function ensurePrefs(): PrefsSnapshot {
   if (!prefsInitialized && typeof window !== "undefined") {
     prefsInitialized = true;
     prefs = readPrefsSync();
-    snapshot = { prefs, hydration };
+    snapshot = { prefs, hydration, storage: getStorageStatus() };
   }
   return snapshot;
 }
@@ -444,15 +454,20 @@ async function flush(): Promise<void> {
   const records: PersistedEntry[] = [];
   for (const id of ids) {
     const record = toPersisted(id);
-    if (!record) continue;
-    const previous = writtenBytes.get(id);
-    budget.bytes += record.bytes - (previous ?? 0);
-    if (previous === undefined) budget.count += 1;
-    writtenBytes.set(id, record.bytes);
-    records.push(record);
+    if (record) records.push(record);
   }
 
-  if (records.length) await bulkPut(records);
+  // Counted after the write, and only if it happened. The totals are what the
+  // panel reports as "N saved"; counting first reported entries as saved while
+  // the database was unavailable and not one of them had been written.
+  if (records.length && (await bulkPut(records))) {
+    for (const record of records) {
+      const previous = writtenBytes.get(record.id);
+      budget.bytes += record.bytes - (previous ?? 0);
+      if (previous === undefined) budget.count += 1;
+      writtenBytes.set(record.id, record.bytes);
+    }
+  }
 
   const result = await evictToFit(
     budget,

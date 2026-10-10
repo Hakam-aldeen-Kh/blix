@@ -283,6 +283,56 @@ const scenarios = [
     },
   },
   {
+    name: "15b. non-string values under credential-named keys are data: stored exactly, nothing flagged",
+    run: () => {
+      const value = {
+        cookie: { accepted: true, version: 2 },
+        authorization: { role: "admin" },
+        "x-api-key": 7,
+        "set-cookie": false,
+        note: "ok",
+      };
+      const out = truncateForPersist(value, MAX);
+      expect(
+        JSON.stringify(out.value) === JSON.stringify(value),
+        `stored as ${JSON.stringify(out.value)}`,
+      );
+      expect(out.truncated === false, "flagged as truncated although nothing was masked");
+    },
+  },
+  {
+    name: "15c. …and a Redux action carrying them stays replayable",
+    run: () => {
+      const payload = { cookie: { accepted: true, version: 2 }, authorization: { role: "admin" }, note: "ok" };
+      const middleware = capture.createReduxMonitorMiddleware();
+      middleware({ getState: () => ({}), dispatch: () => {} })((a) => a)({ type: "consent/set", payload });
+      const entry = entryWhere((e) => e.kind === "redux" && e.url === "consent/set");
+      expect(
+        JSON.stringify(entry.redux.payload.payload) === JSON.stringify(payload),
+        `stored as ${JSON.stringify(entry.redux.payload)}`,
+      );
+      expect(entry.redux.replayable === true, "the action is not replayable");
+    },
+  },
+  {
+    name: "15d. a credential string is still masked — at depth, inside such an object, and in a list",
+    run: () => {
+      const out = truncateForPersist(
+        {
+          authorization: "Bearer SECRET_TOKEN_123",
+          cookie: { accepted: true, authorization: "Bearer SECRET_TOKEN_123" },
+          "set-cookie": ["sid=SECRET_SETCOOKIE; Path=/", "theme=SECRET_COOKIE_VALUE_LONG"],
+          nested: { Cookie: "sid=SECRET_COOKIE", "X-Api-Key": "SECRET_KEY_456" },
+        },
+        MAX,
+      );
+      noSecrets(out.value);
+      expect(!JSON.stringify(out.value).includes("SECRET_COOKIE_VALUE_LONG"), "a set-cookie list item leaked");
+      expect(out.value.cookie.accepted === true, "the object under `cookie` was not kept");
+      expect(out.truncated === true, "masking a string was not flagged");
+    },
+  },
+  {
     name: "16. an error from another realm is still recognized as an error",
     run: () => {
       const foreign = vm.runInNewContext("new Error('x')");

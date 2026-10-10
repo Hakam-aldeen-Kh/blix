@@ -138,6 +138,21 @@ function monitorIdOf(config: MonitoredConfig | undefined): string | undefined {
   return typeof id === "string" && id !== "" ? id : undefined;
 }
 
+/**
+ * The config of `value`, but only when it is one Blix stamped.
+ *
+ * A `config` key proves nothing by itself. Once a host interceptor unwraps
+ * (`r => r.data`) or replaces an error, what reaches the tail is the host's
+ * own object — a response body, a domain error — and those are ordinary data
+ * that can perfectly well have a `config` of their own. Taking that for the
+ * request config stored `body.data` as the response and `body.status` as the
+ * status. Only the stamp says "this is the request Blix started".
+ */
+function stampedConfigOf(value: unknown): MonitoredConfig | undefined {
+  const config = configOf(value);
+  return monitorIdOf(config) !== undefined ? config : undefined;
+}
+
 function isAuthorizationHeader(name: string): boolean {
   return name.toLowerCase() === "authorization";
 }
@@ -468,6 +483,15 @@ function installWireTap(
   }
 }
 
+/** Whether a host handler ahead of Blix currently carries the wire tap. */
+function hasWireTap(managers: HttpMonitorTarget["interceptors"]): boolean {
+  try {
+    return (handlersOf(managers.response) ?? []).some((handler) => !!handler?.[WIRE_TAP]);
+  } catch {
+    return false;
+  }
+}
+
 function removeWireTap(managers: HttpMonitorTarget["interceptors"]): void {
   try {
     for (const handler of handlersOf(managers.response) ?? []) {
@@ -614,11 +638,12 @@ export function attachHttpMonitor(
   const responseId = managers.response.use(
     (response: MonitoredResponse) => {
       try {
-        const config = configOf(response);
+        const config = stampedConfigOf(response);
         const id = monitorIdOf(config) ?? flight.idOf(response);
         if (id) {
           // A host interceptor that returns `r.data` hands the body itself
-          // down the chain; it is still the body.
+          // down the chain; it is still the body. Decided by Blix's stamp and
+          // nothing else — see `stampedConfigOf`.
           const unwrapped = !config;
           const payload = unwrapped ? response : response.data;
           const known = networkMonitor.getById(id);
@@ -645,7 +670,7 @@ export function attachHttpMonitor(
     },
     (error: MonitoredError) => {
       try {
-        const config = configOf(error);
+        const config = stampedConfigOf(error);
         const id = monitorIdOf(config) ?? flight.idOf(error);
         if (id) {
           const known = networkMonitor.getById(id);
@@ -672,7 +697,13 @@ export function attachHttpMonitor(
             sizeBytes: estimateBytes(captured.response ?? captured.message),
           });
           flight.settled(id);
-        } else {
+        } else if (!hasWireTap(managers)) {
+          // Only when this handler *is* the wire — nothing of the host's ahead
+          // of it. With a tap installed, a failure that never reached the
+          // adapter was already claimed there, as the error that was thrown;
+          // what arrives here unrecognised is then the host's replacement for
+          // a failure the tap has settled, and handing it to "the one request
+          // still waiting" marked an unrelated in-flight request as failed.
           flight.unclaimed(error);
         }
       } catch {

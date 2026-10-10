@@ -922,7 +922,7 @@ published as four custom properties on `<html>`:
 
 | Property | Value |
 | --- | --- |
-| `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom`, `--blix-dock-left` | The docked panel's size on that side, in px; `0px` on the other three, and on all four while the panel is closed or floating |
+| `--blix-dock-top`, `--blix-dock-right`, `--blix-dock-bottom`, `--blix-dock-left` | The docked panel's size on that side, in px; `0px` on the other three. Set only while a panel is docked — absent while it is closed or floating, so always read them with a fallback |
 
 Padding moves what is in the page's flow. An element with `position: fixed`
 or `sticky` is positioned against the viewport, so it is **not** pushed
