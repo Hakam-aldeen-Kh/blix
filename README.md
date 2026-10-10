@@ -43,7 +43,7 @@ no reason to carry a second build output.
 
 ### Peer dependencies
 
-`react` and `react-dom` (v19) are required. `axios`, `@reduxjs/toolkit` and
+`react` and `react-dom` (v18 or v19) are required. `axios`, `@reduxjs/toolkit` and
 `@tanstack/react-query` are **optional** peers — you only need the ones whose
 capture you actually use. The capture layer is structurally typed against each
 of them and imports none of them — not at runtime, and not in its published
@@ -1438,12 +1438,12 @@ as an unsigned token. The claims
 are part of the entry, so — unlike the token — they are saved with
 preserve-log on and included in the JSON and NDJSON exports.
 
-**Nothing inside a body is redacted.** Request bodies, response bodies, error
-payloads, the encrypted request/response values, Redux payloads and diffs, and
-realtime frames all pass through a size-only walker — it truncates large
-values and never once inspects a key name. A `password`, `ssn` or
-`refreshToken` field is captured, and with preserve-log on written to disk,
-exactly as it appears. Blix has no mechanism to do otherwise: it has no schema
+**Beyond those four key names, nothing inside a body is redacted.** Request
+bodies, response bodies, error payloads, the encrypted request/response
+values, Redux payloads and diffs, and realtime frames pass through a walker
+that truncates large values and looks for those four names only. A
+`password`, `ssn` or `refreshToken` field is captured, and with preserve-log
+on written to disk, exactly as it appears. Blix has no mechanism to do otherwise: it has no schema
 for your payloads and no way to tell a secret from any other string.
 
 ### Retention and clearing

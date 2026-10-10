@@ -41,11 +41,9 @@ realtime frames, in plaintext. `attachFetchMonitor` wraps `globalThis.fetch`,
 so once it is installed that includes every `fetch` the page makes — requests
 from third-party scripts and libraries as well as your own. Header redaction
 covers exactly four names, whichever client made the request, and nothing
-inside a body is redacted at all. The panel can be set to show `authorization`
+else inside a body is redacted. The panel can be set to show `authorization`
 in full on your own screen; that raw value is held in memory only, and exports,
-copied snippets and the saved log still carry the masked one. This is intended behaviour, not a defect — a
-debugger that hid the payload would be useless — but it has a practical
-consequence:
+copied snippets and the saved log still carry the masked one.
 
 Errors are the one place Blix does more than mask. A failed TanStack query or
 mutation, and a Redux action whose payload is an error, are stored as a
@@ -54,6 +52,9 @@ stack — never the request config or headers an `AxiosError` carries. The four
 header names are also masked as object keys, at any depth, in the data Blix
 copies (Redux payloads and diffs, query data, and everything saved to
 IndexedDB); a live HTTP body in the panel is not rewritten.
+
+Capturing all of this is intended behaviour, not a defect — a debugger that
+hid the payload would be useless — but it has a practical consequence:
 
 **Treat a captured log, and any exported HAR, as a credential-bearing
 artifact.** A HAR export is a plain JSON file containing decrypted request and

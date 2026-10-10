@@ -51,6 +51,8 @@ every edge — and three credential leaks closed.
   encoded and decoded size, protocol, and whether it came from the cache. A
   cross-origin response without `Timing-Allow-Origin` keeps its total only and
   is marked `restricted`. No setup: every `attach*Monitor` starts it.
+- React 18 is supported: the `react` and `react-dom` peer range is now
+  `^18.0.0 || ^19.0.0`.
 - The Timing tab gains "On the wire" and "Server-Timing" sections.
 - `CapturedError`, `FailureKind`, `WireTiming` and `ServerTimingMetric` types,
   exported from both entry points.
