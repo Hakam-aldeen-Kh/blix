@@ -18,7 +18,6 @@
 
 import {
   LOAD_ID,
-  MAX_ENTRIES,
   MONITOR_ENABLED,
   POOL_OF,
   POOL_QUOTA,
@@ -373,8 +372,18 @@ class NetworkMonitor {
       return b.seq - a.seq;
     });
 
-    this.entries = combined.slice(0, MAX_ENTRIES);
+    // The same policy a live capture is trimmed by, not a flat cut. This used
+    // to keep the newest `MAX_ENTRIES` of everything — the *network* pool's
+    // quota applied to all three pools at once — so opening the panel on a
+    // busy Redux session threw away live HTTP rows, and a pinned row or an
+    // open socket went with them if it happened to be old. `combined` is
+    // newest-first, which is the order `evictOldest` expects.
+    const { kept, evicted } = evictOldest(combined);
+    this.entries = kept;
     this.reindex();
+    // Told like any other eviction, so what left the buffer leaves storage
+    // too instead of coming back on the next reload.
+    if (evicted.length) this.sink?.onEvict(evicted);
 
     // Critical: without reseeding, entries captured after hydration get a lower
     // `seq` than the restored ones and sort below them — the list comes out

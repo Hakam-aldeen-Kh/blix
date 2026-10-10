@@ -54,6 +54,16 @@ jobs:
       - name: Check copied snippets are shell-safe
         run: pnpm check:snippets
 
+      # The key each shortcut is matched against, on Latin and non-Latin
+      # layouts — see scripts/check-keyboard.mjs.
+      - name: Check shortcut key mapping
+        run: pnpm check:keyboard
+
+      # Restoring a preserved log keeps pins, open sockets and every pool's
+      # own budget — see scripts/check-hydration.mjs.
+      - name: Check log hydration
+        run: pnpm check:hydration
+
       # The consuming app's bundler substitutes NODE_ENV at *its* build time,
       # which is what drops the panel from production. If our build defined or
       # replaced it, the panel would ship to every consumer's users.

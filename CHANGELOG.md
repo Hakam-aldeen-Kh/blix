@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restoring a preserved log no longer drops pinned rows, open realtime
+  connections, or entries beyond 200 when other pools are busy: hydration now
+  applies the same per-source limits as live capture.
 - The panel is wrapped in an error boundary, so a failure inside Blix can no
   longer take down the host app: the panel is removed until reload and the
   error is logged once as `[blix] the panel crashed`. A panel chunk that fails

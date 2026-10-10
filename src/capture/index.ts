@@ -1,7 +1,6 @@
 export { attachHttpMonitor } from "./attachHttp";
 export { attachFetchMonitor } from "./attachFetch";
-export { attachXhrMonitor } from "./attachXhr";
-export type { XhrMonitorOptions } from "./attachXhr";
+// attachXhrMonitor is unreleased: re-export after fixing LOG-08/LOG-09 (see AUDIT_REPORT.md).
 export type { FetchMonitorOptions, FetchIgnoreRule } from "./attachFetch";
 export { captureEncrypted } from "./captureEncrypted";
 export type { EncryptedPayload } from "./captureEncrypted";
