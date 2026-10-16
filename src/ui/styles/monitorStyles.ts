@@ -559,25 +559,25 @@ const TABLE = `
   background: var(--bx-bg); border-bottom: 1px solid var(--bx-line-soft);
   user-select: none;
 }
+/* Pills. The state is the word and the count; the error count is the one
+   number in the bar allowed a colour. */
 .nm-fchip {
   display: flex; align-items: center; gap: var(--bx-3); flex: none;
   height: var(--bx-h-chip); padding: 0 9px;
-  background: transparent; border: 0; border-radius: var(--bx-r-ctl);
+  background: transparent; border: 1px solid transparent; border-radius: 999px;
   color: var(--bx-fg-2); font-size: var(--bx-fs-sm); cursor: pointer;
   white-space: nowrap;
   transition: background-color 90ms linear, color 90ms linear;
 }
 .nm-fchip:hover { background: var(--bx-hover); }
-.nm-fchip.active { background: var(--bx-sel); color: var(--bx-fg); }
-.nm-fchip-dot { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--bx-mark); }
-.nm-fchip[data-state="success"] .nm-fchip-dot { background: var(--bx-ok); }
-.nm-fchip[data-state="error"]   .nm-fchip-dot { background: var(--bx-err); }
-.nm-fchip[data-state="pending"] .nm-fchip-dot { background: var(--bx-info); }
+.nm-fchip.active { background: var(--bx-sel); border-color: var(--bx-line-strong); color: var(--bx-fg); }
+.nm-fchip-dot { display: none; }
 .nm-fchip-n {
   font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
   color: var(--bx-fg-3); font-variant-numeric: tabular-nums;
 }
 .nm-fchip.active .nm-fchip-n { color: var(--bx-fg-2); }
+.nm-fchip[data-state="error"] .nm-fchip-n { color: var(--bx-err); }
 
 
 .nm-tbody { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; background: var(--bx-bg); }
@@ -593,30 +593,32 @@ const TABLE = `
   cursor: pointer; background: transparent;
   transition: background-color 90ms linear;
 }
+/* A failure is a square dot and a tinted row - never colour alone. Declared
+   before hover and selection so both still read on top of it. */
+.nm-trow[data-tone="err"] { background: var(--bx-err-row); }
 .nm-trow:hover { background: var(--bx-hover); }
-.nm-trow.active { background: var(--bx-sel); }
+/* Selected: one step up, and the lit blade's green on the leading edge. */
+.nm-trow.active { background: var(--bx-sel); box-shadow: inset 2px 0 0 var(--bx-ok); }
 .nm-trow:focus-visible { outline: 1px solid var(--bx-accent); outline-offset: -1px; }
 
-/* The rail carries status and nothing else. Selection paints the row's
-   background and deliberately never touches the rail - the two facts are
-   independent, and a selected error must still read as an error. */
-/* Not .nm-rail: the sources sidebar already owns that class. */
-.nm-row-rail { flex: none; width: var(--bx-rail); background: var(--bx-mark); }
-.nm-trow[data-tone="ok"]   .nm-row-rail { background: var(--bx-ok); }
-.nm-trow[data-tone="warn"] .nm-row-rail { background: var(--bx-warn); }
-.nm-trow[data-tone="err"]  .nm-row-rail { background: var(--bx-err); }
-.nm-trow[data-tone="info"] .nm-row-rail { background: var(--bx-info); }
-/* A response a rule supplied rather than the server: the rail breaks into
-   three, which reads as "interrupted" at 2px where no colour change would.
-   Nothing sets it yet - the feature it belongs to is not built. */
-.nm-row-rail-forced {
-  background-image: linear-gradient(
-    var(--bx-warn) 0 calc(33.33% - 1px),
-    transparent calc(33.33% - 1px) calc(33.33% + 1px),
-    var(--bx-warn) calc(33.33% + 1px) calc(66.66% - 1px),
-    transparent calc(66.66% - 1px) calc(66.66% + 1px),
-    var(--bx-warn) calc(66.66% + 1px) 100%);
+/* The status dot (BRAND_BOOK §6C log rows) carries status and nothing else.
+   Selection never touches it - a selected error must still read as an error.
+   Round when it worked, square when it failed, hollow while in flight, so the
+   shape says it before the colour does. Not .nm-rail: the sidebar owns that. */
+.nm-row-rail {
+  flex: none; width: var(--bx-col-dot); display: flex; align-items: center;
+  justify-content: flex-end;
 }
+.nm-row-rail::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bx-mark);
+}
+.nm-trow[data-tone="ok"]   .nm-row-rail::before { background: var(--bx-ok); }
+.nm-trow[data-tone="warn"] .nm-row-rail::before { background: var(--bx-warn); }
+.nm-trow[data-tone="err"]  .nm-row-rail::before { background: var(--bx-err); border-radius: 0; }
+.nm-trow[data-tone="info"] .nm-row-rail::before { background: none; box-shadow: inset 0 0 0 1px var(--bx-info); }
+/* A response a rule supplied rather than the server: an outlined amber dot.
+   Nothing sets it yet - the feature it belongs to is not built. */
+.nm-row-rail-forced::before { background: none; box-shadow: inset 0 0 0 1px var(--bx-warn); }
 
 /* Every cell is the same box; only width, alignment and colour differ, so the
    shared half is declared once. */
@@ -641,7 +643,7 @@ const TABLE = `
 
 .nm-col-method {
   width: var(--bx-col-method); padding-left: var(--bx-4);
-  font-size: var(--bx-fs-meta); letter-spacing: .06em; color: var(--bx-fg-2);
+  font-size: var(--bx-fs-meta); letter-spacing: .06em; color: var(--bx-fg-3);
 }
 .nm-col-method[data-dim] { color: var(--bx-fg-3); }
 
@@ -684,7 +686,7 @@ const TABLE = `
   width: var(--bx-col-status); justify-content: flex-end; padding-right: var(--bx-4);
   font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
 }
-.nm-trow[data-tone="ok"]   .nm-col-status { color: var(--bx-ok); }
+.nm-trow[data-tone="ok"]   .nm-col-status { color: var(--bx-fg-2); }
 .nm-trow[data-tone="warn"] .nm-col-status { color: var(--bx-warn); }
 .nm-trow[data-tone="err"]  .nm-col-status { color: var(--bx-err); }
 .nm-trow[data-tone="info"] .nm-col-status { color: var(--bx-info); }
@@ -712,11 +714,11 @@ const TABLE = `
 .nm-tbar { display: flex; width: 100%; height: var(--bx-timing-h); background: var(--bx-line-soft); }
 .nm-tbar > span { flex: none; display: block; }
 .nm-tbar-wait { background: var(--bx-wait); }
-.nm-trow[data-tone="ok"]   .nm-tbar-xfer { background: var(--bx-ok); }
-.nm-trow[data-tone="warn"] .nm-tbar-xfer { background: var(--bx-warn); }
-.nm-trow[data-tone="err"]  .nm-tbar-xfer { background: var(--bx-err); }
-.nm-trow[data-tone="info"] .nm-tbar-xfer { background: var(--bx-info); }
-.nm-trow[data-tone="mark"] .nm-tbar-xfer { background: var(--bx-mark); }
+/* One neutral colour, so the bars compare as lengths. Green only for the
+   selected row; red for failures, which stays red when selected. */
+.nm-tbar-xfer { background: var(--bx-mark); }
+.nm-trow.active .nm-tbar-xfer { background: var(--bx-ok); }
+.nm-trow[data-tone="err"] .nm-tbar-xfer { background: var(--bx-err); }
 
 /* A column the developer switched off, and a column the pane is too narrow
    to afford, collapse the same way: to zero width, never display:none. The
@@ -748,8 +750,8 @@ const TABLE = `
    column for the values in it (METHOD at meta, ROUTE at code, SIZE at sm),
    and without this the labels took those sizes too and sat on three
    different baselines beside the sort buttons. */
-.nm-cols > * { font-family: var(--bx-font-sans); font-size: inherit; }
-.nm-col-lead { width: calc(var(--bx-rail) + var(--bx-col-pin)); }
+.nm-cols > * { font-family: var(--bx-font-mono); font-weight: 500; font-size: inherit; }
+.nm-col-lead { width: calc(var(--bx-col-dot) + var(--bx-col-pin)); }
 .nm-cols .nm-col-route { display: flex; }
 /* The mockup sets METHOD flush with the lead track rather than indenting
    it to meet the values below, so the label and its column start 10px
@@ -1786,7 +1788,7 @@ const RESPONSIVE = `
   .nm-col-pin { width: 0; overflow: hidden; }
   /* With both gone the route would start on the status rail itself, and its
      label would still sit past the pin track that no longer exists. */
-  .nm-cols .nm-col-lead { width: var(--bx-rail); }
+  .nm-cols .nm-col-lead { width: var(--bx-col-dot); }
   .nm-trow > .nm-col-route, .nm-cols > .nm-col-route { padding-left: var(--bx-4); }
 }
 

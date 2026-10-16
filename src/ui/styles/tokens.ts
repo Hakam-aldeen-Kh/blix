@@ -62,6 +62,7 @@ const SIZES = `
      show, so nothing shifts when a pin appears on hover or an entry gains a
      cross-source link. The column head reads the same tokens, so the two can
      never drift apart. */
+  --bx-col-dot:     16px;   /* the status dot that leads every row */
   --bx-col-pin:     20px;
   --bx-col-method:  52px;
   --bx-col-size:    64px;
