@@ -17,7 +17,7 @@ import { absoluteUrl } from "./snippets";
 
 // HAR requires `creator.version`, and there is no build-time define for the
 // package version — bump this alongside package.json when it matters.
-const CREATOR_VERSION = "0.3.0";
+const CREATOR_VERSION = "0.11.0";
 
 interface HarHeader {
   name: string;
