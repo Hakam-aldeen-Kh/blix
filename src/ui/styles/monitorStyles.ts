@@ -657,7 +657,13 @@ const TABLE = `
   overflow: hidden;
 }
 .nm-route-head { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bx-fg-3); }
-.nm-route-tail { white-space: nowrap; color: var(--bx-fg); }
+/* The identifier never shrinks while the module still has width to give; it
+   is only capped at the cell, so one longer than the whole column - a long
+   query key, a socket URL - ends in an ellipsis rather than a hard clip. */
+.nm-route-tail {
+  white-space: nowrap; color: var(--bx-fg);
+  flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
 /* Selection promotes the module a level rather than brightening the
    identifier, which is already as bright as the palette goes. */
 .nm-trow.active .nm-route-head { color: var(--bx-fg-2); }
@@ -732,7 +738,11 @@ const TABLE = `
   font-size: var(--bx-fs-micro); letter-spacing: .08em; color: var(--bx-fg-3);
   user-select: none;
 }
-.nm-cols > * { font-family: var(--bx-font-sans); }
+/* Every label at the head's own size. The cell rules above size their
+   column for the values in it (METHOD at meta, ROUTE at code, SIZE at sm),
+   and without this the labels took those sizes too and sat on three
+   different baselines beside the sort buttons. */
+.nm-cols > * { font-family: var(--bx-font-sans); font-size: inherit; }
 .nm-col-lead { width: calc(var(--bx-rail) + var(--bx-col-pin)); }
 .nm-cols .nm-col-route { display: flex; }
 /* The mockup sets METHOD flush with the lead track rather than indenting

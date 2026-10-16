@@ -620,7 +620,17 @@ export function DetailPane({
         <div className="nm-detail-id">
           <span className="nm-detail-status">{entryStatusLabel(entry)}</span>
           <span className="nm-detail-method">{entry.transport ?? entry.method}</span>
-          <span className="nm-detail-reason">{reasonOf(entry)}</span>
+          {(() => {
+            // Outside HTTP the reason slot can repeat a word already on this
+            // line — "open … Open", "QUERY Query", a slice beside itself.
+            const reason = reasonOf(entry);
+            const said = [entryStatusLabel(entry), entry.transport ?? entry.method].map((s) =>
+              String(s ?? "").toLowerCase(),
+            );
+            return reason && !said.includes(reason.toLowerCase()) ? (
+              <span className="nm-detail-reason">{reason}</span>
+            ) : null;
+          })()}
           <span className="nm-detail-gap" />
           {metaOf(entry).map((part) => (
             <span className="nm-detail-meta" key={part}>
