@@ -153,6 +153,7 @@ export function FabDragPreview({
         <span
           key={c.id}
           className={`nm-zone${target === c.id ? " active" : ""}`}
+          data-corner={c.id}
           style={CORNER_STYLE[c.id]}
         >
           {c.label}

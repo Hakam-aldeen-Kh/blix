@@ -171,19 +171,32 @@ const FAB = `
    answered is "where can this go", and a single box that appears beside the
    cursor answers a different one. Each says which corner it is, because an
    empty dashed rectangle is a shape, not an offer. */
+/* Each zone is the slot the launcher would land in: its height, its corner,
+   anchored to the same edges. The one under the pointer becomes the brand's
+   inspect frame (BRAND_BOOK §6B) - dashed green, a green square on each
+   corner - because it points at exactly one thing. */
 .nm-zone {
-  position: fixed; width: 104px; height: 54px;
-  display: flex; align-items: flex-end; padding: var(--bx-3);
-  border-radius: var(--bx-r-ctl);
-  border: 1px dashed var(--bx-line-strong); background: var(--bx-hover);
-  font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
-  pointer-events: none; z-index: 2147483646;
-  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease), color .12s var(--nm-ease);
+  position: fixed; box-sizing: border-box; width: 200px; height: var(--bx-h-header);
+  display: flex; align-items: center; padding: 0 var(--bx-4);
+  border-radius: var(--bx-r-fab);
+  border: 1px dashed var(--bx-line-strong); background: var(--bx-raise);
+  font: 500 var(--bx-fs-micro) var(--bx-font-mono); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--bx-fg-3);
+  pointer-events: none; z-index: 2147483646; opacity: .8;
+  transition: opacity .12s var(--nm-ease), border-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-zone.active {
-  border-style: solid; border-color: var(--bx-accent);
-  background: var(--bx-sel); color: var(--bx-fg);
+  opacity: 1; border: 1.5px dashed var(--bx-ok); color: var(--bx-ok);
+  background:
+    linear-gradient(var(--bx-ok), var(--bx-ok)) top left / 4px 4px no-repeat,
+    linear-gradient(var(--bx-ok), var(--bx-ok)) top right / 4px 4px no-repeat,
+    linear-gradient(var(--bx-ok), var(--bx-ok)) bottom left / 4px 4px no-repeat,
+    linear-gradient(var(--bx-ok), var(--bx-ok)) bottom right / 4px 4px no-repeat,
+    var(--bx-raise);
+  background-origin: border-box;
 }
+/* A zone on the right reads from its right edge, like the launcher would. */
+.nm-zone[data-corner$="right"] { justify-content: flex-end; }
 `;
 
 const PANEL = `
