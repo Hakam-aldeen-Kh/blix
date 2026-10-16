@@ -1482,7 +1482,7 @@ export default function DevTools() {
             persistedCount={persisted.count}
             persistedLabel={
               !storageNote && prefs.preserveLog && hydration === "ready"
-                ? `${persisted.count} saved · ${formatBytes(persisted.bytes)}`
+                ? formatBytes(persisted.bytes)
                 : null
             }
             storageNote={storageNote}
