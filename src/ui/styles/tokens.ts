@@ -112,15 +112,46 @@ const RESET = `
   font-size: var(--bx-fs-sm);
   line-height: 1.45;
   letter-spacing: normal;
+  word-spacing: normal;
+  font-weight: 400;
+  font-style: normal;
+  text-transform: none;
+  text-shadow: none;
+  text-indent: 0;
+  white-space: normal;
   color: var(--bx-fg);
 }
 .nm-root * {
   font-family: inherit;
   font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
   line-height: inherit;
   letter-spacing: inherit;
+  word-spacing: inherit;
+  text-transform: inherit;
+  text-shadow: inherit;
+  text-indent: 0;
   color: inherit;
+  margin: 0;
 }
+/* The emphasis the panel's markup means. A host reset that flattens
+   b and strong, or one that makes them heavier, no longer reaches here. */
+.nm-root :where(b, strong) { font-weight: 700; }
+/* Form controls are where host stylesheets do the most: Bootstrap's reboot,
+   Tailwind's preflight and a bare button { margin: ... } all land on them.
+   Every panel control sets what it wants on top of this; nothing it does not
+   set is left to the host. :where() keeps this at one class of specificity. */
+.nm-root :where(button, input, select, textarea) {
+  padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none;
+  width: auto; height: auto; min-width: 0; min-height: 0; max-width: none;
+  text-align: inherit; vertical-align: middle;
+}
+.nm-root :where(button, input) { -webkit-appearance: none; appearance: none; }
+.nm-root :where(button) { cursor: pointer; text-align: center; }
+.nm-root :where(ol, ul) { padding: 0; list-style: none; }
+.nm-root :where(svg) { max-width: none; }
 `;
 
 export const TOKENS_CSS = [SIZES, RESET].join("\n");
