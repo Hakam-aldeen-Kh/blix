@@ -29,6 +29,7 @@ import { toCurl } from "../services/snippets";
 import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
 import { DataView, PayloadToolbarSlot } from "./DataView";
+import { BlixMark } from "./BlixMark";
 import { Icon } from "./Icon";
 import { ScrollStrip } from "./ScrollStrip";
 import { MessagesTab } from "./tabs/MessagesTab";
@@ -318,9 +319,7 @@ function EmptyDetail({
 }) {
   return (
     <div className="nm-empty nm-empty-detail">
-      <span className="nm-empty-ico">
-        <Icon name="rows" size={20} />
-      </span>
+      <BlixMark size={40} dock="bottom" capture="none" idle />
       <div className="nm-empty-copy">
         <p className="nm-empty-title">{title}</p>
         <p className="nm-empty-sub">{sub}</p>

@@ -48,7 +48,8 @@ import { CommandPalette, type CommandGroup } from "./components/CommandPalette";
 import { ContextMenu } from "./components/ContextMenu";
 import { DatabasesSheet } from "./components/DatabasesSheet";
 import { DetailPane } from "./components/DetailPane";
-import { Icon, type IconName } from "./components/Icon";
+import { BlixMark } from "./components/BlixMark";
+import { Icon } from "./components/Icon";
 import { CORNER_STYLE, FabDragPreview, MonitorFab } from "./components/MonitorFab";
 import { MonitorToolbar } from "./components/MonitorToolbar";
 import { RequestTable } from "./components/RequestTable";
@@ -107,7 +108,6 @@ const SECTION_LABEL: Record<Section, string> = {
 const EMPTY_COPY: Record<
   Section,
   {
-    icon: IconName;
     title: string;
     sub: string;
     /** Each one must compile against `capture/index.ts` as written — two of
@@ -118,8 +118,7 @@ const EMPTY_COPY: Record<
   }
 > = {
   network: {
-    icon: "globe",
-    title: "No requests yet",
+    title: "Nothing captured on Network yet.",
     sub: "Captured requests appear here as the app makes them. If nothing arrives, Blix may not be attached to the HTTP client this app actually uses.",
     snippets: [
       { label: "axios", code: "attachHttpMonitor(apiClient)" },
@@ -127,15 +126,13 @@ const EMPTY_COPY: Record<
     ],
   },
   realtime: {
-    icon: "bolt",
-    title: "No realtime traffic yet",
+    title: "Nothing captured on Realtime yet.",
     sub: "Frames appear once an adapter is tapped. Capture must be installed where the adapter singleton is constructed — module scope, not a component.",
     // The wrapped adapter is the return value; a bare call taps nothing.
     snippets: [{ code: 'const realtime = tapRealtimeAdapter(adapter, "pusher")' }],
   },
   redux: {
-    icon: "redux",
-    title: "No Redux actions yet",
+    title: "Nothing captured on Redux yet.",
     sub: "Actions dispatched anywhere in the app appear here, with a bounded diff of what each one changed.",
     snippets: [
       {
@@ -144,8 +141,7 @@ const EMPTY_COPY: Record<
     ],
   },
   query: {
-    icon: "query",
-    title: "No query activity yet",
+    title: "Nothing captured on Query yet.",
     sub: "Cache lifecycle — fetch, success, invalidate, garbage-collect — appears here once the query client is tapped.",
     // From an effect, as the README says: under Strict Mode a client created
     // in a `useState` initializer is created twice, and the tap has to land
@@ -1391,9 +1387,8 @@ export default function DevTools() {
                   empty={
                     sectionEntries.length === 0 ? (
                       <div className="nm-empty nm-empty-list">
-                        <span className="nm-empty-ico" data-accent={section}>
-                          <Icon name={EMPTY_COPY[section].icon} size={20} />
-                        </span>
+                        {/* The idle mark: nothing lit, no REC dot. */}
+                        <BlixMark size={40} dock="bottom" capture="none" idle />
                         <div className="nm-empty-copy">
                           <p className="nm-empty-title">{EMPTY_COPY[section].title}</p>
                           <p className="nm-empty-sub">{EMPTY_COPY[section].sub}</p>

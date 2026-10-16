@@ -285,6 +285,7 @@ const HEADER = `
 .nm-logo-b { fill: var(--bx-fg); }
 .nm-logo-b[data-lit] { fill: var(--bx-ok); }
 .nm-logo-dot { fill: var(--bx-err); }
+.nm-logo[data-idle] .nm-logo-b { fill: var(--bx-mark); }
 /* Something is in flight. Opacity only, and it stops for anyone who has asked
    motion to stop - it is the one live-progress indicator on the mark. */
 .nm-logo[data-live] .nm-logo-dot { animation: nm-pulse 1.6s ease-in-out infinite; }
@@ -864,7 +865,7 @@ const DETAIL = `
   }
   .nm-detail-actions { margin-top: var(--bx-3); }
   .nm-empty-detail { gap: var(--bx-3); padding: var(--bx-4); }
-  .nm-empty-detail .nm-empty-ico { display: none; }
+  .nm-empty-detail .nm-logo { display: none; }
 }
 @container nmdetail (max-height: 200px) {
   .nm-detail-head { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--bx-4); }

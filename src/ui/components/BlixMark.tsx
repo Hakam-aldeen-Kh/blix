@@ -47,6 +47,7 @@ export function BlixMark({
   dock,
   capture,
   live,
+  idle,
   title,
 }: {
   size: number;
@@ -56,6 +57,8 @@ export function BlixMark({
   capture: "on" | "paused" | "none";
   /** Requests in flight — the dot pulses. */
   live?: boolean;
+  /** The brand's idle state: every blade grey, none lit. For empty states. */
+  idle?: boolean;
   title?: string;
 }) {
   const small = size < 40;
@@ -68,6 +71,7 @@ export function BlixMark({
       height={size}
       viewBox="0 0 100 100"
       data-live={live || undefined}
+      data-idle={idle || undefined}
       role={title ? "img" : undefined}
       aria-hidden={title ? undefined : true}
     >
