@@ -1330,6 +1330,7 @@ export default function DevTools() {
               mini={railMini}
               section={section}
               counts={sectionCounts}
+              errors={sectionErrors}
               stats={{
                 captured: entries.length,
                 transferred: list.totalBytes,

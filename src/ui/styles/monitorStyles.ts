@@ -393,8 +393,8 @@ const RAIL = `
   padding: 0 var(--bx-3) 0 12px;
 }
 .nm-rail-label {
-  flex: 1 1 auto; font-size: var(--bx-fs-micro); letter-spacing: .1em;
-  color: var(--bx-fg-3); white-space: nowrap; overflow: hidden;
+  flex: 1 1 auto; font: 500 var(--bx-fs-micro) var(--bx-font-mono);
+  letter-spacing: .08em; color: var(--bx-fg-3); white-space: nowrap; overflow: hidden;
 }
 .nm-rail-collapse {
   width: 18px; height: 18px; flex: none; display: flex; align-items: center;
@@ -417,25 +417,15 @@ const RAIL = `
   transition: background-color 90ms linear, border-color 90ms linear;
 }
 .nm-rail-item:hover { background: var(--bx-hover); }
-.nm-rail-item.active { background: var(--bx-float); }
-/* A source's colour is its identity, and it is data: which of the four worlds
-   you are looking at. It is resolved once here, and painted in three places -
-   the active mark, the source's icon, and the active tab of an entry that
-   came from it - so the sidebar, the launcher and the detail pane all name a
-   source the same way. */
-.nm-rail-item[data-src="network"],  .nm-tab[data-accent="network"],  .nm-empty-ico[data-accent="network"]  { --bx-src: var(--bx-src-network); }
-.nm-rail-item[data-src="realtime"], .nm-tab[data-accent="realtime"], .nm-empty-ico[data-accent="realtime"] { --bx-src: var(--bx-src-realtime); }
-.nm-rail-item[data-src="redux"],    .nm-tab[data-accent="redux"],    .nm-empty-ico[data-accent="redux"]    { --bx-src: var(--bx-src-redux); }
-.nm-rail-item[data-src="query"],    .nm-tab[data-accent="query"],    .nm-empty-ico[data-accent="query"]    { --bx-src: var(--bx-src-query); }
-.nm-rail-item.active { border-left-color: var(--bx-src); }
+/* Grey carries. The source on screen is the lit one: a step up, ink, and the
+   foreground bar on its edge - the rail does not need a colour per source to
+   say which of four it is, and green and red are kept for signals. */
+.nm-rail-item.active { background: var(--bx-sel); border-left-color: var(--bx-fg); }
 .nm-rail-ico {
   width: 32px; flex: none; display: flex; align-items: center; justify-content: center;
-  color: var(--bx-src, var(--bx-fg-3));
+  color: var(--bx-fg-3);
 }
-/* A source with nothing in it yet keeps its shape and gives up its colour. */
-/* The filter is for the Query mark, which paints its own colours and would
-   otherwise be the one icon that never goes quiet. */
-.nm-rail-empty:not(.active) .nm-rail-ico { color: var(--bx-fg-3); filter: grayscale(1); }
+.nm-rail-item.active .nm-rail-ico { color: var(--bx-fg); }
 .nm-rail-name {
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -448,6 +438,13 @@ const RAIL = `
 }
 .nm-rail-item.active .nm-rail-name, .nm-rail-item.active .nm-rail-n { color: var(--bx-fg); }
 .nm-rail-empty .nm-rail-name, .nm-rail-empty .nm-rail-n { color: var(--bx-fg-3); }
+.nm-rail-bad {
+  flex: none; display: flex; align-items: center; gap: 3px; padding-left: var(--bx-3);
+  font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
+  color: var(--bx-err); font-variant-numeric: tabular-nums;
+}
+.nm-rail-bad::before { content: ""; width: 5px; height: 5px; background: currentColor; }
+.nm-rail-mini .nm-rail-bad { display: none; }
 /* The shortcut is taught where it is used. */
 .nm-rail-key {
   width: 20px; flex: none; text-align: right; font-family: var(--bx-font-mono);
@@ -458,7 +455,7 @@ const RAIL = `
 .nm-rail-stats-head {
   display: flex; align-items: center; height: 28px; margin-top: var(--bx-4);
   padding: 0 12px; border-top: 1px solid var(--bx-line);
-  font-size: var(--bx-fs-micro); letter-spacing: .1em;
+  font: 500 var(--bx-fs-micro) var(--bx-font-mono); letter-spacing: .08em;
   color: var(--bx-fg-3);
 }
 .nm-rail-stat { display: flex; align-items: center; height: 22px; padding: 0 12px; }
@@ -932,10 +929,9 @@ const DETAIL = `
   font-size: var(--bx-fs-code); cursor: pointer; white-space: nowrap;
   transition: color 90ms linear, border-color 90ms linear;
 }
-/* The underline is the source's colour, not the UI accent: the tabs under a
-   Redux action and the tabs under a request are different sets, and the mark
-   says which set you are in. */
-.nm-tab.active { border-bottom-color: var(--bx-src, var(--bx-accent)); color: var(--bx-fg); }
+/* The underline is ink, not a colour: the active tab is a position, not a
+   signal, and green and red are kept for signals. */
+.nm-tab.active { border-bottom-color: var(--bx-fg); color: var(--bx-fg); }
 .nm-tab-n { padding-left: var(--bx-2); color: var(--bx-fg-3); font-variant-numeric: tabular-nums; }
 
 /* The format controls share the tab row. Two stacked bars squeezed the size
