@@ -898,17 +898,31 @@ The panel is one header, one rail and two panes.
 Query. They are not filters over one table: each has its own columns and its
 own notion of a row, so switching source switches the whole view. `1`–`4` jump
 between them, and each keeps its own selection, so stepping to Redux and back
-returns you to the request you were reading. Each row ends with its own number
-key, because a shortcut is best taught where it is used. Below the sources it
+returns you to the request you were reading. Each source has its own icon and
+colour — Network blue, Realtime teal, Redux violet, Query orange — and, once
+something in it has failed, a red count behind a square marker beside its
+total; the number key that selects it is in its tooltip. Below the sources it
 carries the session totals; collapsed, it keeps the sources and their counts
 and drops the totals, since four numbers without their labels are four
 unattributed numbers.
 
 **The header is the session**, not the entry: whether capture is running, what
-is being filtered out, and where the panel lives. While a filter is on, the
+is being filtered out, and where the panel lives. It starts with the Blix
+mark, which says two of those at a glance: the green blade is the edge the
+panel is docked to (bottom for a floating panel), and the red dot in the
+centre is there while capture is running. Beside it, the capture chip says the
+same in words — **RECORDING** with a red dot, or **PAUSED** with an amber
+square — and pauses or resumes capture when clicked. While a filter is on, the
 field carries its own count — `8 of 56` — and a clear button, so you never
 have to read the status bar to know one is applied. `.*` widens the search to
 request and response bodies.
+
+**Each row starts with a status dot** — round when the request worked, square
+and red when it failed, hollow while it is still in flight — so the outcome
+reads by shape as well as colour. Failing rows are tinted red, and stay red
+when selected; any other selected row gets a green edge. The bars on the right
+are drawn in one neutral colour so they compare as lengths: green for the
+selected row, red for failures.
 
 **The red bin beside Export clears the source you are reading**, and only
 that one: emptying Redux leaves Network alone. Pinned entries survive it, and
@@ -918,8 +932,13 @@ source at once, use **Clear log** in the overflow menu, or `⇧C`.
 **The launcher badge summarizes the log while the panel is closed.** It shows
 one count per source that has captured anything — Network, Realtime, Redux,
 Query, each with its rail icon — and, in red beside a count, how many of that
-source's entries failed. The dot is capture state: green while capturing,
-amber while paused, pulsing while something is in flight.
+source's entries failed. The mark at its left carries the same state as the
+header's: its green blade is the edge the panel will open on, and the red dot
+is there while capture is running — gone while paused, pulsing while something
+is in flight. Failures never show on the mark; they are the red counts.
+
+Dragging the launcher shows the four corners it can go to, each drawn as the
+slot it would land in; the one under the pointer is outlined in green.
 
 The panel opens **floating** the first time. From the header it can be docked
 to any edge instead; the choice, and each dock's size, is saved per project.
@@ -1078,12 +1097,13 @@ the panel (see [What is redacted](#what-is-redacted)).
 
 ### Themes
 
-Twelve themes, under the theme button in the header — it names the one
+Fourteen themes, under the theme button in the header — it names the one
 currently applied:
 
 | | Theme | |
 | --- | --- | --- |
-| Dark | **Midnight** | Deep blue-black — the default |
+| Dark | **Blix** | Graphite — the default |
+| | **Midnight** | Deep blue-black |
 | | **Carbon** | True black, high contrast; for OLED displays |
 | | **Nord** | Muted arctic blues |
 | | **Tokyo Night** | Deep indigo, soft neon |
@@ -1091,7 +1111,8 @@ currently applied:
 | | **Mocha** | Catppuccin — gentle pastels |
 | | **Dracula** | Vivid purples and pinks |
 | | **Gruvbox** | Warm retro browns and amber |
-| Light | **Daylight** | Clean white — the light default |
+| Light | **Blix Light** | Paper and ink — the light default |
+| | **Daylight** | Clean white |
 | | **GitHub** | The light theme you already read all day |
 | | **Latte** | Catppuccin — soft pastel light |
 | | **Solar** | Warm paper, low blue light |
@@ -1101,8 +1122,9 @@ real payload in it before committing; moving away puts back the one you had.
 Arrow keys preview the same way.
 
 The default is **System**: the panel reads the light/dark class off `<html>`
-and paints Midnight or Daylight to match, re-checking whenever your app's theme
-changes. Picking a specific theme overrides that. The choice is stored with the
+and paints Blix or Blix Light to match, re-checking whenever your app's theme
+changes. (Before 0.12 these were Midnight and Daylight; both are still in the
+list.) Picking a specific theme overrides that. The choice is stored with the
 panel's other preferences and survives a reload.
 
 The panel never inherits your app's styling — it portals outside every stacking

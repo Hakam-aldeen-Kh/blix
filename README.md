@@ -1,7 +1,7 @@
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/blix-lockup-dark-bg.svg">
-    <img alt="blix" src="docs/brand/blix-lockup-light-bg.svg" height="64">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Hakam-aldeen-Kh/blix/main/docs/brand/blix-lockup-dark-bg.png">
+    <img alt="blix" src="https://raw.githubusercontent.com/Hakam-aldeen-Kh/blix/main/docs/brand/blix-lockup-light-bg.png" height="64">
   </picture>
 </h1>
 
@@ -48,13 +48,13 @@ Using axios? Call `attachHttpMonitor(apiClient)` in the module that creates the 
 
 ## Documentation
 
-**[Full documentation → DOCS_SITE_URL/docs](DOCS_SITE_URL/docs)**
+**[Full documentation → docs/en.md](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md)**
 
-- [Install](DOCS_SITE_URL/docs/install): peer dependencies and build setup
-- [Capture](DOCS_SITE_URL/docs/capture): where each capture call goes, and why the order matters
-- [Mounting the panel](DOCS_SITE_URL/docs/mounting-the-panel): props, shortcuts, filtering, export, themes
-- [Production elimination](DOCS_SITE_URL/docs/production-elimination): how it is removed, and how to keep it on a staging build
-- [Upgrading](DOCS_SITE_URL/docs/upgrading): what changed for projects coming from 0.10
+- [Install](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#install): peer dependencies and build setup
+- [Capture](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#the-module-init-call-order-contract): where each capture call goes, and why the order matters
+- [Mounting the panel](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#mounting-the-panel): props, shortcuts, filtering, export, themes
+- [Production elimination](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#production-elimination): how it is removed, and how to keep it on a staging build
+- [Upgrading](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#upgrading-to-011): what changed for projects coming from 0.10
 
 ---
 
