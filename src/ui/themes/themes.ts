@@ -24,6 +24,8 @@
 export type ThemeBase = "light" | "dark";
 
 export type ThemeId =
+  | "blix"
+  | "blix-light"
   | "midnight"
   | "carbon"
   | "nord"
@@ -539,10 +541,20 @@ const GITHUB: Palette = {
 
 /** Display order in the picker: darks first, then lights. */
 export const THEMES: ThemeDef[] = [
+  /* The brand's own pair. Their legacy half borrows Midnight's and Daylight's:
+     every legacy name they would restate is answered from the bx palette by
+     `legacyAliases`, and what is left is shadows and scrims. */
+  {
+    id: "blix",
+    label: "Blix",
+    hint: "Graphite — the default",
+    base: "dark",
+    palette: MIDNIGHT,
+  },
   {
     id: "midnight",
     label: "Midnight",
-    hint: "Deep blue-black — the default",
+    hint: "Deep blue-black",
     base: "dark",
     palette: MIDNIGHT,
   },
@@ -590,9 +602,16 @@ export const THEMES: ThemeDef[] = [
     palette: GRUVBOX,
   },
   {
+    id: "blix-light",
+    label: "Blix Light",
+    hint: "Paper and ink — the light default",
+    base: "light",
+    palette: DAYLIGHT,
+  },
+  {
     id: "daylight",
     label: "Daylight",
-    hint: "Clean white — the light default",
+    hint: "Clean white",
     base: "light",
     palette: DAYLIGHT,
   },
@@ -621,8 +640,8 @@ export const THEMES: ThemeDef[] = [
 
 const BY_ID = new Map(THEMES.map((t) => [t.id, t]));
 
-export const DEFAULT_DARK: ThemeId = "midnight";
-export const DEFAULT_LIGHT: ThemeId = "daylight";
+export const DEFAULT_DARK: ThemeId = "blix";
+export const DEFAULT_LIGHT: ThemeId = "blix-light";
 
 export function themeById(id: ThemeId): ThemeDef {
   return BY_ID.get(id) ?? BY_ID.get(DEFAULT_DARK)!;

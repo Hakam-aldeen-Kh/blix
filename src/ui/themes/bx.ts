@@ -125,6 +125,49 @@ export interface BxPalette {
  * violet and Query orange, the colours those tools' own devtools taught — so
  * a source does not change colour family when the theme does.
  */
+/**
+ * The brand's own pair, from BRAND_BOOK §4. Grey carries, green and red
+ * signal: the graphite ramp is the book's 950/900/850/800/700, the text levels
+ * its 100/200/400 and `mark` its 500. Source and syntax colours are
+ * desaturated so nothing but ok, err and warn reads as a signal. Hairlines are
+ * opaque here — the book draws them as steps of the ramp, not as alphas.
+ */
+const BLIX: BxPalette = {
+  shadowRgb: "0,0,0",
+  bg: "#0e0f11", bar: "#131417", raise: "#16171a", float: "#16171a",
+  sel: "#212326", hover: "#131417",
+  hoverFloat: "#1c1d21",
+  line: "#212326", lineSoft: "#18191c",
+  lineStrong: "#2d3035",
+  fg: "#e6e7ea", fg2: "#c9cbd0", fg3: "#8b909a", mark: "#5a5e66",
+  ok: "#4ea674", warn: "#e3a541", err: "#d9605f", info: "#8fa3b8",
+  accent: "#c9cbd0", wait: "#2d3035",
+  synKey: "#9fb0c3", synStr: "#c2b08a", synNum: "#a9a0d0",
+  synBool: "#c79a8c", synPunct: "#5a5e66",
+  diffAdd: "#8dba9c", diffDel: "#d49a99",
+  srcNetwork: "#8fa3b8", srcRealtime: "#8fb8ae", srcRedux: "#a99bc9",
+  srcQuery: "#c9a07f",
+};
+
+/** The light side of the pair: the book's light ground and ink, its 600 steps
+ * for green and red, and amber darkened until it holds as text. */
+const BLIX_LIGHT: BxPalette = {
+  shadowRgb: "22,24,27",
+  bg: "#fbfbfa", bar: "#f4f4f5", raise: "#f4f4f5", float: "#ffffff",
+  sel: "#e6e7ea", hover: "#f4f4f5",
+  hoverFloat: "#efeff0",
+  line: "#e6e7ea", lineSoft: "#efeff0",
+  lineStrong: "#c9cbd0",
+  fg: "#16181b", fg2: "#3e4249", fg3: "#5e636c", mark: "#a2a6ae",
+  ok: "#2d8753", warn: "#946200", err: "#c23f3d", info: "#4e6e8a",
+  accent: "#3e4249", wait: "#e6e7ea",
+  synKey: "#3f5f80", synStr: "#76602c", synNum: "#5f4fa0",
+  synBool: "#9a4f3c", synPunct: "#a2a6ae",
+  diffAdd: "#2f6b45", diffDel: "#9a3d3b",
+  srcNetwork: "#4e6e8a", srcRealtime: "#3e7a70", srcRedux: "#6a5aa0",
+  srcQuery: "#a0623a",
+};
+
 const MIDNIGHT: BxPalette = {
   shadowRgb: "0,0,0",
   bg: "#0e0f11", bar: "#131417", raise: "#17181b", float: "#1e2024",
@@ -351,6 +394,8 @@ const SOLAR: BxPalette = {
 };
 
 export const BX_PALETTES = {
+  blix: BLIX,
+  "blix-light": BLIX_LIGHT,
   midnight: MIDNIGHT,
   carbon: CARBON,
   nord: NORD,
@@ -391,6 +436,7 @@ export const BX_TOKENS: string[] = [
   ...Object.values(SLOT_TOKEN),
   "--bx-shadow-panel",
   "--bx-shadow-fab",
+  "--bx-err-row",
 ];
 
 /**
@@ -418,6 +464,10 @@ export function bxTokens(p: BxPalette, base: ThemeBase): Record<string, string> 
   for (const [slot, token] of Object.entries(SLOT_TOKEN)) {
     out[token] = p[slot as keyof typeof SLOT_TOKEN];
   }
+  // A failing row's ground: err over the list's own bg, so it can be an alpha.
+  // Derived rather than authored, because it is one wash of a colour every
+  // theme already names.
+  out["--bx-err-row"] = tint(p.err, base === "dark" ? 0.08 : 0.06);
   return { ...out, ...shadows(p, base) };
 }
 
@@ -476,17 +526,17 @@ export function legacyAliases(p: BxPalette, base: ThemeBase): Record<string, str
 }
 
 /**
- * Midnight's slots baked onto bare `.nm-root`, as the floor.
+ * The default theme's slots baked onto bare `.nm-root`, as the floor.
  *
  * Only this one theme ships as CSS; the active theme's values are written to
  * the root element's style attribute, which overrides this. The floor is what
  * paints when there is no style attribute at all — a server render, or a
- * stored theme id that no longer resolves — so the panel degrades to Midnight
+ * stored theme id that no longer resolves — so the panel degrades to the default theme
  * rather than to an element with forty empty custom properties.
  */
 export const BX_BASE_CSS = `.nm-root {\n${Object.entries({
-  ...legacyAliases(MIDNIGHT, "dark"),
-  ...bxTokens(MIDNIGHT, "dark"),
+  ...legacyAliases(BLIX, "dark"),
+  ...bxTokens(BLIX, "dark"),
 })
   .map(([k, v]) => `  ${k}: ${v};`)
   .join("\n")}\n}`;
