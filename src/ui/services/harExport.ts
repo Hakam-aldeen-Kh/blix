@@ -13,6 +13,7 @@ import { errorBody } from "../../capture/monitorError";
 import type { MonitorEntry } from "../../capture/networkMonitor";
 import { endOf, startOf } from "../helpers/waterfall";
 import { downloadText, fileStamp } from "./download";
+import { absoluteUrl } from "./snippets";
 
 // HAR requires `creator.version`, and there is no build-time define for the
 // package version — bump this alongside package.json when it matters.
@@ -68,7 +69,7 @@ function toEntry(entry: MonitorEntry) {
     time: total,
     request: {
       method: entry.method,
-      url: `${entry.baseURL ?? ""}${entry.url}`,
+      url: absoluteUrl(entry),
       httpVersion: "HTTP/1.1",
       cookies: [],
       headers: toHeaders(entry.requestHeaders),
