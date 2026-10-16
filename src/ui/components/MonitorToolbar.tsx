@@ -184,7 +184,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           onChange={(e) => onQuery(e.target.value)}
           spellCheck={false}
           aria-label="Filter requests"
-          placeholder="method:post   is:error   route:tickets   -cached"
+          placeholder="method:post   is:error   url:tickets   -status:2xx"
         />
         {searching && (
           <>
