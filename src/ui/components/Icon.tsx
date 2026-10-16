@@ -74,9 +74,46 @@ function QueryMark({ size }: { size: number }) {
   );
 }
 
+/** The mark's blades (BRAND_BOOK §2) scaled onto the 16-unit icon grid. */
+const DOCK_BLADES = {
+  top: [1.6, 1.6, 8.16, 3.84],
+  right: [10.56, 1.6, 3.84, 8.16],
+  bottom: [6.24, 10.56, 8.16, 3.84],
+  left: [1.6, 6.24, 3.84, 8.16],
+} as const;
+
+/**
+ * The dock switcher draws the mark: the edge a button docks to is the solid
+ * blade, the other three sit back at 35%. Monochrome in the button's own
+ * colour — these are controls, not the logo. Float has no edge, so every
+ * blade sits back and the centre dot is what is left.
+ */
+function DockMark({ target, size }: { target: string; size: number }) {
+  return (
+    <svg className="nm-ico" width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      {(Object.keys(DOCK_BLADES) as (keyof typeof DOCK_BLADES)[]).map((edge) => {
+        const [x, y, width, height] = DOCK_BLADES[edge];
+        return (
+          <rect
+            key={edge}
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            rx={0.8}
+            opacity={edge === target ? undefined : 0.35}
+          />
+        );
+      })}
+      {target === "float" && <circle cx={8} cy={8} r={1.3} />}
+    </svg>
+  );
+}
+
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   if (name === "redux") return <ReduxMark size={size} />;
   if (name === "query") return <QueryMark size={size} />;
+  if (name.startsWith("dock-")) return <DockMark target={name.slice(5)} size={size} />;
   return (
     <svg
       className="nm-ico"
@@ -171,36 +208,6 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M3 4.2a1.6 1.6 0 0 1 1.6-1.6h5.1L13 5.9v5.9a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 11.8z" />
           <path d="M5.6 2.6v3.1h4V3.1" />
           <path d="M5.6 13.4v-3.5h4.8v3.5" />
-        </>
-      )}
-      {name === "dock-bottom" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M2.4 9.6h11.2" />
-        </>
-      )}
-      {name === "dock-right" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M9.6 2.6v10.8" />
-        </>
-      )}
-      {name === "dock-top" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M2.4 6.4h11.2" />
-        </>
-      )}
-      {name === "dock-left" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M6.4 2.6v10.8" />
-        </>
-      )}
-      {name === "dock-float" && (
-        <>
-          <rect x="1.8" y="3.4" width="8.4" height="7.2" rx="1.5" />
-          <rect x="5.8" y="5.6" width="8.4" height="7.2" rx="1.5" />
         </>
       )}
       {name === "replay" && (

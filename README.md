@@ -1,4 +1,9 @@
-# Blix
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/blix-lockup-dark-bg.svg">
+    <img alt="blix" src="docs/brand/blix-lockup-light-bg.svg" height="64">
+  </picture>
+</h1>
 
 An in-app dev-tools panel for React developers: every HTTP request, Redux action, TanStack Query cache event and realtime frame your app produces, in one place, while you build.
 

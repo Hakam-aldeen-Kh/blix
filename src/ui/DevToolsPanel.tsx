@@ -1237,6 +1237,7 @@ export default function DevTools() {
       {!open && !fab.dragPos && (
         <MonitorFab
           paused={paused}
+          dock={dock.mode}
           total={entries.length}
           counts={sectionCounts}
           sourceErrors={sectionErrors}
@@ -1247,7 +1248,12 @@ export default function DevTools() {
       )}
 
       {fab.dragPos && (
-        <FabDragPreview pos={fab.dragPos} paused={paused} counts={sectionCounts} />
+        <FabDragPreview
+          pos={fab.dragPos}
+          paused={paused}
+          dock={dock.mode}
+          counts={sectionCounts}
+        />
       )}
 
       {open && (
@@ -1310,6 +1316,7 @@ export default function DevTools() {
             compact={panel.compactToolbar}
             tiny={panel.tinyToolbar}
             mode={dock.mode}
+            live={allPending > 0}
             onMode={onMode}
             maximized={dock.maximized}
             onToggleMaximize={onToggleMaximize}

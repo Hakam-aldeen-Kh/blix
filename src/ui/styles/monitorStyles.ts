@@ -136,21 +136,10 @@ const FAB = `
 .nm-fab:hover { border-color: var(--bx-accent); }
 .nm-fab:active { cursor: grabbing; }
 
-.nm-fab-brand { display: flex; align-items: center; gap: var(--bx-3); padding: 0 var(--bx-4); }
-/* Capture state, not buffer state. The worst status in the log is already the
-   failing count two segments along; saying it twice in two shapes meant the
-   dot carried no information of its own. */
-.nm-fab-dot {
-  width: 6px; height: 6px; flex: none; border-radius: 50%;
-  background: var(--bx-ok);
-}
-.nm-fab[data-paused] .nm-fab-dot { background: var(--bx-warn); }
-/* Something is in flight. Opacity only, and it stops for anyone who has asked
-   motion to stop - it is the one live-progress indicator out here. */
-.nm-fab[data-live] .nm-fab-dot { animation: nm-pulse 1.6s ease-in-out infinite; }
-.nm-fab-label {
-  font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
-  letter-spacing: .1em; color: var(--bx-fg-3);
+/* Mark and wordmark. The gap is half a blade thickness, as in the lockup. */
+.nm-fab-brand {
+  display: flex; align-items: center; gap: 2px; padding: 0 var(--bx-4);
+  color: var(--bx-fg-3);
 }
 
 .nm-fab-sep { width: 1px; height: 20px; flex: none; background: var(--bx-line); }
@@ -286,9 +275,29 @@ const HEADER = `
   color: var(--bx-mark); cursor: grab;
 }
 .nm-title {
-  flex: none; font-family: var(--bx-font-mono); font-size: var(--bx-fs-sm);
-  letter-spacing: .1em; color: var(--bx-fg-3);
+  flex: none; display: flex; align-items: center; gap: 2px; color: var(--bx-fg-3);
 }
+
+/* The mark, in the brand's full-colour states and the theme's own colours:
+   blades in the foreground, the lit blade - the dock edge - in ok, the REC
+   dot in err. Errors never reach it; the failing counts carry those. */
+.nm-logo, .nm-wordmark { display: block; flex: none; overflow: visible; }
+.nm-logo-b { fill: var(--bx-fg); }
+.nm-logo-b[data-lit] { fill: var(--bx-ok); }
+.nm-logo-dot { fill: var(--bx-err); }
+/* Something is in flight. Opacity only, and it stops for anyone who has asked
+   motion to stop - it is the one live-progress indicator on the mark. */
+.nm-logo[data-live] .nm-logo-dot { animation: nm-pulse 1.6s ease-in-out infinite; }
+/* The panel opening: the aperture widens a quarter blade, holds, closes.
+   Once, on mount - a dock change is a state change and cuts. */
+.nm-title .nm-logo-top    { animation: nm-open-top .2s cubic-bezier(.7, 0, .2, 1); }
+.nm-title .nm-logo-right  { animation: nm-open-right .2s cubic-bezier(.7, 0, .2, 1); }
+.nm-title .nm-logo-bottom { animation: nm-open-bottom .2s cubic-bezier(.7, 0, .2, 1); }
+.nm-title .nm-logo-left   { animation: nm-open-left .2s cubic-bezier(.7, 0, .2, 1); }
+@keyframes nm-open-top    { 40%, 60% { transform: translateY(-6px); } }
+@keyframes nm-open-right  { 40%, 60% { transform: translateX(6px); } }
+@keyframes nm-open-bottom { 40%, 60% { transform: translateY(6px); } }
+@keyframes nm-open-left   { 40%, 60% { transform: translateX(-6px); } }
 
 /* Capture and preserve: the two controls that silently change what happens to
    the log, so both must read as *on* rather than as pressable. The state
@@ -1449,7 +1458,7 @@ const MISC = `
 .nm-slice:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-fab-dot, .nm-zone,
+  .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-logo-b, .nm-logo-dot, .nm-zone,
   .nm-pulse, .nm-menu, .nm-restoring,
   .nm-palette, .nm-rail {
     animation: none !important; transition: none !important;
