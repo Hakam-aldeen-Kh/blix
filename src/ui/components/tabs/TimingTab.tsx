@@ -168,28 +168,38 @@ export function TimingTab({
   // from separate clock reads and can round past the total on fast requests.
   const network = Math.max(0, total - encrypt - decrypt);
 
+  // The crypto phases are rows only when something measured them. Nothing in
+  // capture does yet, so for every request today this is the network row
+  // alone — not two rows reading 0 ms for an app that encrypts nothing.
+  const hasCrypto = entry.marks?.encryptMs != null || entry.marks?.decryptMs != null;
   const rows = [
-    {
-      key: "encrypt",
-      label: "Encrypt",
-      value: encrypt,
-      note: entry.skipEncryption
-        ? "skipped for this endpoint"
-        : "RSA+AES of the request body",
-    },
+    ...(hasCrypto
+      ? [
+          {
+            key: "encrypt",
+            label: "Encrypt",
+            value: encrypt,
+            note: entry.skipEncryption ? "skipped for this endpoint" : "encrypting the request body",
+          },
+        ]
+      : []),
     {
       key: "network",
       label: "Network + server",
       value: network,
       note: "request on the wire and backend processing",
     },
-    {
-      key: "decrypt",
-      label: "Decrypt",
-      value: decrypt,
-      note: "AES of the response body",
-    },
-  ] as const;
+    ...(hasCrypto
+      ? [
+          {
+            key: "decrypt",
+            label: "Decrypt",
+            value: decrypt,
+            note: "decrypting the response body",
+          },
+        ]
+      : []),
+  ];
 
   const pct = (value: number) => (total > 0 ? (value / total) * 100 : 0);
   const cryptoShare = pct(encrypt + decrypt);

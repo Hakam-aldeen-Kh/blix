@@ -47,36 +47,94 @@ export type IconName =
   | "command";
 
 /**
- * The two sources that are somebody else's product wear that product's own
- * mark, which a React developer already recognises faster than any glyph drawn
- * here. They are filled logos on their own viewBoxes, so they are separate
- * elements rather than two more branches of the stroked 16px set below.
+ * The four sources, as BRAND_BOOK §6E line icons: a 24 grid, 1.5 stroke,
+ * round caps and joins, grey. Colour is the caller's — the rail leaves them
+ * grey, the launcher paints each in its source's colour. They replaced the
+ * Redux and TanStack logos, which painted their own colours and were the two
+ * glyphs in the panel that could never go quiet.
  */
-function ReduxMark({ size }: { size: number }) {
-  // One colour, so it takes the theme's Redux colour rather than a fixed
-  // brand violet that sits at 3:1 on the dark grounds.
-  return (
-    <svg className="nm-ico" width={size} height={size} viewBox="0 0 128 128" fill="currentColor" aria-hidden>
-      <path d="M88.69 88.11c-9 18.4-24.76 30.78-45.61 34.85a39.73 39.73 0 0 1-9.77 1.14c-12 0-23-5-28.34-13.19C-2.2 100-4.64 76.87 19 59.76c.48 2.61 1.46 6.19 2.11 8.31A38.24 38.24 0 0 0 10 81.1c-4.4 8.64-3.91 17.27 1.3 25.25 3.6 5.38 9.3 8.65 16.63 9.65a44 44 0 0 0 26.55-5c12.71-6.68 21.18-14.66 26.72-25.57a9.32 9.32 0 0 1-2.61-6A9.12 9.12 0 0 1 87.37 70h.34a9.15 9.15 0 0 1 1 18.25zm28.67-20.2c12.21 13.84 12.54 30.13 7.82 39.58-4.4 8.63-16 17.27-31.6 17.27a50.48 50.48 0 0 1-21-5.05c2.29-1.63 5.54-4.24 7.33-5.87a41.54 41.54 0 0 0 16 3.42c10.1 0 17.75-4.72 22.31-13.35 2.93-5.7 3.1-12.38.33-19.22a43.61 43.61 0 0 0-17.27-20.85 62 62 0 0 0-34.74-10.59h-2.93a9.21 9.21 0 0 1-8 5.54h-.31a9.13 9.13 0 0 1-.3-18.25h.33a9 9 0 0 1 8 4.89h2.61c20.8 0 39.06 7.98 51.42 22.48zm-82.75 23a7.31 7.31 0 0 1 1.14-4.73c-9.12-15.8-14-35.83-6.51-56.68C34.61 13.83 48.13 3.24 62.79 3.24c15.64 0 31.93 13.69 33.88 40.07-2.44-.81-6-2-8.14-2.44-.53-8.63-7.82-30.13-25.09-29.81-6.19.17-15.31 3.1-20 9.12a43.69 43.69 0 0 0-9.64 25.25 59.61 59.61 0 0 0 8.47 36.16 2.75 2.75 0 0 1 1.14-.16h.32a9.121 9.121 0 0 1 .33 18.24h-.33a9.16 9.16 0 0 1-9.12-8.79z" />
-    </svg>
-  );
-}
+/* Drawn on the same 16 grid as every other glyph, so a 1.5 stroke lands at a
+   real pixel at 13-15px instead of the hairline a 24 grid gave. Each has a
+   stroke and a soft wash of its own colour behind its main shape, for weight:
+   [stroke, wash, solid]. */
+const SOURCE_GLYPHS: Partial<Record<IconName, [string, string?, string?]>> = {
+  // Request out, response back.
+  globe: [
+    "M5 13V3M2.5 5.5 5 3l2.5 2.5M11 3v10M8.5 10.5 11 13l2.5-2.5",
+  ],
+  // A socket held open: a source broadcasting both ways.
+  bolt: [
+    "M5.6 5.4a3.6 3.6 0 0 0 0 5.2M10.4 5.4a3.6 3.6 0 0 1 0 5.2M3.4 3.2a6.6 6.6 0 0 0 0 9.6M12.6 3.2a6.6 6.6 0 0 1 0 9.6",
+    undefined,
+    "M8 6.4a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z",
+  ],
+  // Stacked state.
+  redux: ["M8 2 2 5l6 3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3", "M8 2 2 5l6 3 6-3z"],
+  // A cache.
+  query: [
+    "M3 4.2c0 1 2.2 1.8 5 1.8s5-.8 5-1.8S10.8 2.4 8 2.4 3 3.2 3 4.2v7.6c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4.2M3 8c0 1 2.2 1.8 5 1.8S13 9 13 8",
+    "M3 4.2c0 1 2.2 1.8 5 1.8s5-.8 5-1.8S10.8 2.4 8 2.4 3 3.2 3 4.2z",
+  ],
+};
 
-function QueryMark({ size }: { size: number }) {
-  // Four colours of its own, so it does not follow the theme.
+/** The mark's blades (BRAND_BOOK §2) scaled onto the 16-unit icon grid. */
+const DOCK_BLADES = {
+  top: [1.6, 1.6, 8.16, 3.84],
+  right: [10.56, 1.6, 3.84, 8.16],
+  bottom: [6.24, 10.56, 8.16, 3.84],
+  left: [1.6, 6.24, 3.84, 8.16],
+} as const;
+
+/**
+ * The dock switcher draws the mark: the edge a button docks to is the solid
+ * blade, the other three sit back at 35%. Monochrome in the button's own
+ * colour — these are controls, not the logo. Float has no edge, so every
+ * blade sits back and the centre dot is what is left.
+ */
+function DockMark({ target, size }: { target: string; size: number }) {
   return (
-    <svg className="nm-ico" width={size} height={size} viewBox="0 0 256 230" aria-hidden>
-      <path fill="#00435B" d="m157.98 142.487l-4.91 8.527a8.288 8.288 0 0 1-7.182 4.151H108.27a8.288 8.288 0 0 1-7.182-4.151l-4.911-8.527h61.802Zm13.747-23.87l-8.658 15.034h-71.98l-8.658-15.034h89.296Zm-8.34-23.342l8.354 14.506H82.417l8.354-14.506h72.616Zm-17.5-22.066a8.288 8.288 0 0 1 7.183 4.151l5.228 9.079H95.86l5.229-9.079a8.288 8.288 0 0 1 7.182-4.151h37.617Z" />
-      <path fill="#002B3B" d="M53.523 69.252c-4.167-20.206-5.062-35.704-2.368-46.957c1.602-6.693 4.53-12.153 8.984-16.093c4.702-4.159 10.646-6.2 17.326-6.2c11.018 0 22.602 5.025 34.98 14.57c5.05 3.894 10.29 8.587 15.732 14.082c.434-.557.923-1.083 1.469-1.57c15.386-13.71 28.34-22.23 39.42-25.514c6.588-1.954 12.773-2.14 18.405-.244c5.946 2 10.683 6.137 14.026 11.93c5.516 9.561 6.97 22.124 4.914 37.637c-.838 6.323-2.271 13.21-4.296 20.673c.764.092 1.53.262 2.288.513c19.521 6.47 33.345 13.426 41.714 21.377c4.98 4.73 8.231 9.996 9.407 15.826c1.24 6.153.03 12.324-3.308 18.113c-5.506 9.548-15.63 17.077-30.052 23.041c-5.79 2.395-12.343 4.564-19.664 6.515c.334.754.594 1.555.767 2.395c4.167 20.206 5.061 35.704 2.368 46.957c-1.602 6.693-4.531 12.153-8.985 16.093c-4.701 4.159-10.646 6.2-17.325 6.2c-11.019 0-22.602-5.025-34.98-14.57c-5.104-3.936-10.402-8.687-15.907-14.258a11.737 11.737 0 0 1-2.084 2.442c-15.386 13.712-28.34 22.23-39.42 25.515c-6.588 1.954-12.773 2.14-18.405.244c-5.946-2-10.683-6.137-14.026-11.93c-5.516-9.561-6.97-22.124-4.914-37.637c.869-6.551 2.376-13.709 4.518-21.485a11.732 11.732 0 0 1-2.51-.537c-19.521-6.47-33.345-13.426-41.714-21.377c-4.98-4.73-8.231-9.996-9.407-15.826c-1.24-6.153-.03-12.325 3.308-18.114c5.506-9.547 15.63-17.077 30.052-23.04c5.963-2.467 12.734-4.693 20.32-6.689a11.81 11.81 0 0 1-.633-2.082Z" />
-      <path fill="#FF4154" d="M189.647 161.333a3.684 3.684 0 0 1 4.235 2.81l.023.112l.207 1.075c6.71 35.276 1.983 52.915-14.18 52.915c-15.813 0-35.944-15.051-60.392-45.153a3.684 3.684 0 0 1 2.777-6.005h.114l1.288.009c10.288.056 20.289-.303 30.004-1.076c11.467-.913 23.442-2.475 35.924-4.687ZM78.646 134.667l.062.105l.646 1.127c5.177 9 10.57 17.542 16.18 25.627c6.608 9.52 14.038 19.158 22.29 28.914a3.684 3.684 0 0 1-.309 5.082l-.093.083l-.83.715c-27.307 23.397-45.055 28.068-53.244 14.012c-8.017-13.757-5.11-38.773 8.719-75.047a3.683 3.683 0 0 1 6.579-.618Zm124.857-52.054l.112.037l1.028.354c33.705 11.725 46.51 24.61 38.416 38.655c-7.916 13.736-30.93 23.738-69.041 30.004a3.683 3.683 0 0 1-3.773-5.501c5.458-9.286 10.375-18.524 14.749-27.717c4.96-10.425 9.615-21.616 13.965-33.57a3.684 3.684 0 0 1 4.432-2.295l.112.033ZM84.446 76.71a3.683 3.683 0 0 1 1.31 5.042c-5.46 9.285-10.376 18.524-14.75 27.717c-4.96 10.425-9.615 21.615-13.965 33.57a3.684 3.684 0 0 1-4.544 2.262l-.112-.037l-1.028-.355c-33.705-11.724-46.51-24.61-38.416-38.654c7.916-13.737 30.93-23.738 69.041-30.004c.85-.14 1.722.022 2.464.459Zm108.206-57.748c8.017 13.758 5.11 38.774-8.719 75.048a3.683 3.683 0 0 1-6.579.618l-.062-.105l-.646-1.127c-5.177-9-10.57-17.542-16.18-25.627c-6.608-9.52-14.038-19.158-22.29-28.914a3.684 3.684 0 0 1 .309-5.082l.093-.083l.83-.715c27.307-23.397 45.055-28.068 53.244-14.013ZM77.45 10.59c15.814 0 35.945 15.05 60.392 45.152a3.684 3.684 0 0 1-2.777 6.005h-.114l-1.288-.008c-10.287-.056-20.289.303-30.003 1.076c-11.468.913-23.443 2.475-35.925 4.687a3.684 3.684 0 0 1-4.234-2.81l-.024-.113l-.207-1.074C56.56 28.228 61.286 10.59 77.45 10.59Z" />
-      <path fill="#FFD94C" d="M111.295 73.67h31.576a12.89 12.89 0 0 1 11.181 6.475l15.855 27.626a12.892 12.892 0 0 1 0 12.834l-15.855 27.626a12.892 12.892 0 0 1-11.181 6.475h-31.576c-4.618 0-8.883-2.47-11.182-6.475L84.26 120.605a12.892 12.892 0 0 1 0-12.834l15.854-27.626a12.892 12.892 0 0 1 11.182-6.475Zm26.763 8.338c4.62 0 8.888 2.473 11.185 6.481l11.056 19.288a12.892 12.892 0 0 1 0 12.822l-11.056 19.288a12.892 12.892 0 0 1-11.185 6.48h-21.95c-4.62 0-8.888-2.472-11.185-6.48l-11.056-19.288a12.892 12.892 0 0 1 0-12.822l11.056-19.288a12.892 12.892 0 0 1 11.184-6.48h21.951Zm-5.187 9.12h-11.576a12.892 12.892 0 0 0-11.179 6.47l-5.842 10.167a12.892 12.892 0 0 0 0 12.846l5.842 10.168a12.892 12.892 0 0 0 11.179 6.47h11.576c4.616 0 8.88-2.468 11.179-6.47l5.842-10.168a12.892 12.892 0 0 0 0-12.846l-5.842-10.168a12.892 12.892 0 0 0-11.179-6.47Zm-4.994 8.729c4.612 0 8.873 2.464 11.173 6.46l.829 1.44a12.892 12.892 0 0 1 0 12.862l-.829 1.44a12.892 12.892 0 0 1-11.173 6.46h-1.588a12.892 12.892 0 0 1-11.173-6.46l-.829-1.44a12.892 12.892 0 0 1 0-12.862l.829-1.44a12.892 12.892 0 0 1 11.173-6.46h1.588Zm-.792 8.599a5.738 5.738 0 0 0-4.97 2.866a5.729 5.729 0 0 0 0 5.732a5.738 5.738 0 0 0 9.937 0a5.729 5.729 0 0 0 0-5.732a5.736 5.736 0 0 0-4.967-2.866Zm-46.509 5.732h10.32" />
+    <svg className="nm-ico" width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      {(Object.keys(DOCK_BLADES) as (keyof typeof DOCK_BLADES)[]).map((edge) => {
+        const [x, y, width, height] = DOCK_BLADES[edge];
+        return (
+          <rect
+            key={edge}
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            rx={0.8}
+            opacity={edge === target ? undefined : 0.35}
+          />
+        );
+      })}
+      {target === "float" && <circle cx={8} cy={8} r={1.3} />}
     </svg>
   );
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
-  if (name === "redux") return <ReduxMark size={size} />;
-  if (name === "query") return <QueryMark size={size} />;
+  const glyph = SOURCE_GLYPHS[name];
+  if (glyph)
+    return (
+      <svg
+        className="nm-ico"
+        width={size}
+        height={size}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        {glyph[1] && <path d={glyph[1]} fill="currentColor" fillOpacity="0.22" stroke="none" />}
+        <path d={glyph[0]} />
+        {glyph[2] && <path d={glyph[2]} fill="currentColor" stroke="none" />}
+      </svg>
+    );
+  if (name.startsWith("dock-")) return <DockMark target={name.slice(5)} size={size} />;
   return (
     <svg
       className="nm-ico"
@@ -173,36 +231,6 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M5.6 13.4v-3.5h4.8v3.5" />
         </>
       )}
-      {name === "dock-bottom" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M2.4 9.6h11.2" />
-        </>
-      )}
-      {name === "dock-right" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M9.6 2.6v10.8" />
-        </>
-      )}
-      {name === "dock-top" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M2.4 6.4h11.2" />
-        </>
-      )}
-      {name === "dock-left" && (
-        <>
-          <rect x="2.4" y="2.6" width="11.2" height="10.8" rx="1.8" />
-          <path d="M6.4 2.6v10.8" />
-        </>
-      )}
-      {name === "dock-float" && (
-        <>
-          <rect x="1.8" y="3.4" width="8.4" height="7.2" rx="1.5" />
-          <rect x="5.8" y="5.6" width="8.4" height="7.2" rx="1.5" />
-        </>
-      )}
       {name === "replay" && (
         <>
           <path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75" />
@@ -237,16 +265,6 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <path d="M4.4 6.6h.01M6.9 6.6h.01M9.4 6.6h.01M11.9 6.6h.01M4.4 9.4h7.2" />
         </>
       )}
-      {/* A socket: the ring is the open connection, the two darts are a frame
-          going each way. The same ring as the globe, so Network and Realtime
-          read as a pair - one request out and back, one line held open. */}
-      {name === "bolt" && (
-        <>
-          <circle cx="8" cy="8" r="6.4" fill="currentColor" fillOpacity="0.18" />
-          <path d="M11.3 4.3 6.6 7.7h2.3z" fill="currentColor" strokeWidth="1" />
-          <path d="M4.7 11.7 9.4 8.3H7.1z" fill="currentColor" strokeWidth="1" />
-        </>
-      )}
       {name === "density" && (
         <>
           <path d="M2.6 4h10.8M2.6 8h10.8M2.6 12h10.8" />
@@ -259,17 +277,6 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
           <circle cx="12.6" cy="8" r="1.25" />
         </g>
       )}
-      {/* Network and Realtime have no logo to borrow, so they are drawn here —
-          filled, to carry the same weight as the Redux and Query marks beside
-          them at 12px in the collapsed sidebar and the launcher. */}
-      {name === "globe" && (
-        <>
-          <circle cx="8" cy="8" r="6.4" fill="currentColor" fillOpacity="0.18" />
-          <path d="M1.6 8h12.8" />
-          <path d="M8 1.6a9.3 9.3 0 0 0 0 12.8 9.3 9.3 0 0 0 0-12.8z" />
-        </>
-      )}
-
       {/* Half-filled circle — the universal "appearance" mark, and readable at
           13px where a paint-roller or palette silhouette is not. */}
       {name === "theme" && (

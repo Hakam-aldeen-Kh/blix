@@ -3,20 +3,24 @@
 /**
  * Dev Tools — the launcher, plus its drag ghost and corner drop zones.
  *
- * The panel collapsed to one line: same height as the header, same wordmark,
- * same capture dot. A launcher that looks like a different product from the
- * thing it launches is a thing you have to learn twice.
+ * The panel collapsed to one line: same height as the header, same mark and
+ * wordmark. A launcher that looks like a different product from the thing it
+ * launches is a thing you have to learn twice.
  *
- * **The dot is capture state, not buffer state.** It used to carry the worst
- * status in the log — which is the failing count, two segments along, said
- * again in a different shape. Whether capture is *running* is the one fact
- * nothing else on the badge carries.
+ * **The dot is capture state, not buffer state.** It is the mark's REC light:
+ * there while capture runs, gone while it is paused. It used to carry the
+ * worst status in the log — which is the failing count, two segments along,
+ * said again in a different shape — and it never does again, red as it now
+ * is. Whether capture is *running* is the one fact nothing else on the badge
+ * carries. The green blade is the edge the panel will open on.
  */
 
-import type { Corner, MonitorState, Pos } from "../../capture/monitorTypes";
+import type { Corner, DockMode, MonitorState, Pos } from "../../capture/monitorTypes";
 import { MARGIN } from "../constants/ui";
 import { nearestCorner } from "../hooks/useFabDrag";
 import type { Section } from "../types/monitorUi";
+import { BlixMark } from "./BlixMark";
+import { BlixWordmark } from "./BlixWordmark";
 import { Icon } from "./Icon";
 import { SECTION_DEFS } from "./SourcesRail";
 
@@ -74,13 +78,21 @@ const CORNERS: { id: Corner; label: string }[] = [
   { id: "bottom-right", label: "Bottom right" },
 ];
 
-/** One constant for the badge and its ghost — they are the same object to the
- * reader, and had drifted apart into two different words. Lower case, to
- * match the wordmark in the header. */
-const BADGE_LABEL = "blix";
+/** One lockup for the badge and its ghost — they are the same object to the
+ * reader, and had drifted apart once already. Mark 18px, wordmark at the old
+ * label's size. */
+function Brand({ dock, paused, live }: { dock: DockMode; paused: boolean; live?: boolean }) {
+  return (
+    <span className="nm-fab-brand">
+      <BlixMark size={18} dock={dock} capture={paused ? "paused" : "on"} live={live} />
+      <BlixWordmark height={11} />
+    </span>
+  );
+}
 
 export function MonitorFab({
   paused,
+  dock,
   total,
   counts,
   sourceErrors,
@@ -88,9 +100,11 @@ export function MonitorFab({
   pending,
   onPointerDown,
 }: {
+  /** Where the panel opens — the lit blade. */
+  dock: DockMode;
   /** Failing entries per source, shown beside each source's count. */
   sourceErrors: Record<Section, number>;
-  /** Capture is stopped. Colours the dot amber rather than green. */
+  /** Capture is stopped. Takes the REC dot away. */
   paused: boolean;
   total: number;
   /** Entries per source, for the per-source segments. */
@@ -109,10 +123,7 @@ export function MonitorFab({
       aria-label={`Blix — ${total} captured${errors > 0 ? `, ${errors} failing` : ""}`}
       title="Blix — click to open, drag to a corner"
     >
-      <span className="nm-fab-brand">
-        <span className="nm-fab-dot" />
-        <span className="nm-fab-label">{BADGE_LABEL}</span>
-      </span>
+      <Brand dock={dock} paused={paused} live={pending > 0} />
       <span className="nm-fab-sep" />
       <span className="nm-fab-stats">
         <SourceCounts counts={counts} errors={sourceErrors} />
@@ -127,10 +138,12 @@ export function MonitorFab({
 export function FabDragPreview({
   pos,
   paused,
+  dock,
   counts,
 }: {
   pos: Pos;
   paused: boolean;
+  dock: DockMode;
   counts: Record<Section, number>;
 }) {
   const target = nearestCorner(pos.x, pos.y);
@@ -140,6 +153,7 @@ export function FabDragPreview({
         <span
           key={c.id}
           className={`nm-zone${target === c.id ? " active" : ""}`}
+          data-corner={c.id}
           style={CORNER_STYLE[c.id]}
         >
           {c.label}
@@ -150,10 +164,7 @@ export function FabDragPreview({
         data-paused={paused || undefined}
         style={{ left: pos.x, top: pos.y }}
       >
-        <span className="nm-fab-brand">
-          <span className="nm-fab-dot" />
-          <span className="nm-fab-label">{BADGE_LABEL}</span>
-        </span>
+        <Brand dock={dock} paused={paused} />
         <span className="nm-fab-sep" />
         <span className="nm-fab-stats">
           <SourceCounts counts={counts} />

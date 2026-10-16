@@ -188,7 +188,7 @@ function Page() {
       <p>
         axios (1.5s timeout, errors replaced by the app):{" "}
         <button onClick={() => swallow(api.get("/api/tickets/getAll?i=2"))}>ok</button>
-        <button onClick={() => swallow(api.post("/api/tickets/update?status=500", { id: 1 }))}>500</button>
+        <button onClick={() => swallow(api.post("/api/tickets/update?i=1&status=500", { id: 1 }))}>500</button>
         <button onClick={() => swallow(api.get("/api/tickets/getAll?delay=4000"))}>timeout</button>
         <button onClick={() => swallow(api.get("http://localhost:1/api/down"))}>network down</button>
         <button onClick={() => swallow(api.get("/api/tickets/getAll", { headers: { "x-throw": "1" } }))}>

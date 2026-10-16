@@ -29,6 +29,7 @@ import { toCurl } from "../services/snippets";
 import type { DataFormat, Resolved, SectionNouns, Tab } from "../types/monitorUi";
 import { DiffTab } from "./tabs/DiffTab";
 import { DataView, PayloadToolbarSlot } from "./DataView";
+import { BlixMark } from "./BlixMark";
 import { Icon } from "./Icon";
 import { ScrollStrip } from "./ScrollStrip";
 import { MessagesTab } from "./tabs/MessagesTab";
@@ -318,9 +319,7 @@ function EmptyDetail({
 }) {
   return (
     <div className="nm-empty nm-empty-detail">
-      <span className="nm-empty-ico">
-        <Icon name="rows" size={20} />
-      </span>
+      <BlixMark size={40} dock="bottom" capture="none" idle />
       <div className="nm-empty-copy">
         <p className="nm-empty-title">{title}</p>
         <p className="nm-empty-sub">{sub}</p>
@@ -476,7 +475,7 @@ export function DetailPane({
    * one 27px line, and the tabs scroll while the tools cannot - so below this
    * the tools take a row of their own rather than a sliver of that one.
    */
-  const sharesTabRow = paneSize.width === 0 || paneSize.width >= 560;
+  const sharesTabRow = paneSize.width === 0 || paneSize.width >= 760;
   const { store, apiClient } = useContext(BlixContext);
   const entry = resolved.entry;
 
@@ -620,7 +619,17 @@ export function DetailPane({
         <div className="nm-detail-id">
           <span className="nm-detail-status">{entryStatusLabel(entry)}</span>
           <span className="nm-detail-method">{entry.transport ?? entry.method}</span>
-          <span className="nm-detail-reason">{reasonOf(entry)}</span>
+          {(() => {
+            // Outside HTTP the reason slot can repeat a word already on this
+            // line — "open … Open", "QUERY Query", a slice beside itself.
+            const reason = reasonOf(entry);
+            const said = [entryStatusLabel(entry), entry.transport ?? entry.method].map((s) =>
+              String(s ?? "").toLowerCase(),
+            );
+            return reason && !said.includes(reason.toLowerCase()) ? (
+              <span className="nm-detail-reason">{reason}</span>
+            ) : null;
+          })()}
           <span className="nm-detail-gap" />
           {metaOf(entry).map((part) => (
             <span className="nm-detail-meta" key={part}>

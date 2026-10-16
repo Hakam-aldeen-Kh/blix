@@ -642,17 +642,15 @@ export function useDockGeometry(
     [panelRef, splitAxis, splitH, splitW],
   );
 
+  // Full-width docks are pinned by both edges, never sized in vw: 100vw
+  // includes the page's vertical scrollbar, so a panel that wide slid its
+  // last ~15px - the close button among them - underneath it.
   const panelStyle: React.CSSProperties = maximized
-    ? {
-        left: MARGIN,
-        top: MARGIN,
-        width: `calc(100vw - ${MARGIN * 2}px)`,
-        height: `calc(100vh - ${MARGIN * 2}px)`,
-      }
+    ? { left: MARGIN, top: MARGIN, right: MARGIN, bottom: MARGIN }
     : mode === "bottom"
-      ? { left: 0, right: 0, bottom: 0, width: "100vw", height: dockExtent }
+      ? { left: 0, right: 0, bottom: 0, height: dockExtent }
       : mode === "top"
-        ? { left: 0, right: 0, top: 0, width: "100vw", height: dockExtent }
+        ? { left: 0, right: 0, top: 0, height: dockExtent }
         : mode === "right"
           ? { top: 0, right: 0, bottom: 0, width: dockExtent, height: "100vh" }
           : mode === "left"

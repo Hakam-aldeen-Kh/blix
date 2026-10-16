@@ -115,9 +115,11 @@ export function entryStatusLabel(entry: MonitorEntry): string {
       return n ? `±${n}${diff?.truncated ? "+" : ""}` : "—";
     }
     case "query":
-      if (entry.state === "pending") return "•••";
-      if (entry.state === "error") return "ERR";
-      return (entry.query?.status ?? "OK").toUpperCase().slice(0, 4);
+      // Words, as on Network: the first four letters of "success" read as
+      // nothing in particular.
+      if (entry.state === "pending") return "fetching";
+      if (entry.state === "error") return "error";
+      return entry.query?.status ?? "success";
     default:
       // Words, not glyphs. The column is monospace text now rather than a
       // pill, and "pending" and "aborted" are states a code cannot express —

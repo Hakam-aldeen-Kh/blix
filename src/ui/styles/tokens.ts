@@ -62,6 +62,7 @@ const SIZES = `
      show, so nothing shifts when a pin appears on hover or an entry gains a
      cross-source link. The column head reads the same tokens, so the two can
      never drift apart. */
+  --bx-col-dot:     16px;   /* the status dot that leads every row */
   --bx-col-pin:     20px;
   --bx-col-method:  52px;
   --bx-col-size:    64px;
@@ -78,6 +79,11 @@ const SIZES = `
      spaced items that happen to be near each other. */
   --bx-1: 2px; --bx-2: 4px; --bx-3: 6px; --bx-4: 10px;
   --bx-5: 14px; --bx-6: 22px; --bx-7: 36px;
+
+  /* Motion (BRAND_BOOK §7): slow start, hard landing, like a shutter. Hover
+     and toggles 120ms, panels and menus 200ms; status changes do not animate
+     at all, and data never animates in. */
+  --bx-ease: cubic-bezier(.7, 0, .2, 1);
 
   --bx-r-ctl: 3px; --bx-r-pop: 5px; --bx-r-modal: 6px;
   /* The launcher's own corner, and the floor for it: the panel overwrites
@@ -112,15 +118,46 @@ const RESET = `
   font-size: var(--bx-fs-sm);
   line-height: 1.45;
   letter-spacing: normal;
+  word-spacing: normal;
+  font-weight: 400;
+  font-style: normal;
+  text-transform: none;
+  text-shadow: none;
+  text-indent: 0;
+  white-space: normal;
   color: var(--bx-fg);
 }
 .nm-root * {
   font-family: inherit;
   font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
   line-height: inherit;
   letter-spacing: inherit;
+  word-spacing: inherit;
+  text-transform: inherit;
+  text-shadow: inherit;
+  text-indent: 0;
   color: inherit;
+  margin: 0;
 }
+/* The emphasis the panel's markup means. A host reset that flattens
+   b and strong, or one that makes them heavier, no longer reaches here. */
+.nm-root :where(b, strong) { font-weight: 700; }
+/* Form controls are where host stylesheets do the most: Bootstrap's reboot,
+   Tailwind's preflight and a bare button { margin: ... } all land on them.
+   Every panel control sets what it wants on top of this; nothing it does not
+   set is left to the host. :where() keeps this at one class of specificity. */
+.nm-root :where(button, input, select, textarea) {
+  padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none;
+  width: auto; height: auto; min-width: 0; min-height: 0; max-width: none;
+  text-align: inherit; vertical-align: middle;
+}
+.nm-root :where(button, input) { -webkit-appearance: none; appearance: none; }
+.nm-root :where(button) { cursor: pointer; text-align: center; }
+.nm-root :where(ol, ul) { padding: 0; list-style: none; }
+.nm-root :where(svg) { max-width: none; }
 `;
 
 export const TOKENS_CSS = [SIZES, RESET].join("\n");

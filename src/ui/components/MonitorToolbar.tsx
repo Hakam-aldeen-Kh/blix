@@ -25,6 +25,9 @@
 
 import type { DockMode } from "../../capture/monitorTypes";
 import { useRef } from "react";
+import { PALETTE_KEY } from "../constants/ui";
+import { BlixMark } from "./BlixMark";
+import { BlixWordmark } from "./BlixWordmark";
 import { Icon } from "./Icon";
 import type { MenuAnchor } from "./Menu";
 
@@ -61,6 +64,8 @@ export interface ToolbarProps {
   compact: boolean;
   tiny: boolean;
   mode: DockMode;
+  /** Requests in flight — the mark's REC dot pulses. */
+  live: boolean;
   onMode: (mode: DockMode) => void;
   maximized: boolean;
   onToggleMaximize: () => void;
@@ -109,6 +114,7 @@ export function MonitorToolbar(props: ToolbarProps) {
     compact,
     tiny,
     mode,
+    live,
     onMode,
     maximized,
     onToggleMaximize,
@@ -157,7 +163,14 @@ export function MonitorToolbar(props: ToolbarProps) {
         </button>
       )}
 
-      <span className="nm-title">blix</span>
+      {/* The full-colour mark: green blade on the edge the panel is docked to,
+          the REC dot while capture runs. The chip beside it still says which
+          in words. The blades open once when the panel mounts — a dock change
+          re-renders without remounting, so it cuts, as a state change should. */}
+      <span className="nm-title">
+        <BlixMark size={14} dock={mode} capture={paused ? "paused" : "on"} live={live} />
+        <BlixWordmark height={10} title="blix" />
+      </span>
 
       <button
         type="button"
@@ -168,7 +181,7 @@ export function MonitorToolbar(props: ToolbarProps) {
         title={paused ? "Resume capturing (Space)" : "Pause capturing (Space)"}
       >
         <span className="nm-chip-dot" />
-        <span>{paused ? "paused" : "capturing"}</span>
+        <span>{paused ? "paused" : "recording"}</span>
       </button>
 
       {/* The field is inside the drag handle; a press that lands on it must put
@@ -184,7 +197,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           onChange={(e) => onQuery(e.target.value)}
           spellCheck={false}
           aria-label="Filter requests"
-          placeholder="method:post   is:error   route:tickets   -cached"
+          placeholder="method:post   is:error   url:tickets   -status:2xx"
         />
         {searching && (
           <>
@@ -213,7 +226,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           {".*"}
         </button>
         <button type="button" className="nm-kbd" onClick={onOpenPalette} title="Command palette">
-          ⌘K
+          {PALETTE_KEY}
         </button>
       </div>
 

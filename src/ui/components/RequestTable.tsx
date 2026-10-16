@@ -46,6 +46,15 @@ import { Icon } from "./Icon";
 /** The two sortable column labels, per section. Between them they cover the
  * two questions a list is sorted by in practice: what failed, and what was
  * slow. */
+/** The two leading column labels, per section — the verb and the route on
+ * Network, the kind of entry and what identifies it on the other three. */
+const LEAD_COLUMNS: Record<Section, [string, string]> = {
+  network: ["METHOD", "ROUTE"],
+  realtime: ["VIA", "URL"],
+  redux: ["TYPE", "ACTION"],
+  query: ["TYPE", "KEY"],
+};
+
 const COLUMNS: Record<Section, [string, string]> = {
   network: ["STATUS", "TIME"],
   realtime: ["STATE", "OPEN"],
@@ -60,8 +69,13 @@ const COLUMNS: Record<Section, [string, string]> = {
  */
 function methodLabel(entry: MonitorEntry): string {
   switch (entry.kind ?? "http") {
-    case "ws":
-      return (entry.transport ?? "WS").slice(0, 6).toUpperCase();
+    case "ws": {
+      // The column fits six characters. A longer transport name cut to six
+      // reads as a different word ("actioncable" became ACTION), so it falls
+      // back to WS; the detail pane names the transport in full.
+      const t = entry.transport ?? "WS";
+      return t.length <= 6 ? t.toUpperCase() : "WS";
+    }
     case "redux":
       // The slice now leads the ROUTE column, so repeating it here would say
       // the same thing twice in the two columns that sit side by side.
@@ -304,6 +318,7 @@ export function RequestTable({
 }) {
   const slice = rows.slice(virtual.window.start, virtual.window.end);
   const [statusCol, timeCol] = COLUMNS[section];
+  const [methodCol, routeCol] = LEAD_COLUMNS[section];
   const gridRef = useRef<HTMLDivElement | null>(null);
 
   // The roving tabstop, when nothing is selected, is the first row — so Tab
@@ -390,10 +405,10 @@ export function RequestTable({
         >
           <span className="nm-col-lead" data-col="pin" role="columnheader" aria-label="Pin" />
           <span className="nm-col-method" data-col="method" role="columnheader">
-            METHOD
+            {methodCol}
           </span>
           <span className="nm-col-route" role="columnheader">
-            ROUTE
+            {routeCol}
           </span>
           <span className="nm-col-size" data-col="size" role="columnheader">
             SIZE

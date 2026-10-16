@@ -35,6 +35,22 @@ function fullUrl(entry: MonitorEntry): string {
   return `${entry.baseURL ?? ""}${entry.url ?? ""}`;
 }
 
+/**
+ * The request URL resolved against the page it was made from. A `fetch("/api")`
+ * or an axios instance with no `baseURL` records a relative URL, which the
+ * page's own `fetch` understands but `curl` and a HAR reader do not. Left as
+ * recorded outside a browser, or when it does not parse.
+ */
+export function absoluteUrl(entry: MonitorEntry): string {
+  const raw = fullUrl(entry);
+  if (typeof location === "undefined") return raw;
+  try {
+    return new URL(raw, location.href).href;
+  } catch {
+    return raw;
+  }
+}
+
 /** The request body as text, or `null` when there is nothing to send — no
  * body, or a value with no text form (a function, a symbol). */
 function bodyText(entry: MonitorEntry): string | null {
@@ -70,7 +86,7 @@ const safeMethod = (m: string | undefined): string =>
  * rewrites. Not for cmd.exe or PowerShell, which quote differently.
  */
 export function toCurl(entry: MonitorEntry): string {
-  const parts = [`curl ${q(fullUrl(entry))}`, `  -X ${q(safeMethod(entry.method))}`];
+  const parts = [`curl ${q(absoluteUrl(entry))}`, `  -X ${q(safeMethod(entry.method))}`];
 
   for (const [k, v] of Object.entries(entry.requestHeaders ?? {})) {
     parts.push(`  -H ${q(oneLine(`${k}: ${v}`))}`);

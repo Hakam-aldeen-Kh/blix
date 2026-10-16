@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-16
+
+The panel on the new Blix identity: graphite grounds, grey that carries, and
+green and red only where something is happening.
+
+### Changed
+
+- New default themes, `blix` and `blix-light`. A panel on the "auto"
+  appearance switches to them on upgrade; one where a theme was chosen
+  explicitly — Midnight included — keeps it. The other twelve themes are
+  unchanged and still in the Appearance menu.
+- The launcher and header carry the Blix mark: the docked edge's blade is
+  green, and a red dot shows while capture is running. A paused panel shows
+  no dot. Failures never appear on the mark.
+- The capture chip reads RECORDING or PAUSED, with the same red dot and an
+  amber square.
+- Request rows lead with a status dot: round when the request worked, square
+  when it failed, hollow while in flight. Failing rows are tinted; a selected
+  failure stays red. 2xx status codes are grey.
+- Waterfall bars are one neutral colour — green on the selected row, red on
+  failures — so they compare as lengths.
+- The state filters are pills, and only the error count is coloured.
+- The sidebar has new line icons for the four sources, in each source's
+  colour, and shows how many entries failed beside each source's count.
+- The detail pane colours the status code only; Replay, Pin and cURL are
+  plain outline buttons; the active tab is underlined in the text colour.
+- Menus and the command palette mark the selected item with a background
+  step instead of the accent colour, and group labels are mono capitals.
+- Empty sources show the idle mark and "Nothing captured on Network yet."
+  The setup snippets stay.
+- While dragging the launcher, each corner shows the slot it would land in,
+  and the one under the pointer is outlined in green.
+- Transitions use one easing curve: 120ms for hovers, 200ms for panels and
+  menus. With reduced motion requested, nothing in the panel animates.
+
+### Fixed
+
+- Panels docked to the top or bottom no longer extend under the page's
+  scrollbar, which hid the close button and the right edge of the panel.
+
+### Removed
+
+- The Redux and TanStack Query logos in the sidebar and launcher, replaced by
+  the new source icons. This also makes the bundle slightly smaller.
+
 ## [0.11.0] - 2026-10-10
 
 Failures recorded whole, the browser's own timing on every request, docks on

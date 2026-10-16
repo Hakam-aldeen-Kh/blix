@@ -11,13 +11,15 @@
  * where the width breakpoints dropped them first and nobody looked.
  *
  * A source row is its icon, its name and its count — one number, which is
- * the one that changes. The number key that selects it used to be printed
+ * the one that changes — and, once something in it has failed, how many, in
+ * red behind a square marker so it is never colour alone. The number key that selects it used to be printed
  * beside the count, and two bare digits side by side read as one figure
  * ("72 1"); the key is in the row's tooltip and the shortcuts sheet instead.
  */
 
 import { formatBytes, formatDuration } from "../helpers/format";
 import type { Section } from "../types/monitorUi";
+import { PALETTE_KEY } from "../constants/ui";
 import { Icon, type IconName } from "./Icon";
 
 /** Top-level sources, in display and hotkey order. */
@@ -47,6 +49,7 @@ export function SourcesRail({
   mini,
   section,
   counts,
+  errors,
   stats,
   onSection,
   onToggle,
@@ -58,6 +61,8 @@ export function SourcesRail({
   mini: boolean;
   section: Section;
   counts: Record<Section, number>;
+  /** Failing entries per source. */
+  errors: Record<Section, number>;
   stats: SessionStats;
   onSection: (section: Section) => void;
   onToggle: () => void;
@@ -103,6 +108,7 @@ export function SourcesRail({
         {SECTION_DEFS.map((s) => {
           const empty = counts[s.id] === 0;
           const active = section === s.id;
+          const failed = errors[s.id];
           return (
             <button
               type="button"
@@ -112,13 +118,14 @@ export function SourcesRail({
               data-src={s.id}
               className={`nm-rail-item${active ? " active" : ""}${empty ? " nm-rail-empty" : ""}`}
               onClick={() => onSection(s.id)}
-              title={`${s.title} — ${counts[s.id]}`}
+              title={`${s.title} — ${counts[s.id]}${failed > 0 ? `, ${failed} failing` : ""}`}
             >
               <span className="nm-rail-ico">
                 <Icon name={s.icon} size={14} />
               </span>
               <span className="nm-rail-name">{s.label}</span>
               <span className="nm-rail-n">{counts[s.id]}</span>
+              {failed > 0 && <span className="nm-rail-bad">{failed}</span>}
             </button>
           );
         })}
@@ -145,14 +152,14 @@ export function SourcesRail({
           className="nm-rail-cmd"
           onClick={onOpenPalette}
           aria-label="All commands"
-          title="All commands (⌘K)"
+          title={`All commands (${PALETTE_KEY})`}
         >
           {mini ? (
             <Icon name="search" size={12} />
           ) : (
             <>
               <span>All commands</span>
-              <span className="nm-rail-key">⌘K</span>
+              <span className="nm-rail-key">{PALETTE_KEY}</span>
             </>
           )}
         </button>
