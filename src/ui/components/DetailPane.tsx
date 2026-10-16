@@ -476,7 +476,7 @@ export function DetailPane({
    * one 27px line, and the tabs scroll while the tools cannot - so below this
    * the tools take a row of their own rather than a sliver of that one.
    */
-  const sharesTabRow = paneSize.width === 0 || paneSize.width >= 560;
+  const sharesTabRow = paneSize.width === 0 || paneSize.width >= 760;
   const { store, apiClient } = useContext(BlixContext);
   const entry = resolved.entry;
 

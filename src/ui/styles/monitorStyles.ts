@@ -1759,7 +1759,7 @@ const RESPONSIVE = `
    carries, and the link ticks are a shortcut to something the detail pane
    still shows. Collapsed to zero width rather than display:none, so the row
    keeps its nine children and nothing downstream has to know. */
-@container nmlist (max-width: 560px) {
+@container nmlist (max-width: 640px) {
   .nm-col-timing, .nm-cols .nm-axis { width: 0; overflow: hidden; }
   .nm-col-links { width: 0; overflow: hidden; }
 }
@@ -1779,6 +1779,10 @@ const RESPONSIVE = `
 @container nmlist (max-width: 340px) {
   .nm-col-method { width: 0; overflow: hidden; padding-left: 0; }
   .nm-col-pin { width: 0; overflow: hidden; }
+  /* With both gone the route would start on the status rail itself, and its
+     label would still sit past the pin track that no longer exists. */
+  .nm-cols .nm-col-lead { width: var(--bx-rail); }
+  .nm-trow > .nm-col-route, .nm-cols > .nm-col-route { padding-left: var(--bx-4); }
 }
 
 /* Written as a container query on height, this never applied: the panel is
@@ -1823,6 +1827,14 @@ const RESPONSIVE = `
 /* The name truncates long before this; below it the whole chip goes, because
    the button has no icon of its own and an empty one says nothing. */
 @container nm (max-width: 440px) { .nm-statusbar .nm-status-db { display: none; } }
+/* The right group opens with whichever segment is still showing. Its first
+   two can go, and the one after them would otherwise lead with a slash. */
+@container nm (max-width: 640px) {
+  .nm-statusbar .nm-status-commands + .nm-statusbar-seg > .nm-statusbar-sep { display: none; }
+}
+@container nm (max-width: 440px) {
+  .nm-statusbar .nm-status-db + .nm-statusbar-seg > .nm-statusbar-sep { display: none; }
+}
 
 /* The floating panel must never exceed the viewport on a small screen. */
 .nm-panel.nm-dock-float { max-width: 100vw; max-height: 100vh; }
