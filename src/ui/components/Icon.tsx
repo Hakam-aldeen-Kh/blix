@@ -53,12 +53,28 @@ export type IconName =
  * Redux and TanStack logos, which painted their own colours and were the two
  * glyphs in the panel that could never go quiet.
  */
-const SOURCE_GLYPHS: Partial<Record<IconName, string>> = {
-  globe: "M8 20V4M4 8l4-4 4 4M16 4v16M12 16l4 4 4-4",
-  bolt: "M3 12h4l2.5-6 5 12 2.5-6h4",
-  redux: "M12 3 3 8l9 5 9-5-9-5ZM3 12l9 5 9-5M3 16l9 5 9-5",
-  query:
-    "M4.5 5.5c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5S16.1 3 12 3 4.5 4.1 4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5",
+/* Drawn on the same 16 grid as every other glyph, so a 1.5 stroke lands at a
+   real pixel at 13-15px instead of the hairline a 24 grid gave. Each has a
+   stroke and a soft wash of its own colour behind its main shape, for weight:
+   [stroke, wash, solid]. */
+const SOURCE_GLYPHS: Partial<Record<IconName, [string, string?, string?]>> = {
+  // Request out, response back.
+  globe: [
+    "M5 13V3M2.5 5.5 5 3l2.5 2.5M11 3v10M8.5 10.5 11 13l2.5-2.5",
+  ],
+  // A socket held open: a source broadcasting both ways.
+  bolt: [
+    "M5.6 5.4a3.6 3.6 0 0 0 0 5.2M10.4 5.4a3.6 3.6 0 0 1 0 5.2M3.4 3.2a6.6 6.6 0 0 0 0 9.6M12.6 3.2a6.6 6.6 0 0 1 0 9.6",
+    undefined,
+    "M8 6.4a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z",
+  ],
+  // Stacked state.
+  redux: ["M8 2 2 5l6 3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3", "M8 2 2 5l6 3 6-3z"],
+  // A cache.
+  query: [
+    "M3 4.2c0 1 2.2 1.8 5 1.8s5-.8 5-1.8S10.8 2.4 8 2.4 3 3.2 3 4.2v7.6c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4.2M3 8c0 1 2.2 1.8 5 1.8S13 9 13 8",
+    "M3 4.2c0 1 2.2 1.8 5 1.8s5-.8 5-1.8S10.8 2.4 8 2.4 3 3.2 3 4.2z",
+  ],
 };
 
 /** The mark's blades (BRAND_BOOK §2) scaled onto the 16-unit icon grid. */
@@ -105,7 +121,7 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
         className="nm-ico"
         width={size}
         height={size}
-        viewBox="0 0 24 24"
+        viewBox="0 0 16 16"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
@@ -113,7 +129,9 @@ export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
         strokeLinejoin="round"
         aria-hidden
       >
-        <path d={glyph} />
+        {glyph[1] && <path d={glyph[1]} fill="currentColor" fillOpacity="0.22" stroke="none" />}
+        <path d={glyph[0]} />
+        {glyph[2] && <path d={glyph[2]} fill="currentColor" stroke="none" />}
       </svg>
     );
   if (name.startsWith("dock-")) return <DockMark target={name.slice(5)} size={size} />;
