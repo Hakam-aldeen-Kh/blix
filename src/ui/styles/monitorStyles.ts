@@ -837,6 +837,11 @@ const DETAIL = `
 /* The one outlined action in the pane: it re-runs a request against the live
    backend, which is not the same kind of thing as copying a URL. */
 .nm-dbtn-primary { border-color: var(--bx-accent); color: var(--bx-accent); }
+/* Disabled reads as disabled even on the outlined action: an accent border on
+   a button that cannot be pressed invites the press. */
+.nm-dbtn:disabled, .nm-dbtn-primary:disabled {
+  border-color: var(--bx-line-strong); color: var(--bx-fg-3); background: transparent;
+}
 .nm-dbtn-on { background: var(--bx-sel); color: var(--bx-fg); }
 .nm-dbtn-sq { width: 22px; padding: 0; justify-content: center; }
 .nm-dbtn-gap { flex: 1 1 auto; }
@@ -907,8 +912,9 @@ const DETAIL = `
   display: none; align-items: center; justify-content: center; padding: 0;
   background: var(--bx-bar); border: 0; color: var(--bx-fg-3); cursor: pointer;
 }
-.nm-strip-nav-s { left: 0; }
-.nm-strip-nav-e { right: 0; transform: scaleX(-1); }
+/* The chevron glyph points right, so it is the start arrow that is mirrored. */
+.nm-strip-nav-s { left: 0; transform: scaleX(-1); }
+.nm-strip-nav-e { right: 0; }
 .nm-strip-s .nm-strip-nav-s, .nm-strip-e .nm-strip-nav-e { display: flex; }
 
 .nm-tab {
