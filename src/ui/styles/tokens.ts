@@ -80,6 +80,11 @@ const SIZES = `
   --bx-1: 2px; --bx-2: 4px; --bx-3: 6px; --bx-4: 10px;
   --bx-5: 14px; --bx-6: 22px; --bx-7: 36px;
 
+  /* Motion (BRAND_BOOK §7): slow start, hard landing, like a shutter. Hover
+     and toggles 120ms, panels and menus 200ms; status changes do not animate
+     at all, and data never animates in. */
+  --bx-ease: cubic-bezier(.7, 0, .2, 1);
+
   --bx-r-ctl: 3px; --bx-r-pop: 5px; --bx-r-modal: 6px;
   /* The launcher's own corner, and the floor for it: the panel overwrites
      this from the stored setting, the same way it writes the row height. */

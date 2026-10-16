@@ -50,8 +50,8 @@ const BASE = `
   direction: ltr; text-align: left;
   -webkit-font-smoothing: antialiased;
 
-  --nm-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --nm-ease: cubic-bezier(.22,1,.36,1);
+  --nm-mono: var(--bx-font-mono);
+  --nm-ease: var(--bx-ease);
 
   /* Row height, driven by the density setting. The floor matches the
      default step; the panel overwrites it from constants/ui.ts. */
@@ -131,7 +131,7 @@ const FAB = `
   box-shadow: var(--bx-shadow-fab);
   color: var(--bx-fg-2); font-size: var(--bx-fs-sm);
   cursor: grab; overflow: hidden; touch-action: none; user-select: none;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-fab:hover { border-color: var(--bx-accent); }
 .nm-fab:active { cursor: grabbing; }
@@ -178,7 +178,7 @@ const FAB = `
   border: 1px dashed var(--bx-line-strong); background: var(--bx-hover);
   font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
   pointer-events: none; z-index: 2147483646;
-  transition: background-color 90ms linear, border-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-zone.active {
   border-style: solid; border-color: var(--bx-accent);
@@ -195,7 +195,7 @@ const PANEL = `
   background: var(--nm-surface); border: 1px solid var(--nm-line); color: var(--nm-txt);
   border-radius: var(--bx-r-modal);
   box-shadow: var(--nm-shadow-panel);
-  animation: nm-in .18s var(--nm-ease);
+  animation: nm-in .2s var(--nm-ease);
 }
 /* Docks sit flush against their edge and read against the app via a strong
    border plus an outward shadow. */
@@ -228,14 +228,14 @@ const PANEL = `
 .nm-panel.nm-dock-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .nm-panel.nm-max { border-radius: var(--bx-r-modal); }
 .nm-panel.nm-anim {
-  transition: left .3s var(--nm-ease), top .3s var(--nm-ease),
-              width .3s var(--nm-ease), height .3s var(--nm-ease);
+  transition: left .2s var(--nm-ease), top .2s var(--nm-ease),
+              width .2s var(--nm-ease), height .2s var(--nm-ease);
 }
 @keyframes nm-in { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
 
 .nm-resize {
   position: absolute; bottom: 2px; right: 2px; width: 18px; height: 18px; z-index: 5;
-  cursor: nwse-resize; touch-action: none; opacity: .5; transition: opacity .14s ease;
+  cursor: nwse-resize; touch-action: none; opacity: .5; transition: opacity .12s var(--nm-ease);
   background: linear-gradient(-45deg, var(--nm-faint) 0 1.5px, transparent 1.5px),
               linear-gradient(-45deg, transparent 4px, var(--nm-faint) 4px 5.5px, transparent 5.5px),
               linear-gradient(-45deg, transparent 8px, var(--nm-faint) 8px 9.5px, transparent 9.5px);
@@ -246,7 +246,7 @@ const PANEL = `
 .nm-dock-grip { position: absolute; z-index: 6; touch-action: none; }
 .nm-dock-grip::after {
   content: ""; position: absolute; inset: 0; background: transparent;
-  transition: background .14s ease;
+  transition: background .12s var(--nm-ease);
 }
 .nm-dock-grip:hover::after { background: var(--nm-accent); }
 .nm-dock-grip-h { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
@@ -312,7 +312,7 @@ const HEADER = `
   border-radius: 999px;
   font: 500 var(--bx-fs-meta) var(--bx-font-mono); letter-spacing: .08em;
   text-transform: uppercase; color: var(--bx-fg-2); cursor: pointer;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-chip-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
 .nm-chip-ico { display: flex; flex: none; }
@@ -328,7 +328,7 @@ const HEADER = `
   height: 22px; padding: 0 var(--bx-3) 0 8px;
   background: var(--bx-bg); border: 1px solid var(--bx-line-strong);
   border-radius: var(--bx-r-ctl);
-  transition: border-color 90ms linear;
+  transition: border-color .12s var(--nm-ease);
 }
 .nm-filter:focus-within { border-color: var(--bx-accent); }
 .nm-filter-ico { display: flex; flex: none; color: var(--bx-fg-3); }
@@ -347,7 +347,7 @@ const HEADER = `
   height: 16px; padding: 0 var(--bx-3); flex: none; display: flex; align-items: center;
   background: transparent; border: 0; border-radius: 2px; color: var(--bx-fg-3);
   font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta); cursor: pointer;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-filter-x:hover, .nm-filter-re:hover { background: var(--bx-hover); }
 .nm-filter-re.active { color: var(--bx-accent); }
@@ -361,7 +361,7 @@ const HEADER = `
   width: 24px; height: 22px; flex: none; display: flex; align-items: center;
   justify-content: center; padding: 0; background: transparent; border: 0;
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-2); cursor: pointer;
-  transition: background-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-ibtn-quiet { color: var(--bx-fg-3); }
 .nm-ibtn:hover { background: var(--bx-hover); }
@@ -405,7 +405,7 @@ const RAIL = `
   width: 18px; height: 18px; flex: none; display: flex; align-items: center;
   justify-content: center; padding: 0; background: transparent; border: 0;
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-3); cursor: pointer;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-rail-collapse:hover { background: var(--bx-hover); }
 
@@ -419,7 +419,7 @@ const RAIL = `
   padding: 0 12px 0 0; background: transparent; border: 0;
   border-left: var(--bx-rail) solid transparent;
   text-align: left; cursor: pointer;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-rail-item:hover { background: var(--bx-hover); }
 /* Grey carries. The source on screen is the lit one: a step up, ink, and the
@@ -480,7 +480,7 @@ const RAIL = `
   background: transparent; border: 1px solid var(--bx-line-strong);
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-2);
   font-size: var(--bx-fs-sm); cursor: pointer;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-rail-cmd:hover { background: var(--bx-hover); }
 .nm-rail-cmd > span { flex: 1 1 auto; text-align: left; }
@@ -532,13 +532,13 @@ const TABLE = `
 
 .nm-split {
   flex: 0 0 5px; cursor: col-resize; touch-action: none;
-  background: var(--nm-line); position: relative; transition: background .14s ease;
+  background: var(--nm-line); position: relative; transition: background .12s var(--nm-ease);
 }
 .nm-split-v { cursor: row-resize; }
 .nm-split::after {
   content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
   width: 2px; height: 26px; border-radius: 999px; background: var(--nm-line-strong);
-  opacity: .6; transition: opacity .14s ease;
+  opacity: .6; transition: opacity .12s var(--nm-ease);
 }
 .nm-split-v::after { width: 26px; height: 2px; }
 .nm-split::before { content: ""; position: absolute; left: -4px; right: -4px; top: -4px; bottom: -4px; }
@@ -572,7 +572,7 @@ const TABLE = `
   background: transparent; border: 1px solid transparent; border-radius: 999px;
   color: var(--bx-fg-2); font-size: var(--bx-fs-sm); cursor: pointer;
   white-space: nowrap;
-  transition: background-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-fchip:hover { background: var(--bx-hover); }
 .nm-fchip.active { background: var(--bx-sel); border-color: var(--bx-line-strong); color: var(--bx-fg); }
@@ -596,7 +596,7 @@ const TABLE = `
   height: var(--bx-row); padding-right: var(--bx-4);
   border-bottom: 1px solid var(--bx-line-soft);
   cursor: pointer; background: transparent;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 /* A failure is a square dot and a tinted row - never colour alone. Declared
    before hover and selection so both still read on top of it. */
@@ -640,7 +640,7 @@ const TABLE = `
   width: 16px; height: 16px; padding: 0; display: flex; align-items: center;
   justify-content: center; background: transparent; border: 0;
   border-radius: var(--bx-r-ctl); color: var(--bx-mark); cursor: pointer;
-  opacity: 0; transition: background-color 90ms linear, border-color 90ms linear;
+  opacity: 0; transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-trow:hover .nm-pin, .nm-trow:focus-within .nm-pin, .nm-pin.pinned { opacity: 1; }
 .nm-pin.pinned { color: var(--bx-warn); }
@@ -765,7 +765,7 @@ const TABLE = `
 .nm-colhead {
   background: none; border: 0; cursor: pointer; padding: 0;
   font-size: inherit; letter-spacing: inherit; color: inherit;
-  transition: color 90ms linear;
+  transition: color .12s var(--nm-ease);
 }
 .nm-col-status.nm-colhead { padding-right: var(--bx-4); }
 .nm-col-time.nm-colhead { padding-right: 12px; }
@@ -833,7 +833,7 @@ const DETAIL = `
   background: transparent; border: 1px solid var(--bx-line-strong);
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-2);
   font-size: var(--bx-fs-sm); cursor: pointer; white-space: nowrap;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-dbtn:hover { border-color: var(--bx-fg-3); color: var(--bx-fg); }
 .nm-dbtn:disabled { color: var(--bx-fg-3); cursor: not-allowed; }
@@ -919,7 +919,7 @@ const DETAIL = `
   flex: none; padding: 0 var(--bx-4); background: transparent; border: 0;
   border-bottom: 2px solid transparent; color: var(--bx-fg-2);
   font-size: var(--bx-fs-code); cursor: pointer; white-space: nowrap;
-  transition: color 90ms linear, border-color 90ms linear;
+  transition: color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 /* The underline is ink, not a colour: the active tab is a position, not a
    signal, and green and red are kept for signals. */
@@ -958,7 +958,7 @@ const DETAIL = `
   display: flex; align-items: center; flex: none; height: 100%; padding: 0 8px; background: transparent; border: 0;
   border-left: 1px solid var(--bx-line);
   color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer;
-  transition: background-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-fmt-btn:first-child { border-left: 0; }
 .nm-fmt-btn:hover:not(:disabled):not(.active) { background: var(--bx-hover); color: var(--bx-fg); }
@@ -985,7 +985,7 @@ const DETAIL = `
   height: var(--bx-h-ctl-sm); padding: 0 8px; background: transparent;
   border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-ctl);
   color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer; white-space: nowrap;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-copy:hover { background: var(--bx-hover); color: var(--bx-fg); }
 /* On is the same pressed ground the format switch uses - one way of saying
@@ -1063,7 +1063,7 @@ const DETAIL = `
   flex: none; height: var(--bx-h-ctl); padding: 0 var(--bx-4); background: transparent;
   border: 1px solid var(--bx-line-strong); border-radius: var(--bx-r-ctl);
   color: var(--bx-fg); font-size: var(--bx-fs-meta); cursor: pointer;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-empty-btn:hover { background: var(--bx-hover); }
 .nm-empty-list { background: var(--bx-bg); }
@@ -1105,7 +1105,7 @@ const VIEWERS = `
   padding: 2px 9px; border-radius: 6px; border: 1px solid transparent;
   background: transparent; color: var(--nm-muted); cursor: pointer;
   white-space: nowrap;
-  transition: color .14s ease, background .14s ease, border-color .14s ease;
+  transition: color .12s var(--nm-ease), background .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 /* Quiet by default. Twenty outlined pills read as twenty things demanding
    attention; the only chips that earn a border are the selected one and the
@@ -1179,7 +1179,7 @@ const VIEWERS = `
 .nm-jcaret {
   flex-shrink: 0; width: 18px; padding: 0 0 0 4px; border: none; background: transparent;
   font-family: inherit; font-size: 9px; line-height: inherit; text-align: left;
-  color: var(--nm-faint); cursor: pointer; transition: color .12s ease;
+  color: var(--nm-faint); cursor: pointer; transition: color .12s var(--nm-ease);
   user-select: none; -webkit-user-select: none;
 }
 .nm-jcaret::before { content: "\\25BE"; }
@@ -1197,7 +1197,7 @@ const VIEWERS = `
   border: none; background: var(--nm-elev); color: var(--nm-faint);
   font-family: inherit; font-size: var(--bx-fs-meta); line-height: 1.4;
   padding: 0 var(--bx-3); margin: 0 2px; border-radius: var(--bx-r-ctl); cursor: pointer;
-  transition: color .12s ease, background .12s ease;
+  transition: color .12s var(--nm-ease), background .12s var(--nm-ease);
 }
 .nm-jsum:hover { color: var(--nm-accent); background: var(--nm-accent-soft); }
 
@@ -1211,7 +1211,7 @@ const VIEWERS = `
 .nm-tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 1px 8px 1px 0; white-space: pre-wrap; word-break: break-word; }
 .nm-tree-open { cursor: pointer; }
 .nm-tree-open:hover { background: var(--nm-elev); }
-.nm-tree-caret { display: inline-flex; width: 12px; flex-shrink: 0; color: var(--nm-faint); transition: transform .12s ease; margin-top: 2px; }
+.nm-tree-caret { display: inline-flex; width: 12px; flex-shrink: 0; color: var(--nm-faint); transition: transform .12s var(--nm-ease); margin-top: 2px; }
 .nm-tree-caret.open { transform: rotate(90deg); }
 .nm-tree-caret-empty { visibility: hidden; }
 .nm-tree-key { color: var(--nm-syn-key); flex-shrink: 0; }
@@ -1226,7 +1226,7 @@ const VIEWERS = `
 .nm-tree-chip {
   font-size: var(--bx-fs-meta); padding: 0 var(--bx-3); border-radius: var(--bx-r-ctl); margin-left: var(--bx-3);
   border: 1px solid var(--bx-line-strong); background: transparent; color: var(--bx-fg-2);
-  cursor: pointer; font-family: inherit; transition: background .12s ease, color .12s ease;
+  cursor: pointer; font-family: inherit; transition: background .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-tree-chip:hover { color: var(--nm-txt); background: var(--nm-elev-hover); }
 /* A real button, not a styled div: it is a control the tree's arrow keys land
@@ -1286,7 +1286,7 @@ const MENU = `
   display: flex; align-items: center; width: 100%; height: 26px; padding: 0 12px;
   background: transparent; border: 0; text-align: left; cursor: pointer;
   font-size: var(--bx-fs-md); color: var(--bx-fg); white-space: nowrap;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 /* The context menu puts its icon straight into the row, with no wrapper. */
 .nm-menu-item > .nm-ico { flex: none; margin-right: var(--bx-3); color: var(--bx-fg-3); }
@@ -1323,7 +1323,7 @@ const MENU = `
 .nm-scope-btn {
   height: var(--bx-h-ctl-sm); padding: 0 9px; background: transparent; border: 0;
   color: var(--bx-fg-2); font-size: var(--bx-fs-meta); cursor: pointer;
-  transition: background-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-scope-btn:first-child { border-radius: var(--bx-r-ctl) 0 0 var(--bx-r-ctl); }
 .nm-scope-btn:last-child { border-radius: 0 var(--bx-r-ctl) var(--bx-r-ctl) 0; }
@@ -1339,7 +1339,7 @@ const MENU = `
   display: block; width: 100%; padding: 6px 12px 7px; background: transparent;
   border: 0; border-left: var(--bx-rail) solid transparent;
   text-align: left; cursor: pointer;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-export-item:hover { background: var(--bx-hover-float); }
 /* The masking note is a guarantee, not a footnote. */
@@ -1364,7 +1364,7 @@ const MENU = `
 .nm-theme-item {
   display: flex; align-items: center; gap: 11px; width: 100%; height: 28px;
   padding: 0 12px; background: transparent; border: 0; text-align: left;
-  cursor: pointer; transition: background-color 90ms linear;
+  cursor: pointer; transition: background-color .12s var(--nm-ease);
 }
 .nm-theme-item:hover, .nm-theme-item.active { background: var(--bx-hover-float); }
 .nm-theme-sys { height: auto; padding: 8px 12px; border-bottom: 1px solid var(--bx-line); }
@@ -1448,10 +1448,10 @@ const MISC = `
    drawn outside a chip would be sliced off at the strip's edges. */
 .nm-slice:focus-visible { outline: 2px solid var(--nm-accent); outline-offset: -2px; }
 
+/* Asked for no motion: the end state, everywhere in the panel and nowhere
+   outside it. */
 @media (prefers-reduced-motion: reduce) {
-  .nm-panel, .nm-panel.nm-anim, .nm-fab, .nm-logo-b, .nm-logo-dot, .nm-zone,
-  .nm-pulse, .nm-menu, .nm-restoring,
-  .nm-palette, .nm-rail {
+  .nm-root, .nm-root *, .nm-root *::before, .nm-root *::after {
     animation: none !important; transition: none !important;
   }
 }
@@ -1483,7 +1483,7 @@ const LAYOUT = `
   display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 6px;
   border: none; background: none; color: var(--nm-faint); cursor: pointer;
   font-family: inherit; font-size: 10px; border-radius: 4px;
-  transition: background .12s ease, color .12s ease;
+  transition: background .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-statusbar-btn:hover { color: var(--nm-muted); }
 .nm-statusbar-pin { color: var(--nm-warning); }
@@ -1528,7 +1528,7 @@ const LAYOUT = `
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--nm-surface-3); border: 1px solid var(--nm-line-strong);
   border-radius: 12px; box-shadow: var(--nm-shadow-sheet);
-  animation: nm-in .16s var(--nm-ease);
+  animation: nm-in .2s var(--nm-ease);
 }
 .nm-palette-head { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-bottom: 1px solid var(--nm-line); flex: none; }
 .nm-palette-ico { display: inline-flex; color: var(--nm-accent); flex: none; }
@@ -1543,7 +1543,7 @@ const LAYOUT = `
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   padding: 7px 14px; border: none; border-left: 2px solid transparent; background: none;
   font-family: inherit; cursor: pointer;
-  transition: background .1s ease, border-color .1s ease;
+  transition: background .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-palette-item:disabled { opacity: .4; cursor: not-allowed; }
 .nm-palette-item.active:not(:disabled) { background: var(--nm-accent-soft); border-left-color: var(--nm-accent); }
@@ -1567,7 +1567,7 @@ const LAYOUT = `
   display: grid; grid-template-columns: 62px 74px minmax(0, 1fr) 66px;
   gap: 8px; align-items: center; min-height: var(--bx-row); padding: 0 12px;
   border-bottom: 1px solid var(--bx-line-soft); font-size: var(--bx-fs-sm); cursor: pointer;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-frame:hover { background: var(--bx-hover); }
 .nm-frame.active { background: var(--bx-sel); }
@@ -1648,7 +1648,7 @@ const LAYOUT = `
   padding: 18px 20px; border-radius: 14px; border: 1px solid var(--nm-line-strong);
   background: var(--nm-surface-3); color: var(--nm-txt);
   box-shadow: var(--nm-shadow-sheet);
-  animation: nm-in .16s var(--nm-ease);
+  animation: nm-in .2s var(--nm-ease);
 }
 .nm-sheet h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; }
 .nm-sheet-grid { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: center; }
@@ -1680,7 +1680,7 @@ const LAYOUT = `
   padding: 8px 11px; border-radius: 9px; font-size: 11.5px; line-height: 1.45;
   color: var(--nm-error); background: var(--nm-error-soft);
   border: 1px solid var(--nm-error-line);
-  animation: nm-in .16s var(--nm-ease);
+  animation: nm-in .2s var(--nm-ease);
 }
 
 `;
@@ -1877,7 +1877,7 @@ const SURFACES = `
   background: none; border: 0; border-radius: var(--bx-r-ctl);
   color: var(--bx-fg-3); font-family: var(--bx-font-mono);
   font-size: var(--bx-fs-meta); cursor: pointer;
-  transition: color 90ms linear;
+  transition: color .12s var(--nm-ease);
 }
 .nm-statusbar-btn:hover { color: var(--bx-fg-2); }
 .nm-statusbar-err, .nm-statusbar-err:hover { color: var(--bx-err); }
@@ -1940,7 +1940,7 @@ const SURFACES = `
   display: flex; align-items: center; gap: 12px; width: 100%; height: 30px;
   padding: 0 14px 0 12px; background: transparent; border: 0;
   border-left: var(--bx-rail) solid transparent; text-align: left; cursor: pointer;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-palette-item:hover { background: var(--bx-hover-float); }
 .nm-palette-item.active:not(:disabled) { background: var(--bx-sel); border-left-color: var(--bx-fg); }
@@ -2073,7 +2073,7 @@ const SURFACES = `
   background: transparent; border: 1px solid var(--bx-line-strong);
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-2);
   font-size: var(--bx-fs-meta); cursor: pointer; white-space: nowrap;
-  transition: background-color 90ms linear, border-color 90ms linear;
+  transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-db-btn:hover:not(:disabled) { background: var(--bx-hover); }
 .nm-db-btn:disabled { color: var(--bx-fg-3); cursor: not-allowed; }
@@ -2235,7 +2235,7 @@ const SURFACES = `
   border-radius: var(--bx-r-ctl); color: var(--bx-fg-2);
   font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
   cursor: pointer; white-space: nowrap;
-  transition: background-color 90ms linear;
+  transition: background-color .12s var(--nm-ease);
 }
 .nm-linked-chip:hover { background: var(--bx-hover); }
 
@@ -2325,7 +2325,7 @@ const SURFACES = `
   background: transparent; border: 0; border-radius: var(--bx-r-ctl);
   color: var(--bx-fg-2); font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
   cursor: pointer; white-space: nowrap;
-  transition: background-color 90ms linear, color 90ms linear;
+  transition: background-color .12s var(--nm-ease), color .12s var(--nm-ease);
 }
 .nm-slice:hover { background: var(--bx-hover); }
 .nm-slice.active { background: var(--bx-sel); color: var(--bx-fg); }
