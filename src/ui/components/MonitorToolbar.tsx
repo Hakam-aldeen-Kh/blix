@@ -181,7 +181,7 @@ export function MonitorToolbar(props: ToolbarProps) {
         title={paused ? "Resume capturing (Space)" : "Pause capturing (Space)"}
       >
         <span className="nm-chip-dot" />
-        <span>{paused ? "paused" : "capturing"}</span>
+        <span>{paused ? "paused" : "recording"}</span>
       </button>
 
       {/* The field is inside the drag handle; a press that lands on it must put
