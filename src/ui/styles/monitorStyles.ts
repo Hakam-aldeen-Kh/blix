@@ -422,15 +422,20 @@ const RAIL = `
   transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-rail-item:hover { background: var(--bx-hover); }
-/* Grey carries. The source on screen is the lit one: a step up, ink, and the
-   foreground bar on its edge - the rail does not need a colour per source to
-   say which of four it is, and green and red are kept for signals. */
-.nm-rail-item.active { background: var(--bx-sel); border-left-color: var(--bx-fg); }
+/* Each source wears its own colour - network blue, realtime teal, redux
+   violet, query orange - on its icon and, when it is the one on screen, on
+   its edge. The same colours as the launcher, so the two name a source alike. */
+.nm-rail-item[data-src="network"]  { --bx-src: var(--bx-src-network); }
+.nm-rail-item[data-src="realtime"] { --bx-src: var(--bx-src-realtime); }
+.nm-rail-item[data-src="redux"]    { --bx-src: var(--bx-src-redux); }
+.nm-rail-item[data-src="query"]    { --bx-src: var(--bx-src-query); }
+.nm-rail-item.active { background: var(--bx-sel); border-left-color: var(--bx-src); }
 .nm-rail-ico {
   width: 32px; flex: none; display: flex; align-items: center; justify-content: center;
-  color: var(--bx-fg-3);
+  color: var(--bx-src, var(--bx-fg-3));
 }
-.nm-rail-item.active .nm-rail-ico { color: var(--bx-fg); }
+/* A source with nothing in it yet keeps its shape and gives up its colour. */
+.nm-rail-empty:not(.active) .nm-rail-ico { color: var(--bx-fg-3); }
 .nm-rail-name {
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -602,8 +607,14 @@ const TABLE = `
    before hover and selection so both still read on top of it. */
 .nm-trow[data-tone="err"] { background: var(--bx-err-row); }
 .nm-trow:hover { background: var(--bx-hover); }
-/* Selected: one step up, and the lit blade's green on the leading edge. */
+/* Selected: one step up, and the lit blade's green on the leading edge. A
+   selected failure stays a failure: the red wash over the selected ground,
+   and a red edge. */
 .nm-trow.active { background: var(--bx-sel); box-shadow: inset 2px 0 0 var(--bx-ok); }
+.nm-trow.active[data-tone="err"] {
+  background: linear-gradient(var(--bx-err-sel), var(--bx-err-sel)), var(--bx-sel);
+  box-shadow: inset 2px 0 0 var(--bx-err);
+}
 .nm-trow:focus-visible { outline: 1px solid var(--bx-accent); outline-offset: -1px; }
 
 /* The status dot (BRAND_BOOK §6C log rows) carries status and nothing else.

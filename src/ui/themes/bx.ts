@@ -142,11 +142,11 @@ const BLIX: BxPalette = {
   fg: "#e6e7ea", fg2: "#c9cbd0", fg3: "#8b909a", mark: "#5a5e66",
   ok: "#4ea674", warn: "#e3a541", err: "#d9605f", info: "#8fa3b8",
   accent: "#c9cbd0", wait: "#2d3035",
-  synKey: "#9fb0c3", synStr: "#c2b08a", synNum: "#a9a0d0",
-  synBool: "#c79a8c", synPunct: "#5a5e66",
+  synKey: "#7db3e8", synStr: "#d7a86e", synNum: "#b39df2",
+  synBool: "#e88b9e", synPunct: "#5a5e66",
   diffAdd: "#8dba9c", diffDel: "#d49a99",
-  srcNetwork: "#8fa3b8", srcRealtime: "#8fb8ae", srcRedux: "#a99bc9",
-  srcQuery: "#c9a07f",
+  srcNetwork: "#6aa6e8", srcRealtime: "#4fc1b0", srcRedux: "#a98be8",
+  srcQuery: "#e39a5b",
 };
 
 /** The light side of the pair: the book's light ground and ink, its 600 steps
@@ -161,11 +161,11 @@ const BLIX_LIGHT: BxPalette = {
   fg: "#16181b", fg2: "#3e4249", fg3: "#5e636c", mark: "#a2a6ae",
   ok: "#2d8753", warn: "#946200", err: "#c23f3d", info: "#4e6e8a",
   accent: "#3e4249", wait: "#e6e7ea",
-  synKey: "#3f5f80", synStr: "#76602c", synNum: "#5f4fa0",
-  synBool: "#9a4f3c", synPunct: "#a2a6ae",
+  synKey: "#1f5f9e", synStr: "#8a5a12", synNum: "#6b4bc9",
+  synBool: "#b03a5b", synPunct: "#a2a6ae",
   diffAdd: "#2f6b45", diffDel: "#9a3d3b",
-  srcNetwork: "#4e6e8a", srcRealtime: "#3e7a70", srcRedux: "#6a5aa0",
-  srcQuery: "#a0623a",
+  srcNetwork: "#2f6fb8", srcRealtime: "#1f7f74", srcRedux: "#6f4fc8",
+  srcQuery: "#b0601c",
 };
 
 const MIDNIGHT: BxPalette = {
@@ -437,6 +437,7 @@ export const BX_TOKENS: string[] = [
   "--bx-shadow-panel",
   "--bx-shadow-fab",
   "--bx-err-row",
+  "--bx-err-sel",
 ];
 
 /**
@@ -468,6 +469,8 @@ export function bxTokens(p: BxPalette, base: ThemeBase): Record<string, string> 
   // Derived rather than authored, because it is one wash of a colour every
   // theme already names.
   out["--bx-err-row"] = tint(p.err, base === "dark" ? 0.08 : 0.06);
+  // The same wash, stronger, for a failing row that is also selected.
+  out["--bx-err-sel"] = tint(p.err, base === "dark" ? 0.2 : 0.14);
   return { ...out, ...shadows(p, base) };
 }
 
