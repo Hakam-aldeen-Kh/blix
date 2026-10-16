@@ -70,6 +70,7 @@ import {
   TOGGLEABLE_COLUMNS,
   type ColumnId,
   type Density,
+  PALETTE_KEY,
 } from "./constants/ui";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ExportMenu, type ExportScope } from "./components/ExportMenu";
@@ -1710,7 +1711,7 @@ export default function DevTools() {
           </div>
           <MenuItem
             icon="command"
-            state="⌘K"
+            state={PALETTE_KEY}
             onSelect={() => {
               closeMenus();
               openPalette();

@@ -25,6 +25,7 @@
 
 import type { DockMode } from "../../capture/monitorTypes";
 import { useRef } from "react";
+import { PALETTE_KEY } from "../constants/ui";
 import { Icon } from "./Icon";
 import type { MenuAnchor } from "./Menu";
 
@@ -213,7 +214,7 @@ export function MonitorToolbar(props: ToolbarProps) {
           {".*"}
         </button>
         <button type="button" className="nm-kbd" onClick={onOpenPalette} title="Command palette">
-          ⌘K
+          {PALETTE_KEY}
         </button>
       </div>
 

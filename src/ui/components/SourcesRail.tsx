@@ -18,6 +18,7 @@
 
 import { formatBytes, formatDuration } from "../helpers/format";
 import type { Section } from "../types/monitorUi";
+import { PALETTE_KEY } from "../constants/ui";
 import { Icon, type IconName } from "./Icon";
 
 /** Top-level sources, in display and hotkey order. */
@@ -145,14 +146,14 @@ export function SourcesRail({
           className="nm-rail-cmd"
           onClick={onOpenPalette}
           aria-label="All commands"
-          title="All commands (⌘K)"
+          title={`All commands (${PALETTE_KEY})`}
         >
           {mini ? (
             <Icon name="search" size={12} />
           ) : (
             <>
               <span>All commands</span>
-              <span className="nm-rail-key">⌘K</span>
+              <span className="nm-rail-key">{PALETTE_KEY}</span>
             </>
           )}
         </button>

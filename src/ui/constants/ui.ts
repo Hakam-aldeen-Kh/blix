@@ -215,3 +215,13 @@ export const FAB_RADIUS: Record<FabRadius, { label: string; css: string }> = {
 export function normalizeFabRadius(value: unknown): FabRadius {
   return value === "soft" || value === "pill" ? value : "sharp";
 }
+
+/**
+ * The command palette's shortcut as this platform writes it: `⌘K` on Apple
+ * devices, `Ctrl K` everywhere else. Only read while the panel renders, which
+ * is client-side, after hydration.
+ */
+export const PALETTE_KEY =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+    ? "⌘K"
+    : "Ctrl K";

@@ -14,6 +14,7 @@
 
 import { formatBytes, formatDuration, requestName } from "../helpers/format";
 import type { Counts } from "../hooks/useMonitorList";
+import { PALETTE_KEY } from "../constants/ui";
 import { Icon } from "./Icon";
 
 /**
@@ -200,7 +201,7 @@ export function StatusBar({
             onClick={onOpenPalette}
             title="Command palette"
           >
-            commands ⌘K
+            commands {PALETTE_KEY}
           </button>
         </Seg>
 
