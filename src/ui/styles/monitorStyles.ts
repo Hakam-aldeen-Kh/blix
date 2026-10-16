@@ -305,17 +305,21 @@ const HEADER = `
    elevation, because the slot set has no tint-of-a-state colour and inventing
    one per theme is worse than doing without. */
 .nm-chip {
-  display: flex; align-items: center; gap: 7px; flex: none;
+  display: flex; align-items: center; gap: 6px; flex: none;
   height: var(--bx-h-ctl); padding: 0 9px;
-  background: var(--bx-hover); border: 1px solid var(--bx-line-strong);
-  border-radius: var(--bx-r-ctl);
-  font-size: var(--bx-fs-sm); color: var(--bx-fg-3); cursor: pointer;
+  background: transparent; border: 1px solid var(--bx-line-strong);
+  border-radius: 999px;
+  font: 500 var(--bx-fs-meta) var(--bx-font-mono); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--bx-fg-2); cursor: pointer;
   transition: background-color 90ms linear, border-color 90ms linear;
 }
 .nm-chip-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
 .nm-chip-ico { display: flex; flex: none; }
-.nm-capture[data-on] { color: var(--bx-ok); }
-.nm-capture { color: var(--bx-warn); }
+/* The REC language, so the chip and the mark beside it say the same thing:
+   a red dot while recording, an amber square while paused. The word stays
+   grey - the dot is the signal. */
+.nm-capture .nm-chip-dot { background: var(--bx-warn); border-radius: 1px; }
+.nm-capture[data-on] .nm-chip-dot { background: var(--bx-err); border-radius: 50%; }
 .nm-preserve[data-on] { color: var(--bx-warn); }
 
 .nm-filter {
@@ -794,32 +798,22 @@ const DETAIL = `
      and a splitter the panel-level queries know nothing about. */
   overflow: hidden; container-type: size; container-name: nmdetail;
 }
-.nm-detail-head {
-  flex: none; padding: var(--bx-4) 12px;
-  border-left: var(--bx-rail) solid var(--bx-mark);
-  border-bottom: 1px solid var(--bx-line);
-}
-.nm-detail[data-tone="ok"]   .nm-detail-head { border-left-color: var(--bx-ok); }
-.nm-detail[data-tone="warn"] .nm-detail-head { border-left-color: var(--bx-warn); }
-.nm-detail[data-tone="err"]  .nm-detail-head { border-left-color: var(--bx-err); }
-.nm-detail[data-tone="info"] .nm-detail-head { border-left-color: var(--bx-info); }
+.nm-detail-head { flex: none; padding: var(--bx-4) 12px; border-bottom: 1px solid var(--bx-line); }
 
 .nm-detail-id {
   display: flex; align-items: baseline; gap: 9px; min-width: 0; overflow: hidden;
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
 }
-.nm-detail-status { flex: none; font-size: var(--bx-fs-lg); color: var(--bx-fg-3); }
-.nm-detail[data-tone="ok"]   .nm-detail-status,
-.nm-detail[data-tone="ok"]   .nm-detail-reason { color: var(--bx-ok); }
-.nm-detail[data-tone="warn"] .nm-detail-status,
-.nm-detail[data-tone="warn"] .nm-detail-reason { color: var(--bx-warn); }
-.nm-detail[data-tone="err"]  .nm-detail-status,
-.nm-detail[data-tone="err"]  .nm-detail-reason { color: var(--bx-err); }
-.nm-detail[data-tone="info"] .nm-detail-status,
-.nm-detail[data-tone="info"] .nm-detail-reason { color: var(--bx-info); }
+/* "500 POST Internal Server Error": the status colour is on the code and
+   nowhere else on the line. */
+.nm-detail-status { flex: none; font-size: var(--bx-fs-lg); font-weight: 600; color: var(--bx-fg-3); }
+.nm-detail[data-tone="ok"]   .nm-detail-status { color: var(--bx-ok); }
+.nm-detail[data-tone="warn"] .nm-detail-status { color: var(--bx-warn); }
+.nm-detail[data-tone="err"]  .nm-detail-status { color: var(--bx-err); }
+.nm-detail[data-tone="info"] .nm-detail-status { color: var(--bx-info); }
 .nm-detail-method { flex: none; font-size: var(--bx-fs-sm); letter-spacing: .06em; color: var(--bx-fg-2); }
 .nm-detail-reason {
-  flex: 0 1 auto; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
+  flex: 0 1 auto; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nm-detail-gap { flex: 1 1 auto; }
@@ -840,16 +834,11 @@ const DETAIL = `
   font-size: var(--bx-fs-sm); cursor: pointer; white-space: nowrap;
   transition: background-color 90ms linear, border-color 90ms linear;
 }
-.nm-dbtn:hover { background: var(--bx-hover); }
+.nm-dbtn:hover { border-color: var(--bx-fg-3); color: var(--bx-fg); }
 .nm-dbtn:disabled { color: var(--bx-fg-3); cursor: not-allowed; }
-/* The one outlined action in the pane: it re-runs a request against the live
-   backend, which is not the same kind of thing as copying a URL. */
-.nm-dbtn-primary { border-color: var(--bx-accent); color: var(--bx-accent); }
-/* Disabled reads as disabled even on the outlined action: an accent border on
-   a button that cannot be pressed invites the press. */
-.nm-dbtn:disabled, .nm-dbtn-primary:disabled {
-  border-color: var(--bx-line-strong); color: var(--bx-fg-3); background: transparent;
-}
+/* Quiet outline buttons, all of them: Replay is listed first, which is
+   emphasis enough. */
+.nm-dbtn:disabled { border-color: var(--bx-line-strong); color: var(--bx-fg-3); background: transparent; }
 .nm-dbtn-on { background: var(--bx-sel); color: var(--bx-fg); }
 .nm-dbtn-sq { width: 22px; padding: 0; justify-content: center; }
 .nm-dbtn-gap { flex: 1 1 auto; }
