@@ -47,7 +47,7 @@
   "bugs": {
     "url": "https://github.com/Hakam-aldeen-Kh/blix/issues"
   },
-  "homepage": "https://github.com/Hakam-aldeen-Kh/blix#readme",
+  "homepage": "https://blixjs.dev",
   "type": "module",
   "sideEffects": false,
   "types": "./dist/index.d.ts",

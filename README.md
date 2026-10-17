@@ -7,6 +7,8 @@
 
 An in-app dev-tools panel for React developers: every HTTP request, Redux action, TanStack Query cache event and realtime frame your app produces, in one place, while you build.
 
+**[blixjs.dev](https://blixjs.dev)**
+
 [![npm](https://img.shields.io/npm/v/@hakam-aldeen-kh/blix)](https://www.npmjs.com/package/@hakam-aldeen-kh/blix) [![CI](https://github.com/Hakam-aldeen-Kh/blix/actions/workflows/ci.yml/badge.svg)](https://github.com/Hakam-aldeen-Kh/blix/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/@hakam-aldeen-kh/blix)](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE)
 
 ## Why Blix
@@ -58,4 +60,4 @@ Using axios? Call `attachHttpMonitor(apiClient)` in the module that creates the 
 
 ---
 
-[Changelog](https://github.com/Hakam-aldeen-Kh/blix/blob/main/CHANGELOG.md) · [Security](https://github.com/Hakam-aldeen-Kh/blix/blob/main/SECURITY.md) · [MIT License](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE) · Made by [Hakam aldeen Alkhadraa](https://www.hakam-aldeen.com)
+[Website](https://blixjs.dev) · [Changelog](https://github.com/Hakam-aldeen-Kh/blix/blob/main/CHANGELOG.md) · [Security](https://github.com/Hakam-aldeen-Kh/blix/blob/main/SECURITY.md) · [MIT License](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE) · Made by [Hakam aldeen Alkhadraa](https://www.hakam-aldeen.com)
