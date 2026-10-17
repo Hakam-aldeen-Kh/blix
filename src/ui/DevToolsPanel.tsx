@@ -20,7 +20,9 @@
  */
 
 import { setAuthorizationMasking } from "../capture/monitorAuth";
+import { isFetchMonitorAttached } from "../capture/attachFetch";
 import { getActiveDbName, isSharedDefaultDb } from "../capture/monitorConfig";
+import { getTappedQueryClient } from "../capture/queryCapture";
 import { setInitiatorCapture } from "../capture/monitorInitiator";
 import {
   bootPersistence,
@@ -44,6 +46,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { BlixContext } from "./BlixContext";
+import { AboutSheet } from "./components/AboutSheet";
 import { CommandPalette, type CommandGroup } from "./components/CommandPalette";
 import { ContextMenu } from "./components/ContextMenu";
 import { DatabasesSheet } from "./components/DatabasesSheet";
@@ -73,6 +76,7 @@ import {
   type Density,
   PALETTE_KEY,
 } from "./constants/ui";
+import { BLIX_VERSION_LABEL } from "./constants/about";
 import { Menu, MenuItem, type MenuAnchor } from "./components/Menu";
 import { ExportMenu, type ExportScope } from "./components/ExportMenu";
 import { ThemeMenu } from "./components/ThemeMenu";
@@ -182,7 +186,7 @@ const nextDock = (mode: DockMode): DockMode =>
   DOCK_CYCLE[(DOCK_CYCLE.indexOf(mode) + 1) % DOCK_CYCLE.length];
 
 export default function DevTools() {
-  const { apiClient } = useContext(BlixContext);
+  const { apiClient, store } = useContext(BlixContext);
   const entries = useSyncExternalStore(
     networkMonitor.subscribe,
     networkMonitor.getSnapshot,
@@ -227,6 +231,7 @@ export default function DevTools() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const [showDatabases, setShowDatabases] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   /** Where the column picker opens, or null. Anchored like the header's menus
    * so it lands under whatever asked for it — the column head, or the row in
    * the overflow menu. */
@@ -611,6 +616,7 @@ export default function DevTools() {
       event.stopPropagation();
       if (showPalette) setShowPalette(false);
       else if (showDatabases) setShowDatabases(false);
+      else if (showAbout) setShowAbout(false);
       else if (showShortcuts) setShowShortcuts(false);
       else if (menu.menu) menu.close();
       else if (menuState || columnAnchor) closeMenus();
@@ -718,7 +724,7 @@ export default function DevTools() {
   // closes with the panel still open, focus comes back to the root. Only if it
   // would otherwise be on `<body>`: a command that moved focus itself (the
   // filter field) or a press on the host page keeps what it chose.
-  const overlayOpen = showPalette || showShortcuts || showDatabases;
+  const overlayOpen = showPalette || showShortcuts || showDatabases || showAbout;
   const hadOverlay = useRef(false);
   useEffect(() => {
     if (overlayOpen) {
@@ -1180,6 +1186,12 @@ export default function DevTools() {
           label: "Keyboard shortcuts",
           key: "?",
           run: () => setShowShortcuts(true),
+        },
+        {
+          id: "about",
+          label: "About Blix",
+          note: BLIX_VERSION_LABEL,
+          run: () => setShowAbout(true),
         },
         {
           id: "purge",
@@ -1732,6 +1744,15 @@ export default function DevTools() {
           >
             Keyboard shortcuts
           </MenuItem>
+          <MenuItem
+            icon="link"
+            onSelect={() => {
+              setShowAbout(true);
+              closeMenus();
+            }}
+          >
+            About Blix
+          </MenuItem>
         </Menu>
       )}
 
@@ -1768,7 +1789,31 @@ export default function DevTools() {
           onFilterToType={setQuery}
         />
       )}
-      {showShortcuts && <ShortcutsSheet onClose={() => setShowShortcuts(false)} />}
+      {showShortcuts && (
+        <ShortcutsSheet
+          onClose={() => setShowShortcuts(false)}
+          onAbout={() => {
+            setShowShortcuts(false);
+            setShowAbout(true);
+          }}
+        />
+      )}
+      {showAbout && (
+        <AboutSheet
+          onClose={() => setShowAbout(false)}
+          info={{
+            dbName: getActiveDbName(),
+            fetch: isFetchMonitorAttached(),
+            apiClient: !!apiClient,
+            store: !!store,
+            queryClient: getTappedQueryClient() !== null,
+            counts: sectionCounts,
+            theme: theme.id,
+            dock: dock.mode,
+            density,
+          }}
+        />
+      )}
       {showDatabases && (
         <DatabasesSheet onClose={() => setShowDatabases(false)} />
       )}

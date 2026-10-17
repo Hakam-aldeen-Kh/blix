@@ -85,7 +85,13 @@ export const SHORTCUT_GROUPS: {
   },
 ];
 
-export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
+export function ShortcutsSheet({
+  onClose,
+  onAbout,
+}: {
+  onClose: () => void;
+  onAbout: () => void;
+}) {
   const columns: (typeof SHORTCUT_GROUPS)[] = [
     SHORTCUT_GROUPS.filter((g) => g.col === 0),
     SHORTCUT_GROUPS.filter((g) => g.col === 1),
@@ -134,6 +140,12 @@ export function ShortcutsSheet({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           ))}
+        </div>
+
+        <div className="nm-sheet-foot">
+          <button type="button" className="nm-sheet-foot-link" onClick={onAbout}>
+            About Blix, version and debug info
+          </button>
         </div>
       </div>
     </>
