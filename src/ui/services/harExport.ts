@@ -11,13 +11,10 @@
 
 import { errorBody } from "../../capture/monitorError";
 import type { MonitorEntry } from "../../capture/networkMonitor";
+import { BLIX_VERSION } from "../constants/about";
 import { endOf, startOf } from "../helpers/waterfall";
 import { downloadText, fileStamp } from "./download";
 import { absoluteUrl } from "./snippets";
-
-// HAR requires `creator.version`, and there is no build-time define for the
-// package version — bump this alongside package.json when it matters.
-const CREATOR_VERSION = "0.11.0";
 
 interface HarHeader {
   name: string;
@@ -118,7 +115,7 @@ export function toHar(entries: MonitorEntry[]) {
   return {
     log: {
       version: "1.2",
-      creator: { name: "blix", version: CREATOR_VERSION },
+      creator: { name: "blix", version: BLIX_VERSION },
       pages: [],
       entries: http
         .slice()

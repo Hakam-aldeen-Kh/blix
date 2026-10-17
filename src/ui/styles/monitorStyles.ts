@@ -2045,6 +2045,12 @@ const SURFACES = `
 .nm-sheet-desc {
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
 }
+.nm-sheet-foot { flex: none; padding: 8px 16px; border-top: 1px solid var(--bx-line); }
+.nm-sheet-foot-link {
+  padding: 0; background: transparent; border: 0; cursor: pointer;
+  font-size: var(--bx-fs-sm); color: var(--bx-fg-3);
+}
+.nm-sheet-foot-link:hover, .nm-sheet-foot-link:focus-visible { color: var(--bx-fg); text-decoration: underline; }
 .nm-scrim-full, .nm-sheet-scrim { background: transparent; animation: none; }
 
 /* -- Databases on this origin ---------------------------------------------
@@ -2138,6 +2144,48 @@ const SURFACES = `
 }
 .nm-db-peek-status { flex: none; color: var(--bx-fg-3); }
 .nm-db-peek-bad { color: var(--bx-err); }
+
+/* -- About Blix -------------------------------------------------------------
+   The same shell again: identity and links, then two short tables in the
+   shortcuts sheet's key/value idiom, then the actions for a bug report. */
+.nm-about { width: 540px; }
+.nm-about-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 16px 14px; }
+.nm-about-id { display: flex; align-items: baseline; gap: var(--bx-4); color: var(--bx-fg); }
+.nm-about-version { font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta); color: var(--bx-fg-3); }
+.nm-about-lead {
+  margin: 10px 0 0; font-size: var(--bx-fs-md); line-height: 1.6; color: var(--bx-fg-2);
+}
+.nm-about-links { display: flex; flex-wrap: wrap; gap: var(--bx-2) var(--bx-5); margin-top: 10px; }
+.nm-about-links a {
+  display: inline-flex; align-items: center; gap: var(--bx-2);
+  font-size: var(--bx-fs-md); color: var(--bx-fg-2); text-decoration: none;
+}
+.nm-about-links a:hover, .nm-about-links a:focus-visible { color: var(--bx-fg); text-decoration: underline; }
+.nm-about-table { margin-top: 6px; }
+.nm-about-row { display: flex; align-items: baseline; gap: var(--bx-4); min-height: 23px; padding: 3px 0; }
+.nm-about-row .nm-sheet-key { width: 74px; }
+.nm-about-val {
+  flex: 1 1 auto; min-width: 0; font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta);
+  line-height: 1.5; color: var(--bx-fg); overflow-wrap: anywhere;
+}
+.nm-about-off { color: var(--bx-fg-3); }
+.nm-about-pre {
+  margin: 12px 0 0; padding: var(--bx-3) var(--bx-4); max-height: 160px; overflow: auto;
+  background: var(--bx-raise); border: 1px solid var(--bx-line); border-radius: var(--bx-r-ctl);
+  font-family: var(--bx-font-mono); font-size: var(--bx-fs-meta); line-height: 1.6;
+  color: var(--bx-fg-2); white-space: pre-wrap; word-break: break-word; user-select: text;
+}
+.nm-about-foot {
+  flex: none; display: flex; align-items: center; gap: var(--bx-3);
+  padding: 10px 16px; border-top: 1px solid var(--bx-line);
+}
+.nm-about-foot .nm-db-btn { display: inline-flex; align-items: center; gap: var(--bx-2); }
+.nm-about-note { flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-sm); color: var(--bx-fg-3); }
+.nm-about-primary { background: var(--bx-sel); color: var(--bx-fg); }
+@media (max-width: 560px) {
+  .nm-about-foot { flex-wrap: wrap; }
+  .nm-about-note { flex-basis: 100%; }
+}
 
 /* -- The unified diff ------------------------------------------------------
    A changed path is a file header; the lines under it are the diff. Two

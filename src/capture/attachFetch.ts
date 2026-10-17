@@ -628,6 +628,11 @@ function isBlixWrapper(fn: unknown): boolean {
   );
 }
 
+/** Whether `globalThis.fetch` is Blix's wrapper right now. For the About sheet. */
+export function isFetchMonitorAttached(): boolean {
+  return isBlixWrapper(globalThis.fetch);
+}
+
 export function resolveIgnore(option: FetchMonitorOptions["ignore"]): readonly FetchIgnoreRule[] {
   if (option === undefined) return DEFAULT_IGNORE;
   if (typeof option !== "function") return option;
