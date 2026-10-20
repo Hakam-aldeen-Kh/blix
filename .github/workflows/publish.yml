@@ -15,21 +15,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The version comes from "packageManager" in package.json. Before
+      # setup-node, so its pnpm cache can find the store.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Build
         run: pnpm build
+
+      # The same gates as CI: a tag pushed from a commit that never went
+      # through CI must not reach npm.
+      - name: Run the checks
+        run: pnpm check
 
       # Without this, pushing tag v0.2.0 while package.json still says 0.1.0
       # republishes 0.1.0 silently (or fails opaquely on a duplicate version).

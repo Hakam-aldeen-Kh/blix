@@ -1,0 +1,73 @@
+name: Bug report
+description: Something in Blix does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems go through a [private advisory](https://github.com/Hakam-aldeen-Kh/blix/security/advisories/new), not here.
+
+        **Do not attach a captured log or HAR export.** It holds decrypted request and response bodies and often credentials. Paste only the fields that show the problem, with the values replaced.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest setup that shows it. A link to a repository or sandbox is the fastest way to a fix.
+      placeholder: |
+        1. Call attachHttpMonitor(api) after ...
+        2. Open the panel and ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: blix-version
+    attributes:
+      label: Blix version
+      placeholder: "0.12.0"
+    validations:
+      required: true
+  - type: input
+    id: react-version
+    attributes:
+      label: React version
+      placeholder: "19.1.0"
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework and bundler
+      placeholder: "Next.js 15 (Turbopack), Vite 6, ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Which source is affected?
+      multiple: true
+      options:
+        - HTTP (fetch)
+        - HTTP (axios)
+        - Redux
+        - TanStack Query
+        - Realtime
+        - The panel itself
+        - Production build / elimination
+        - Not sure
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: "Chrome 140, macOS 15"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Console errors, screenshots, related config.

@@ -68,6 +68,7 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -80,6 +81,7 @@
     "check:http": "node scripts/check-http.mjs",
     "check:storage": "node scripts/check-storage.mjs",
     "check:panel": "node scripts/check-panel.mjs",
+    "check": "pnpm check:prod-guard && pnpm check:redaction && pnpm check:isolation && pnpm check:snippets && pnpm check:keyboard && pnpm check:hydration && pnpm check:http && pnpm check:storage && pnpm check:panel",
     "prepublishOnly": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {
