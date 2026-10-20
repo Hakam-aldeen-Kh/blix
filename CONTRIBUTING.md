@@ -1,7 +1,7 @@
 # Contributing to Blix
 
 Thanks for wanting to help. Bug reports, docs fixes and pull requests are all
-welcome. This page covers how to get the project running, what a pull request
+welcome. How to use Blix is covered at [blixjs.dev/docs](https://blixjs.dev/docs). This page covers how to get the project running, what a pull request
 needs, and where things live.
 
 By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -80,7 +80,7 @@ and a step in `.github/workflows/ci.yml`.
 | `src/index.ts` | The package entry point. |
 | `scripts/` | The checks CI runs. |
 | `playground/` | The local dev page and mock API. |
-| `docs/en.md` | The full documentation, and the source of truth for it. |
+| `docs/en.md` | The full documentation. [blixjs.dev/docs](https://blixjs.dev/docs) is built from it, so an edit here shows up on the site. |
 
 Two rules matter more than the rest:
 
@@ -101,7 +101,8 @@ Two rules matter more than the rest:
 4. Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for
    anything a user would notice. Create that heading at the top if it is not
    there.
-5. Update `docs/en.md` when behaviour, options or exports change.
+5. Update `docs/en.md` when behaviour, options or exports change. It is what
+   [blixjs.dev/docs](https://blixjs.dev/docs) shows.
 6. Make sure `pnpm typecheck`, `pnpm build` and `pnpm check` pass.
 
 Releases are cut by the maintainer: a version bump, the changelog section,

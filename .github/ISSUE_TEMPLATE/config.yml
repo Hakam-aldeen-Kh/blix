@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/Hakam-aldeen-Kh/blix/security/advisories/new
     about: Report it privately, so it can be fixed before it is public.
   - name: Documentation
-    url: https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md
+    url: https://blixjs.dev/docs
     about: Setup, capture order, panel options and production elimination.

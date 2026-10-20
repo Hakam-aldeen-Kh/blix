@@ -7,7 +7,7 @@ Blix is a dev-tools panel. It is gated on a literal
 [below](#opting-a-production-build-in)) and is eliminated from
 production builds by design — the panel's dynamic `import()` is dropped
 entirely, and the capture layer becomes a no-op. See
-[Production elimination](docs/en.md#production-elimination) in the docs for
+[Production elimination](https://blixjs.dev/docs/production-elimination) in the docs for
 how that works and for the call-site guard that also removes the capture
 runtime from your production bundle.
 
@@ -32,7 +32,7 @@ request body, header and Redux payload the page produces.
 - A production build that captures because `NEXT_PUBLIC_BLIX=true` was set for
   it is working as configured, not a vulnerability.
 
-See [Enabling Blix in a production build](docs/en.md#enabling-blix-in-a-production-build-staging).
+See [Enabling Blix in a production build](https://blixjs.dev/docs/production-elimination#enabling-blix-in-a-production-build-staging).
 
 ## It captures credentials and personal data by nature
 
@@ -71,7 +71,7 @@ stored everything in one unprefixed database, `nm-devtools`. 0.6.0 neither
 migrates nor deletes it, so anything captured there with preserve-log on stays
 in the browser profile until you remove it from **Databases on this origin**.
 
-The [Security](docs/en.md#security) section of the docs says exactly what is
+The [Security](https://blixjs.dev/docs/security) page of the docs says exactly what is
 captured, what reaches disk, what is redacted, and how to purge.
 
 ## Reporting a vulnerability

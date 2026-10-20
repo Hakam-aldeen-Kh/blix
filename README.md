@@ -50,14 +50,14 @@ Using axios? Call `attachHttpMonitor(apiClient)` in the module that creates the 
 
 ## Documentation
 
-**[Full documentation → docs/en.md](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md)**
+**[Full documentation → blixjs.dev/docs](https://blixjs.dev/docs)**
 
-- [Install](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#install): peer dependencies and build setup
-- [Capture](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#the-module-init-call-order-contract): where each capture call goes, and why the order matters
-- [Mounting the panel](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#mounting-the-panel): props, shortcuts, filtering, export, themes
-- [Production elimination](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#production-elimination): how it is removed, and how to keep it on a staging build
-- [Upgrading](https://github.com/Hakam-aldeen-Kh/blix/blob/main/docs/en.md#upgrading-to-011): what changed for projects coming from 0.10
+- [Install](https://blixjs.dev/docs/install): peer dependencies and build setup
+- [Capture](https://blixjs.dev/docs/capture): where each capture call goes, and why the order matters
+- [Mounting the panel](https://blixjs.dev/docs/mounting-the-panel): props, shortcuts, filtering, export, themes
+- [Production elimination](https://blixjs.dev/docs/production-elimination): how it is removed, and how to keep it on a staging build
+- [Upgrading](https://blixjs.dev/docs/upgrading): what changed for projects coming from 0.10
 
 ---
 
-[Website](https://blixjs.dev) · [Changelog](https://github.com/Hakam-aldeen-Kh/blix/blob/main/CHANGELOG.md) · [Security](https://github.com/Hakam-aldeen-Kh/blix/blob/main/SECURITY.md) · [MIT License](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE) · Made by [Hakam aldeen Alkhadraa](https://www.hakam-aldeen.com)
+[Website](https://blixjs.dev) · [Changelog](https://blixjs.dev/changelog) · [Security](https://github.com/Hakam-aldeen-Kh/blix/blob/main/SECURITY.md) · [MIT License](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE) · Made by [Hakam aldeen Alkhadraa](https://www.hakam-aldeen.com)
