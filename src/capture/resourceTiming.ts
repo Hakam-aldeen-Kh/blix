@@ -99,7 +99,14 @@ function toWireTiming(t: PerformanceResourceTiming): WireTiming {
     // Everything before DNS: waiting for a connection slot, the HTTP cache
     // lookup, a service worker starting up.
     const queue = span(t.startTime, t.domainLookupStart || t.fetchStart);
-    if (queue !== undefined) wire.queueMs = queue;
+    // A request that reuses a connection waits for its slot *after* the
+    // connection phases — between `connectEnd` and `requestStart` — under the
+    // browser's per-host connection limit. That is queueing too: left out, a
+    // burst of requests at page load showed seconds that no phase accounted for.
+    const stalled = span(t.connectEnd || t.fetchStart, t.requestStart);
+    if (queue !== undefined || stalled !== undefined) {
+      wire.queueMs = round((queue ?? 0) + (stalled ?? 0));
+    }
     const dns = span(t.domainLookupStart, t.domainLookupEnd);
     if (dns !== undefined) wire.dnsMs = dns;
     // `secureConnectionStart` sits inside the connect span on HTTPS; split so

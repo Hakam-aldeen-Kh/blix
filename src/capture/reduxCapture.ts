@@ -25,6 +25,7 @@ import {
 } from "./monitorConfig";
 import { isErrorLike } from "./errorLike";
 import { describeError } from "./monitorError";
+import { captureFrames } from "./monitorInitiator";
 import { networkMonitor } from "./networkMonitor";
 import { diffState } from "./stateDiff";
 import { truncateForPersist } from "./monitorTruncate";
@@ -143,6 +144,15 @@ export function createReduxMonitorMiddleware<S>(
       return next(action);
     }
 
+    // Read before `next`, from this frame: what the "Dispatched by" tab shows.
+    // `1` is this middleware's own frame — see `captureFrames`.
+    let initiator: ReturnType<typeof captureFrames>;
+    try {
+      initiator = captureFrames(1);
+    } catch {
+      initiator = undefined;
+    }
+
     const prevState = api.getState();
     const t0 = now();
     const result = next(action); // never inside try/catch: a throwing reducer must throw normally
@@ -200,6 +210,7 @@ export function createReduxMonitorMiddleware<S>(
             // Reused generically by the detail pane's "Action" tab (same
             // field HTTP entries use for their request body).
             requestPayload: payload,
+            ...(initiator ? { initiator } : {}),
             redux: {
               type,
               payload,
@@ -227,6 +238,7 @@ export function createReduxMonitorMiddleware<S>(
         sizeBytes: estimateBytes(payload),
         requestPayload: payload,
         replayOf: replayOfId ?? undefined,
+        initiator,
         redux: { type, payload, isError, diff, reducerMs, replayable },
       });
       networkMonitor.update(id, { endTime: t0 + reducerMs });

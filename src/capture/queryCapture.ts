@@ -28,7 +28,7 @@ import {
 } from "./monitorConfig";
 import { openOwnerWindow } from "./monitorContext";
 import { describeError, isCapturedError } from "./monitorError";
-import { networkMonitor } from "./networkMonitor";
+import { estimateBytes, networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
 import type { MonitorEntry, QueryMeta, WsFrame } from "./monitorTypes";
 
@@ -99,6 +99,8 @@ export function getTappedQueryClient(): QueryClientLike | null {
  * whole session history. */
 const queryEntryIds = new Map<string, string>();
 const mutationEntryIds = new Map<number, string>();
+/** The last status each mutation was recorded at — see `handleMutationEvent`. */
+const mutationStatus = new Map<number, string>();
 const fetchCounts = new Map<string, number>();
 
 let frameCounter = 0;
@@ -212,6 +214,11 @@ function describeFailure(error: unknown, ownerId: string): unknown {
   };
 }
 
+/** A settled row's data, and the size the list's Size column shows for it. */
+function withSize(data: unknown): { responsePayload: unknown; sizeBytes: number } {
+  return { responsePayload: data, sizeBytes: estimateBytes(data) };
+}
+
 function keyLabel(key: readonly unknown[]): string {
   try {
     return JSON.stringify(key);
@@ -303,14 +310,17 @@ function handleQueryEvent(event: CacheEventLike): void {
       // this dispatch — the queryFn TanStack is about to call runs in the
       // same task, which is what makes the correlation work at all.
       openOwnerWindow({ id, kind: "query", label: keyLabel(q.queryKey) });
-      networkMonitor.update(id, { state: "pending", query: toQueryMeta(q) });
+      // The row lives for the whole session, so its clock restarts with each
+      // fetch: the duration it shows is this fetch's, not the time since the
+      // key was first seen. `startAbs` — what the list sorts by — is untouched.
+      networkMonitor.update(id, { state: "pending", startTime: now(), query: toQueryMeta(q) });
       break;
     case "success":
       networkMonitor.appendFrame(id, frame("in", "success"));
       networkMonitor.update(id, {
         state: "success",
         endTime: now(),
-        responsePayload: truncateForPersist(q.state.data, MAX_QUERY_DATA_BYTES).value,
+        ...withSize(truncateForPersist(q.state.data, MAX_QUERY_DATA_BYTES).value),
         query: toQueryMeta(q),
       });
       break;
@@ -366,7 +376,9 @@ function handleMutationEvent(event: CacheEventLike): void {
         observers: 0,
       },
     });
+    mutationStatus.set(m.mutationId, m.state.status);
     if (m.state.status === "pending") {
+      networkMonitor.appendFrame(id, frame("out", "mutate"));
       openOwnerWindow({ id, kind: "mutation", label: `mutation #${m.mutationId}` });
     }
     return;
@@ -381,19 +393,39 @@ function handleMutationEvent(event: CacheEventLike): void {
     });
   }
 
-  if (m.state.status === "success") {
+  // Only a change of status is news. The cache keeps emitting for a settled
+  // mutation — an observer going, garbage collection — and settling it again
+  // on each moved its end time, so its duration grew for as long as it stayed
+  // in the cache.
+  const status = m.state.status;
+  if (mutationStatus.get(m.mutationId) === status) return;
+  mutationStatus.set(m.mutationId, status);
+  const meta = (s: "pending" | "success" | "error"): QueryMeta => ({
+    sub: "mutation",
+    hash: String(m.mutationId),
+    key: [],
+    status: s,
+    observers: 0,
+  });
+
+  if (status === "pending") {
+    networkMonitor.appendFrame(id, frame("out", "mutate"));
+    networkMonitor.update(id, { state: "pending", startTime: now(), query: meta("pending") });
+  } else if (status === "success") {
+    networkMonitor.appendFrame(id, frame("in", "success"));
     networkMonitor.update(id, {
       state: "success",
       endTime: now(),
-      responsePayload: truncateForPersist(m.state.data, MAX_QUERY_DATA_BYTES).value,
-      query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "success", observers: 0 },
+      ...withSize(truncateForPersist(m.state.data, MAX_QUERY_DATA_BYTES).value),
+      query: meta("success"),
     });
-  } else if (m.state.status === "error") {
+  } else if (status === "error") {
+    networkMonitor.appendFrame(id, frame("in", "error"));
     networkMonitor.update(id, {
       state: "error",
       endTime: now(),
       error: describeFailure(m.state.error, id),
-      query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "error", observers: 0 },
+      query: meta("error"),
     });
   }
 }

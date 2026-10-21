@@ -485,12 +485,61 @@ const scenarios = [
       expect(entry.error?.response?.result === 2001, `stored ${JSON.stringify(entry.error)}`);
     },
   },
+  {
+    name: "22. a settled mutation is settled once: later cache events do not move its end, and it has a timeline",
+    run: async () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      const m = (status, extra = {}) => ({ mutationId: 101, state: { status, variables: { id: 1 }, ...extra } });
+      emit({ type: "added", mutation: m("idle") });
+      emit({ type: "updated", mutation: m("pending") });
+      emit({ type: "updated", mutation: m("success", { data: { ok: true, rows: [1, 2, 3] } }) });
+      const of = () => entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "101");
+      const settled = of().endTime;
+      await new Promise((r) => setTimeout(r, 30));
+      emit({ type: "observerRemoved", mutation: m("success", { data: { ok: true, rows: [1, 2, 3] } }) });
+      expect(of().endTime === settled, "a later cache event moved the end time");
+      expect(of().sizeBytes > 0, `size is ${of().sizeBytes}`);
+      const events = (of().frames ?? []).map((f) => f.event).join(",");
+      expect(events === "mutate,success", `timeline is ${events}`);
+    },
+  },
+  {
+    name: "23. a query row's duration is its latest fetch's, and it records the data's size",
+    run: async () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => cache, getMutationCache: () => idle });
+      const q = (status) => ({ queryHash: '["timed"]', queryKey: ["timed"], state: { status, data: { rows: [1, 2] } } });
+      emit({ type: "added", query: q("pending") });
+      emit({ type: "updated", action: { type: "fetch" }, query: q("pending") });
+      emit({ type: "updated", action: { type: "success" }, query: q("success") });
+      await new Promise((r) => setTimeout(r, 120));
+      emit({ type: "updated", action: { type: "fetch" }, query: q("success") });
+      emit({ type: "updated", action: { type: "success" }, query: q("success") });
+      const entry = entryWhere((e) => e.method === "QUERY" && e.url === '["timed"]');
+      expect(entry.durationMs < 100, `duration ${entry.durationMs} ms spans both fetches`);
+      expect(entry.sizeBytes > 0, `size is ${entry.sizeBytes}`);
+    },
+  },
+  {
+    name: "24. a Redux action records who dispatched it",
+    run: () => {
+      const dispatch = capture.createReduxMonitorMiddleware()({ getState: () => ({}) })((a) => a);
+      dispatch({ type: "stack/check" });
+      const entry = entryWhere((e) => e.kind === "redux" && e.url === "stack/check");
+      expect(Array.isArray(entry.initiator) && entry.initiator.length > 0, "no call stack was captured");
+    },
+  },
 ];
 
 let failed = 0;
 for (const scenario of scenarios) {
   try {
-    scenario.run();
+    await scenario.run();
     console.log(`✓ ${scenario.name}`);
   } catch (error) {
     failed += 1;
