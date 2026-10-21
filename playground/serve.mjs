@@ -89,9 +89,97 @@ async function api(url, req, res) {
   );
 }
 
+/**
+ * `/errors/<shape>` — one failure per shape, each the way some real backend
+ * answers: the playground's error lab runs every one through axios, fetch and
+ * a mutation, to see what the panel makes of it.
+ */
+const ERROR_SHAPES = {
+  // A result envelope with the server's exception attached.
+  "envelope-409": () => [
+    409,
+    "application/json",
+    {
+      result: 1042,
+      succeeded: false,
+      data: null,
+      message: "The record cannot be deleted because other records reference it.",
+      exception: {
+        type: "App.Domain.ConflictException",
+        message: "Failure 1042.",
+        stackTrace:
+          "   at App.Domain.Orders.OrderService.DeleteAsync(Int64 id) in /src/OrderService.cs:line 88\n" +
+          "   at App.Api.Endpoints.OrderEndpoints.DeleteAsync(Int64 id) in /src/OrderEndpoints.cs:line 42",
+        innerException: null,
+      },
+    },
+  ],
+  "problem-400": () => [
+    400,
+    "application/problem+json",
+    {
+      type: "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+      title: "One or more validation errors occurred.",
+      status: 400,
+      traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      errors: { Email: ["The Email field is required."], Phone: ["Invalid phone number.", "Too short."] },
+    },
+  ],
+  "validation-422": () => [
+    422,
+    "application/json",
+    { message: "The given data was invalid.", errors: [{ field: "amount", code: "min", message: "Must be at least 1" }] },
+  ],
+  "nested-403": () => [
+    403,
+    "application/json",
+    { error: { code: "FORBIDDEN", message: "Missing permission orders.delete", details: [{ permission: "orders.delete", scope: "team:3" }] } },
+  ],
+  "auth-401": () => [401, "application/json", { error: "invalid_token", error_description: "The access token expired" }],
+  "rate-429": () => [429, "application/json", { message: "Too many requests", retryAfterSeconds: 30 }],
+  "array-400": () => [400, "application/json", ["Name is required", "Date is in the past"]],
+  "string-json-400": () => [400, "application/json", "Account is locked"],
+  "html-500": () => [
+    500,
+    "text/html; charset=utf-8",
+    "<!doctype html><html><body><h1>500 Internal Server Error</h1><p>nginx</p></body></html>",
+    true,
+  ],
+  "text-503": () => [503, "text/plain", "Service Unavailable — upstream timed out", true],
+  "empty-500": () => [500, undefined, undefined],
+  "bad-json-500": () => [500, "application/json", '{"message": "truncated', true],
+  "big-500": () => [
+    500,
+    "application/json",
+    {
+      message: "Unhandled exception",
+      exception: {
+        type: "System.NullReferenceException",
+        stackTrace: Array.from({ length: 200 }, (_, n) => `   at Frame${n}.Method() in /src/File${n}.cs:line ${n}`).join("\n"),
+      },
+    },
+  ],
+  // An HTTP success that is a failure by the envelope's own account.
+  "soft-200": () => [200, "application/json", { result: 2001, succeeded: false, data: null, message: "Account is suspended" }],
+};
+
+function errorShape(url, res) {
+  const shape = ERROR_SHAPES[url.pathname.split("/")[2]];
+  if (!shape) return res.writeHead(404, { "content-type": "text/plain" }).end("no such shape");
+  // `raw` bodies are sent as written — HTML, text, JSON that does not parse.
+  const [status, type, body, raw] = shape();
+  res.writeHead(status, {
+    ...(type ? { "content-type": type } : {}),
+    ...(status === 429 ? { "retry-after": "30" } : {}),
+    ...(status === 401 ? { "www-authenticate": 'Bearer error="invalid_token"' } : {}),
+  });
+  res.end(body === undefined ? undefined : raw ? body : JSON.stringify(body));
+}
+
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   if (url.pathname.startsWith("/api/")) return api(url, req, res);
+  if (url.pathname.startsWith("/errors/")) return errorShape(url, res);
   const file =
     url.pathname === "/" ? join(here, "index.html") : join(out, url.pathname.replace(/^\/+/, ""));
   try {

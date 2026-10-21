@@ -364,6 +364,127 @@ const scenarios = [
       noSecrets(truncateForPersist({ nested: foreign }, MAX).value);
     },
   },
+  // A host error class built from the response body keeps that body in fields
+  // only its author knows the names of — they are kept, and masked.
+  {
+    name: "18. a host error's own fields are kept as details, masked, numeric code included",
+    run: () => {
+      class ApiError extends Error {
+        constructor() {
+          super("The record cannot be deleted");
+          this.status = 409;
+          this.code = 1042;
+          this.result = 1042;
+          this.exception = { type: "ConflictException" };
+          this.headers = { Authorization: "Bearer SECRET_TOKEN_123" };
+          this.original = axiosError();
+        }
+      }
+      const out = describeError(new ApiError(), MAX);
+      noSecrets(out);
+      expect(out.status === 409, `status is ${JSON.stringify(out.status)}`);
+      expect(out.details?.result === 1042, "details.result was lost");
+      expect(out.details?.code === 1042, "the numeric code was lost");
+      expect(out.details?.exception?.type === "ConflictException", "details.exception was lost");
+    },
+  },
+  {
+    name: "19. a failed mutation whose error lost the body borrows it from the request that failed",
+    run: () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      emit({ type: "added", mutation: { mutationId: 77, state: { status: "idle" } } });
+
+      const body = { result: 1042, succeeded: false, message: "conflict" };
+      const id = networkMonitor.nextId();
+      networkMonitor.start({
+        id,
+        method: "DELETE",
+        url: "/orders/5",
+        at: Date.now(),
+        startTime: performance.now(),
+      });
+      networkMonitor.update(id, {
+        state: "error",
+        status: 409,
+        endTime: performance.now(),
+        error: { kind: "http", message: "Request failed with status code 409", status: 409, response: body },
+      });
+
+      const thrown = Object.assign(new Error("conflict"), { status: 409 });
+      emit({ type: "updated", mutation: { mutationId: 77, state: { status: "error", error: thrown } } });
+      const entry = entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "77");
+      expect(entry.error?.response?.result === 1042, `stored ${JSON.stringify(entry.error)}`);
+      expect(entry.error?.responseFrom === id, "responseFrom does not name the request");
+      expect(entry.error?.kind === "http", `kind is ${JSON.stringify(entry.error?.kind)}`);
+    },
+  },
+  {
+    name: "20. two mutations failing alike at once each borrow their own request, and keep it when described again",
+    run: () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      const request = (url, body) => {
+        const id = networkMonitor.nextId();
+        networkMonitor.start({ id, method: "POST", url, at: Date.now(), startTime: performance.now() });
+        networkMonitor.update(id, {
+          state: "error",
+          status: 400,
+          endTime: performance.now(),
+          error: { kind: "http", message: "400", status: 400, response: body },
+        });
+        return id;
+      };
+      emit({ type: "added", mutation: { mutationId: 81, state: { status: "idle" } } });
+      emit({ type: "added", mutation: { mutationId: 82, state: { status: "idle" } } });
+      const a = request("/a", { which: "a" });
+      const b = request("/b", { which: "b" });
+      const fail = (mutationId) =>
+        emit({
+          type: "updated",
+          mutation: {
+            mutationId,
+            state: { status: "error", variables: { n: mutationId }, error: Object.assign(new Error("400"), { status: 400 }) },
+          },
+        });
+      fail(81);
+      fail(82);
+      // A later cache event re-describes the same failure.
+      fail(81);
+      const of = (hash) => entryWhere((e) => e.method === "MUTATE" && e.query?.hash === hash);
+      expect(of("81").error?.responseFrom === a, `81 borrowed ${of("81").error?.responseFrom}, not ${a}`);
+      expect(of("82").error?.responseFrom === b, `82 borrowed ${of("82").error?.responseFrom}, not ${b}`);
+      expect(of("81").requestPayload?.n === 81, "the mutation's variables were not recorded");
+    },
+  },
+  {
+    name: "21. a failure the app raised on a 200 envelope borrows the successful response's body",
+    run: () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      emit({ type: "added", mutation: { mutationId: 91, state: { status: "idle" } } });
+      const id = networkMonitor.nextId();
+      networkMonitor.start({ id, method: "POST", url: "/soft", at: Date.now(), startTime: performance.now() });
+      networkMonitor.update(id, {
+        state: "success",
+        status: 200,
+        endTime: performance.now(),
+        responsePayload: { succeeded: false, result: 2001 },
+      });
+      emit({
+        type: "updated",
+        mutation: { mutationId: 91, state: { status: "error", error: Object.assign(new Error("blocked"), { status: 200 }) } },
+      });
+      const entry = entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "91");
+      expect(entry.error?.response?.result === 2001, `stored ${JSON.stringify(entry.error)}`);
+    },
+  },
 ];
 
 let failed = 0;

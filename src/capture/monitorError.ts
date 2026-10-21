@@ -46,6 +46,13 @@ export interface CapturedError {
   timeoutMs?: number;
   /** The response body, when there was a response. */
   response?: unknown;
+  /** Query/mutation only: the id of the HTTP entry `response` was taken from,
+   * when the error the app threw did not carry the body itself. */
+  responseFrom?: string;
+  /** The error's own fields that none of the above covers — whatever a host's
+   * error class carries: `result`, `errors`, a numeric `code`, the body under
+   * `data`. Masked and bounded like any stored value. */
+  details?: Record<string, unknown>;
   /** What the error says caused it, one level down. Context, not a second
    * failure: it has no `kind` of its own. */
   cause?: ErrorContext | string;
@@ -104,7 +111,59 @@ function stackOf(error: unknown): string[] | undefined {
   return frames.length ? frames : undefined;
 }
 
-const TIMEOUT_CODES = new Set(["ECONNABORTED", "ETIMEDOUT", "ERR_TIMEOUT"]);
+/** Fields `captureError` reads by name, or must never copy: an axios error's
+ * `config`, `request` and `response` carry the unmasked request headers. */
+const NOT_DETAILS = new Set([
+  "name",
+  "message",
+  "stack",
+  "cause",
+  "status",
+  "config",
+  "request",
+  "response",
+  "isAxiosError",
+  "toJSON",
+  "__CANCEL__",
+]);
+const DETAILS_MAX_BYTES = 16384;
+
+/**
+ * A host error's own fields, beyond the ones read by name.
+ *
+ * Not for axios's errors: everything of theirs worth keeping is read by name,
+ * and the rest is config. A host's error is another matter — an `ApiError`
+ * built from the response body keeps that body in fields only its author
+ * knows the names of, and dropping them left `{ message, status }` of a
+ * response that said much more.
+ */
+function detailsOf(error: unknown): Record<string, unknown> | undefined {
+  if (error === null || typeof error !== "object" || read(error, "isAxiosError") === true) {
+    return undefined;
+  }
+  let keys: string[];
+  try {
+    keys = Object.keys(error);
+  } catch {
+    return undefined;
+  }
+  const own: Record<string, unknown> = {};
+  let any = false;
+  for (const key of keys) {
+    if (NOT_DETAILS.has(key)) continue;
+    // A string `code` is recorded as `code`; any other is a detail.
+    if (key === "code" && typeof read(error, key) === "string") continue;
+    const value = read(error, key);
+    if (value === undefined || typeof value === "function") continue;
+    own[key] = value;
+    any = true;
+  }
+  if (!any) return undefined;
+  const { value } = truncateForPersist(own, DETAILS_MAX_BYTES);
+  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+const TIMEOUT_CODES =new Set(["ECONNABORTED", "ETIMEDOUT", "ERR_TIMEOUT"]);
 
 function classify(error: unknown, hasResponse: boolean): FailureKind {
   const name = str(read(error, "name"));
@@ -168,6 +227,8 @@ export function captureError(error: unknown, context: FailureContext = {}, depth
   if (context.statusText) out.statusText = context.statusText;
   if (out.kind === "timeout" && context.timeoutMs) out.timeoutMs = context.timeoutMs;
   if (context.response !== undefined) out.response = context.response;
+  const details = detailsOf(error);
+  if (details) out.details = details;
 
   const cause = read(error, "cause");
   if (cause !== undefined && cause !== null && depth < 2) {

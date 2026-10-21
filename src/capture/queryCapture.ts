@@ -27,10 +27,10 @@ import {
   now,
 } from "./monitorConfig";
 import { openOwnerWindow } from "./monitorContext";
-import { describeError } from "./monitorError";
+import { describeError, isCapturedError } from "./monitorError";
 import { networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
-import type { QueryMeta, WsFrame } from "./monitorTypes";
+import type { MonitorEntry, QueryMeta, WsFrame } from "./monitorTypes";
 
 /** Structural subset of a TanStack Query `Query` this tap needs. */
 export interface QueryStateLike {
@@ -105,6 +105,111 @@ let frameCounter = 0;
 function frame(direction: WsFrame["direction"], event: string): WsFrame {
   frameCounter += 1;
   return { id: `qf${frameCounter}`, at: Date.now(), direction, event, data: undefined, sizeBytes: 0 };
+}
+
+/** Clock slack between `Date.now()` (frames) and `timeOrigin + performance.now()`
+ * (entries), when deciding whether a request started inside a fetch. */
+const CLOCK_SLACK_MS = 100;
+
+/** What an HTTP entry's server said, when it is the answer to a failure with
+ * `status`: the body of a failed request, or — for a failure the app raised
+ * itself on a 2xx, an envelope saying `succeeded: false` — the body of a
+ * successful one. */
+function answerOf(entry: MonitorEntry | undefined, status: number | undefined): unknown {
+  if (entry === undefined || (entry.kind ?? "http") !== "http") return undefined;
+  if (status !== undefined && entry.status !== status) return undefined;
+  if (isCapturedError(entry.error)) return entry.error.response;
+  const succeeded = status !== undefined && status >= 200 && status < 300;
+  return succeeded && entry.state === "success" ? entry.responsePayload : undefined;
+}
+
+/** Which failure each request's answer was lent to, so that two that failed
+ * alike at once each get their own — while the same failure, described again
+ * on every later cache event, keeps the one it got. Bounded: only recent
+ * ones matter. */
+const lent = new Map<string, string>();
+const MAX_LENT = 500;
+
+function lend(requestId: string, ownerId: string): void {
+  lent.set(requestId, ownerId);
+  if (lent.size > MAX_LENT) lent.delete(lent.keys().next().value as string);
+}
+
+/**
+ * The HTTP request a failed query or mutation most likely failed on.
+ *
+ * The requests it is known to have caused come first. That link is often
+ * missing — a mutation runs its `mutationFn` after awaiting `onMutate`, when
+ * the ownership window has long closed — so after that, the earliest request
+ * with the same status since this fetch began that no other failure has
+ * claimed. Earliest, because of several that fail together, the first to fail
+ * is the first whose caller hears of it. A guess, which is why the entry it
+ * came from is recorded next to the body it lent.
+ */
+function failedRequestFor(
+  ownerId: string,
+  status: number | undefined,
+): { entry: MonitorEntry; body: unknown } | undefined {
+  const owner = networkMonitor.getById(ownerId);
+  if (!owner) return undefined;
+
+  const caused = owner.query?.causedIds ?? [];
+  for (let i = caused.length - 1; i >= 0; i -= 1) {
+    const entry = networkMonitor.getById(caused[i]);
+    const body = answerOf(entry, status);
+    if (entry && body !== undefined) return { entry, body };
+  }
+
+  if (status === undefined) return undefined;
+  let since = owner.startAbs;
+  for (const f of owner.frames ?? []) {
+    if (f.direction === "out" && f.event === "fetch" && f.at > since) since = f.at;
+  }
+  since -= CLOCK_SLACK_MS;
+
+  let best: { entry: MonitorEntry; body: unknown } | undefined;
+  for (const entry of networkMonitor.getSnapshot()) {
+    const holder = lent.get(entry.id);
+    if (entry.startAbs < since || (holder !== undefined && holder !== ownerId)) continue;
+    const body = answerOf(entry, status);
+    if (body === undefined) continue;
+    if (!best || (entry.endAbs ?? Infinity) < (best.entry.endAbs ?? Infinity)) best = { entry, body };
+  }
+  return best;
+}
+
+/**
+ * A failed query's or mutation's error, with the server's answer beside it.
+ *
+ * What the cache holds is whatever the app threw, and an app that turns an
+ * axios failure into its own error routinely keeps a message and a status of
+ * a response that said much more. The HTTP entry still has the whole body:
+ * it is lent here, as it came back, whatever its shape.
+ */
+function describeFailure(error: unknown, ownerId: string): unknown {
+  const described = describeError(error, MAX_QUERY_DATA_BYTES);
+  if (!isCapturedError(described) || described.response !== undefined) return described;
+  const source = failedRequestFor(ownerId, described.status);
+  if (!source) return described;
+  lend(source.entry.id, ownerId);
+  const wire = isCapturedError(source.entry.error) ? source.entry.error : undefined;
+  // The body goes where `captureError` puts one — ahead of the details, the
+  // cause and the stack — so it is what the panel shows first.
+  const { details, cause, stack, handledAs, ...head } = described;
+  return {
+    ...head,
+    ...(described.kind === "unknown" && wire ? { kind: wire.kind } : {}),
+    ...(described.status === undefined && wire?.status !== undefined ? { status: wire.status } : {}),
+    ...(described.statusText === undefined && wire?.statusText
+      ? { statusText: wire.statusText }
+      : {}),
+    response: source.body,
+    responseFrom: source.entry.id,
+    ...(details !== undefined ? { details } : {}),
+    ...(cause !== undefined ? { cause } : {}),
+    ...(stack !== undefined ? { stack } : {}),
+    ...(handledAs !== undefined ? { handledAs } : {}),
+  };
 }
 
 function keyLabel(key: readonly unknown[]): string {
@@ -217,7 +322,7 @@ function handleQueryEvent(event: CacheEventLike): void {
         endTime: now(),
         // Described, never copied: a queryFn that uses axios rejects with an
         // error whose enumerable `config` holds the request's headers.
-        error: describeError(q.state.error, MAX_QUERY_DATA_BYTES),
+        error: describeFailure(q.state.error, id),
         query: toQueryMeta(q),
       });
       break;
@@ -267,6 +372,15 @@ function handleMutationEvent(event: CacheEventLike): void {
     return;
   }
 
+  // A mutation is added to the cache before it runs, with no variables yet:
+  // they arrive with `pending`, and the row would otherwise never show them.
+  const prev = networkMonitor.getById(id);
+  if (m.state.variables !== undefined && prev?.requestPayload === undefined) {
+    networkMonitor.update(id, {
+      requestPayload: truncateForPersist(m.state.variables, MAX_QUERY_DATA_BYTES).value,
+    });
+  }
+
   if (m.state.status === "success") {
     networkMonitor.update(id, {
       state: "success",
@@ -278,7 +392,7 @@ function handleMutationEvent(event: CacheEventLike): void {
     networkMonitor.update(id, {
       state: "error",
       endTime: now(),
-      error: describeError(m.state.error, MAX_QUERY_DATA_BYTES),
+      error: describeFailure(m.state.error, id),
       query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "error", observers: 0 },
     });
   }

@@ -156,6 +156,106 @@ function dispatchSome(count: number) {
 
 const getJson = (url: string) => fetch(url).then((r) => r.json());
 
+/* ── Error lab: every failure shape in `serve.mjs`, through every path ───── */
+
+const ERROR_SHAPES = [
+  "envelope-409",
+  "problem-400",
+  "validation-422",
+  "nested-403",
+  "auth-401",
+  "rate-429",
+  "array-400",
+  "string-json-400",
+  "html-500",
+  "text-503",
+  "empty-500",
+  "bad-json-500",
+  "big-500",
+  "soft-200",
+] as const;
+
+/** What a mutation's error is, the ways apps build theirs. */
+const THROWERS = {
+  // The playground client's own replacement: message and status, no body.
+  "ApiError (no body)": (shape: string) => api.delete(`/errors/${shape}`),
+  // An ApiError that keeps the body on a field of its own.
+  "ApiError + data": (shape: string) =>
+    axios.delete(`/errors/${shape}`).catch((error) => {
+      throw Object.assign(new ApiError(error.message, error.response?.status), {
+        data: error.response?.data,
+        code: error.response?.data?.result,
+      });
+    }),
+  "plain object": (shape: string) =>
+    axios.delete(`/errors/${shape}`).catch((error) => {
+      throw { status: error.response?.status, body: error.response?.data };
+    }),
+  string: (shape: string) =>
+    axios.delete(`/errors/${shape}`).catch((error) => {
+      throw `failed: ${error.response?.status}`;
+    }),
+  "raw AxiosError": (shape: string) => axios.delete(`/errors/${shape}`),
+} as const;
+type Thrower = keyof typeof THROWERS;
+
+/** A 200 whose envelope says it failed is a failure to the app. */
+const unlessSoftFailure = (body: unknown) => {
+  const envelope = body as { succeeded?: boolean; message?: string } | undefined;
+  if (envelope?.succeeded === false) throw new ApiError(envelope.message ?? "failed", 200);
+  return body;
+};
+
+function ErrorLab() {
+  const [shape, setShape] = useState<string>(ERROR_SHAPES[0]);
+  const mutation = useMutation({
+    // Awaited first, the way real `onMutate`s are: the request then starts
+    // after the ownership window has closed, and the mutation cannot be tied
+    // to it by that link.
+    onMutate: async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    },
+    mutationFn: async ({ shape, thrower }: { shape: string; thrower: Thrower }) =>
+      unlessSoftFailure(await THROWERS[thrower](shape)),
+  });
+  // For driving the lab from the console: `errorLab("soft-200", "string")`.
+  useEffect(() => {
+    (window as unknown as { errorLab: unknown }).errorLab = (shape: string, thrower: Thrower) =>
+      mutation.mutate({ shape, thrower });
+  }, [mutation.mutate]);
+  return (
+    <section>
+      <h2>Error lab</h2>
+      <p>
+        <select value={shape} onChange={(e) => setShape(e.target.value)}>
+          {ERROR_SHAPES.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>{" "}
+        <button onClick={() => swallow(api.delete(`/errors/${shape}`))}>axios</button>
+        <button onClick={() => swallow(fetch(`/errors/${shape}`, { method: "DELETE" }))}>fetch</button>
+      </p>
+      <p>
+        mutation, error thrown as:{" "}
+        {(Object.keys(THROWERS) as Thrower[]).map((thrower) => (
+          <button key={thrower} onClick={() => mutation.mutate({ shape, thrower })}>
+            {thrower}
+          </button>
+        ))}
+      </p>
+      <p>
+        <button
+          onClick={() => {
+            for (const s of ERROR_SHAPES) mutation.mutate({ shape: s, thrower: "ApiError (no body)" });
+          }}
+        >
+          every shape as a mutation
+        </button>
+      </p>
+    </section>
+  );
+}
+
 function Page() {
   const [tick, setTick] = useState(0);
   const tickets = useQuery({ queryKey: ["tickets", "list"], queryFn: () => getJson("/api/tickets/getAll?i=2") });
@@ -246,6 +346,7 @@ function Page() {
         <button onClick={() => swallow(fetch("http://localhost:1/api/down"))}>network down</button>
       </p>
       <p>Tickets query: {tickets.status}</p>
+      <ErrorLab />
     </main>
   );
 }
