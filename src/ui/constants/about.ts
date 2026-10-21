@@ -26,5 +26,6 @@ export const BLIX_LINKS = {
   changelog:
     BLIX_VERSION === "dev" ? `${SITE}/changelog` : `${SITE}/changelog#v${BLIX_VERSION}`,
   repo: REPO,
-  issues: `${REPO}/issues/new`,
+  /** The template chooser: bug report, feature request, or a private security advisory. */
+  issues: `${REPO}/issues/new/choose`,
 } as const;
