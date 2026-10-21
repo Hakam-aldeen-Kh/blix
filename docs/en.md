@@ -638,6 +638,8 @@ and not just the response body:
 | `name`, `code` | The error's class (`AxiosError`, `TypeError`) and the client's code (`ERR_NETWORK`, `ECONNABORTED`). |
 | `status`, `statusText` | When the server answered. |
 | `response` | **The response body**, when there was one. |
+| `responseFrom` | Query and mutation rows only: the id of the HTTP entry `response` was taken from, when the error your app threw did not carry the body. |
+| `details` | Your error class's own fields that none of the others cover — `result`, `errors`, a numeric `code` — masked like any stored value. Not read from axios's errors. |
 | `timeoutMs` | The timeout the request ran under, when that is what ended it. |
 | `cause` | What the error says caused it — the same fields, without `kind`. |
 | `stack` | The top frames of the error's stack. |
@@ -656,8 +658,17 @@ When there was no response, the status column reads the kind — `timeout` or
 `network` — and the detail head shows the failure's own message.
 
 Query and mutation rows, and a Redux action whose payload is an error, store
-the same shape. Only named fields are ever read from an error: never its
+the same shape. Only named fields are ever read from an axios error: never its
 request config or headers.
+
+When your app replaces the client's error with its own — a message and a
+status, and no body — a failed query or mutation still shows what the server
+said: Blix takes the body from the HTTP request it failed on. That is the
+request it is known to have caused, or else the earliest request with the same
+status since it started that no other failure has claimed. It is a best guess,
+so `responseFrom` names the request it came from. A failure your app raises on
+a 2xx (an envelope saying `succeeded: false`) takes the successful response's
+body the same way.
 
 #### `entry.wire` — `WireTiming`
 
