@@ -417,6 +417,11 @@ export interface MonitorPrefs {
    * yaml | text. A plain string for the same reason as `theme`: this module
    * stays free of any dependency on the UI layer. */
   dataFormat: string;
+  /** The Diff tab's own format: its `+ / − / ±` rows (`"diff"`) unless the
+   * developer picked another there. Kept apart from `dataFormat`, which no
+   * other pane can show as rows — sharing it meant the rows were never the
+   * default anywhere. */
+  diffFormat: string;
 
   /** Active top-level section — `"network"` (HTTP) or `"realtime"` (sockets). */
   section: string;

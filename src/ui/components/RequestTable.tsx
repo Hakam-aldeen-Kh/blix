@@ -166,6 +166,9 @@ const RequestRow = memo(function RequestRow({
       aria-selected={selected}
       data-nm-id={entry.id}
       data-tone={tone}
+      // Shape says the outcome, colour the severity: a failed 404 is amber
+      // but still square, so it never reads as a success by shape alone.
+      data-failed={entry.state === "error" ? "" : undefined}
       tabIndex={tabbable ? 0 : -1}
       className={`nm-trow${selected ? " active" : ""}`}
       onClick={() => onSelect(entry.id)}

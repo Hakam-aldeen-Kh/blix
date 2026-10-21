@@ -25,7 +25,18 @@ export function useContextMenu() {
   const open = useCallback((e: React.MouseEvent, entry: MonitorEntry) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ entry, x: e.clientX, y: e.clientY, confirming: false });
+    // Opened from the keyboard — Enter on the ⋯ button, the context-menu key
+    // on a row — there is no pointer: the event says 0,0, and the menu used to
+    // open in the viewport's corner, far from what opened it. Anchored to that
+    // element instead.
+    const fromKeyboard = e.detail === 0 && e.clientX === 0 && e.clientY === 0;
+    const rect = fromKeyboard ? (e.currentTarget as Element).getBoundingClientRect() : null;
+    setMenu({
+      entry,
+      x: rect ? rect.left : e.clientX,
+      y: rect ? rect.bottom : e.clientY,
+      confirming: false,
+    });
   }, []);
 
   const close = useCallback(() => setMenu(null), []);

@@ -37,7 +37,6 @@ export interface ToolbarProps {
   searchRef: React.RefObject<HTMLInputElement | null>;
   deepSearch: boolean;
   onDeepSearch: (value: boolean) => void;
-  searching: boolean;
   /** `8 of 56`, shown inside the field so a live filter never needs the
    * status bar to be noticed. */
   shown: number;
@@ -92,7 +91,6 @@ export function MonitorToolbar(props: ToolbarProps) {
     searchRef,
     deepSearch,
     onDeepSearch,
-    searching,
     shown,
     total,
     paused,
@@ -199,7 +197,9 @@ export function MonitorToolbar(props: ToolbarProps) {
           aria-label="Filter requests"
           placeholder="method:post   is:error   url:tickets   -status:2xx"
         />
-        {searching && (
+        {/* Whenever a filter is applied — not only while the deferred query
+            is catching up to the typing, which is a frame or two. */}
+        {query.trim() !== "" && (
           <>
             <span className="nm-filter-count">
               {shown} of {total}
