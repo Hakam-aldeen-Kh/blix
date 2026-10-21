@@ -639,6 +639,7 @@ and not just the response body:
 | `status`, `statusText` | When the server answered. |
 | `response` | **The response body**, when there was one. |
 | `responseFrom` | Query and mutation rows only: the id of the HTTP entry `response` was taken from, when the error your app threw did not carry the body. |
+| `responseMatch` | With `responseFrom`: `"exact"` when the error is the one your interceptor handed back for that request, `"guess"` when it was matched by status and time. |
 | `details` | Your error class's own fields that none of the others cover — `result`, `errors`, a numeric `code` — masked like any stored value. Not read from axios's errors. |
 | `timeoutMs` | The timeout the request ran under, when that is what ended it. |
 | `cause` | What the error says caused it — the same fields, without `kind`. |
@@ -661,14 +662,28 @@ Query and mutation rows, and a Redux action whose payload is an error, store
 the same shape. Only named fields are ever read from an axios error: never its
 request config or headers.
 
-When your app replaces the client's error with its own — a message and a
+When your app replaces the client's error with its own — a message, perhaps a
 status, and no body — a failed query or mutation still shows what the server
-said: Blix takes the body from the HTTP request it failed on. That is the
-request it is known to have caused, or else the earliest request with the same
-status since it started that no other failure has claimed. It is a best guess,
-so `responseFrom` names the request it came from. A failure your app raises on
-a 2xx (an envelope saying `succeeded: false`) takes the successful response's
-body the same way.
+said: Blix takes the body from the HTTP request it failed on, and
+`responseFrom` names that request. How it finds the request is in
+`responseMatch`:
+
+- **`"exact"`** — the error is the one your axios response interceptor handed
+  back for that request. Blix's hook on your first response interceptor sees
+  both the client's error and the one your handler rejects or throws with, and
+  records the second against the request. No status is needed, and two
+  requests failing alike at the same moment cannot be confused. An error that
+  carries that one as its `cause` (`new Error("…", { cause })`) is followed to
+  it too.
+- **`"guess"`** — nothing links the error to a request, so Blix takes the
+  request it is known to have caused, or else the earliest request with the
+  same status since it started that no other failure has claimed. This needs a
+  `status` on the error. It is what a failure your app raises itself after a
+  2xx (an envelope saying `succeeded: false`) gets, and it takes the successful
+  response's body the same way.
+
+A thrown string, or an error with no status that never passed through an axios
+interceptor, cannot be tied to a request: its row shows the error alone.
 
 #### `entry.wire` — `WireTiming`
 
@@ -929,8 +944,10 @@ have to read the status bar to know one is applied. `.*` widens the search to
 request and response bodies.
 
 **Each row starts with a status dot** — round when the request worked, square
-and red when it failed, hollow while it is still in flight — so the outcome
-reads by shape as well as colour. Failing rows are tinted red, and stay red
+when it failed, hollow while it is still in flight — so the outcome reads by
+shape as well as colour. The colour is severity: a 5xx, a 401 and a request
+with no answer are red, while any other 4xx is amber — a 404 on an avatar is
+not the same news as a 500 on checkout. Both are failures, and both are square. Failing rows are tinted red, and stay red
 when selected; any other selected row gets a green edge. The bars on the right
 are drawn in one neutral colour so they compare as lengths: green for the
 selected row, red for failures.
@@ -1045,19 +1062,41 @@ request and response bodies too. On top of that the field takes
 
 | Token | Matches |
 | --- | --- |
-| `method:post` | The method, as a substring |
-| `status:500`, `status:5xx` | An exact status, or a status class |
+| `method:post` | The method, as a substring — see below for what it holds in each source |
+| `status:500`, `status:5xx` | An exact status, or a status class (`1xx` to `5xx`) |
 | `is:error` | `error`, `ok`, `pending`, `aborted`, `pinned`, `replay`, `encrypted` |
 | `type:ws` | The source: `http`, `ws`, `redux`, `query` |
 | `client:fetch` | `fetch` or `axios` — which capture path recorded the request |
 | `url:checkout` | The URL, as a substring |
-| `larger-than:10k` | Size above a threshold — `b`, `k`/`kb`, `m`/`mb` |
+| `larger-than:10k` | Size above a threshold — `b`, `k`/`kb`, `m`/`mb`, `g`/`gb` |
 | `slower-than:500` | Duration above a threshold, in ms — or `slower-than:1.5s` |
 | `has:frames` | `frames`, `initiator`, `error`, `replay`, `body` |
+
+`method:` reads the column each source shows in place of a method:
+
+| Source | `method:` matches |
+| --- | --- |
+| Network | `get`, `post`, `put`, `patch`, `delete`, `head`, `options` |
+| Realtime | `ws` |
+| Redux | The slice — the action type up to its first `/`. `method:cart` matches `cart/added` and `cart/cleared` |
+| Query | `query` for a query, `mutate` for a mutation |
+
+A few spellings are accepted as well: `is:success` for `is:ok`, `is:running`
+for `is:pending`, and `status-code:`, `larger:` and `slower:` for `status:`,
+`larger-than:` and `slower-than:`. Field values are case-insensitive, and an
+`is:` or `has:` value not in the lists above matches nothing.
 
 Tokens are ANDed. A leading `-` negates any of them — `-polling`,
 `-status:2xx` — and `"double quotes"` keep a value with spaces together. Only
 plain text reaches into bodies; a field token never does.
+
+```text
+is:error method:post          every failed POST
+status:4xx -status:404        every 4xx except 404
+url:orders slower-than:1s     order requests that took more than a second
+type:redux method:cart        every cart action
+method:mutate is:error        every failed mutation
+```
 
 ### Viewing payloads
 

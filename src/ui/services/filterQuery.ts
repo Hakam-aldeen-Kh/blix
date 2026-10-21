@@ -4,14 +4,19 @@
  * Free text matches the URL (and, in deep mode, the payload). On top of that:
  *
  *   `-polling`            exclude anything matching "polling"
- *   `method:post`         field match (case-insensitive, substring)
+ *   `method:post`         field match (case-insensitive, substring) — the
+ *                         HTTP method, `ws`, a Redux slice, or query | mutate
  *   `status:500`          exact status, or `status:5xx` / `status:4xx`
- *   `is:error`            error | ok | pending | aborted | pinned | replay | running
- *   `type:ws`             http | ws
+ *   `is:error`            error | ok (success) | pending (running) | aborted |
+ *                         pinned | replay | encrypted
+ *   `type:ws`             http | ws | redux | query
  *   `client:fetch`        fetch | axios — which HTTP capture path recorded it
- *   `larger-than:10k`     size threshold — accepts b / k / kb / m / mb
+ *   `url:checkout`        the URL, as a substring
+ *   `larger-than:10k`     size threshold — accepts b / k / kb / m / mb / g / gb
  *   `slower-than:500`     duration in ms, or `slower-than:1.5s`
- *   `has:frames`          frames | initiator | error | replay
+ *   `has:frames`          frames | initiator | error | replay | body
+ *
+ * `status-code:`, `larger:` and `slower:` are accepted for their long forms.
  *
  * Any token may be negated with a leading `-`. Tokens are ANDed; quoting with
  * `"..."` keeps spaces together.

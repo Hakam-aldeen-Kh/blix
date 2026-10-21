@@ -5,6 +5,54 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A failed mutation finds its request exactly.** When your axios response
+  interceptor replaces the client's error with its own, Blix records the
+  replacement against its request, so a failed query or mutation holding it —
+  or holding an error that carries it as `cause` — shows that request's body
+  with no status needed and no guessing. `responseMatch` says whether the
+  request was found this way (`"exact"`) or by status and time (`"guess"`),
+  and the network row records what the caller received as `handledAs`.
+
+### Changed
+
+- **"In progress" is a clear blue.** In Blix, Blix Light, Nord and Gruvbox the
+  colour of 1xx, 3xx and pending requests was a grey-blue too close to the grey
+  of a 304 or a cancelled request to tell apart. It is now a distinct blue (in
+  Nord, the grey is darker instead), still holding 4.5:1 as text.
+- **The filter docs list what `method:` matches in each source** — `ws`, a
+  Redux slice, `query` or `mutate` — and the accepted alternative spellings.
+
+### Fixed
+
+- **A floating panel stays on screen when the window shrinks.** One that had
+  fitted was left hanging off the bottom, and reopening it did not help.
+- **Every failed request has a square status dot.** A 404 is amber, for
+  severity, but was round like a success, so by shape alone it read as one.
+- **The filter field shows its count and clear button** while a filter is on.
+  They were visible only for a moment while typing.
+- **Timing accounts for waiting for a connection slot.** On a reused
+  connection that wait was in no phase, so a request's phases could add up to a
+  fraction of its total. It is now part of **Queued**.
+- **Redux: Dispatched by shows a call stack.** The middleware never captured
+  one, so the tab was always empty.
+- **Redux: the Action tab shows the action as dispatched**, `type` included,
+  without a `meta: undefined` on every plain action.
+- **Redux: the Diff tab opens on its `+ / − / ±` rows**, and remembers its own
+  format apart from the other payload panes.
+- **Query rows show their size**, not 0 B, and **their fetch time is the
+  latest fetch's**, not the time since the key was first seen.
+- **A settled mutation stays settled.** Later cache events kept moving its
+  end time. Mutations now have a timeline: `mutate`, then `success` or
+  `error`.
+- **The request menu works from the keyboard.** It opens beside what opened
+  it rather than in the corner, and has menu roles, focus and arrow keys.
+- **A request without a body says so** — "no request body" rather than "not
+  captured".
+
 ## [0.13.2] - 2026-10-21
 
 ### Fixed
