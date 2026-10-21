@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A failed query or mutation shows the server's full response.** When an app
+  replaced axios's error with its own, the row showed only
+  `{ kind: "unknown", message, status }`. It now takes the body from the HTTP
+  request it failed on (`responseFrom` names that request), including a failure
+  raised on a 2xx envelope. The body is shown ahead of the stack trace.
+- **An error class's own fields are kept.** Fields such as `result`, `errors` or
+  a numeric `code` on the app's error are stored under `details`, masked like
+  any other stored value.
+- **A mutation's variables are recorded.** They arrive after the row is
+  created, and were never shown.
+
 ## [0.13.1] - 2026-10-21
 
 ### Fixed
