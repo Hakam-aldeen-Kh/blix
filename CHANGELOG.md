@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-10-21
+
+An About sheet that answers the first question on every bug report, and docs
+that now live at [blixjs.dev](https://blixjs.dev).
+
+### Added
+
+- **About Blix**, opened from the command palette, the overflow menu and the
+  foot of the shortcuts sheet. It shows the version, links to the docs and the
+  release notes, and two short tables: the environment (Blix and React
+  versions, browser, origin, database) and the sources (whether fetch is
+  attached, a query client tapped, `apiClient` and `store` passed, and how many
+  entries each source holds).
+- **Copy debug info** copies the same facts as plain `key: value` lines, ready
+  for a bug report. It carries the page's origin and nothing else from the
+  log: no URLs, headers or payloads.
+- **Report an issue** copies the debug info and opens a new GitHub issue. When
+  the browser refuses the clipboard, the text is shown selected instead, so
+  Ctrl/⌘ + C is the one step left.
+
+### Fixed
+
+- HAR exports carry the installed Blix version in `creator.version`. They
+  said `0.11.0` whatever the version.
+
+### Changed
+
+- The README, `homepage` and security policy point at
+  [blixjs.dev](https://blixjs.dev) for the docs and the changelog.
+
 ## [0.12.0] - 2026-10-16
 
 The panel on the new Blix identity: graphite grounds, grey that carries, and

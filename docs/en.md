@@ -1016,6 +1016,16 @@ pane grows a chip you can click to step straight to the other side. The
 relation is observed, never inferred: no tick means *not known*, not
 *unrelated*.
 
+**About Blix says which build you are running and what it is wired to.** Open
+it from the command palette, the overflow menu or the foot of the `?` sheet.
+It lists the Blix and React versions, the browser, the origin and the
+database, and, per source, whether it is connected: fetch attached, a query
+client tapped, `apiClient` and `store` passed, with each source's entry count.
+**Copy debug info** puts the same lines on the clipboard for a bug report, and
+**Report an issue** copies them and opens a new issue on GitHub. Nothing from
+the log goes into that text beyond the page's origin: no URLs, headers or
+bodies.
+
 ### Filtering the log
 
 Plain text in the filter field matches the URL; with `.*` on, it matches
