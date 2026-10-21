@@ -24,6 +24,7 @@
  */
 
 import { readAuthorization } from "./monitorAuth";
+import { linkErrorToRequest } from "./errorOrigin";
 import { asContext, captureError, isCapturedError, type CapturedError } from "./monitorError";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
@@ -450,12 +451,14 @@ function installWireTap(
     };
 
     first.rejected = function (this: unknown, error: MonitoredError) {
+      let id: string | undefined;
       try {
         const config = configOf(error);
-        const id = monitorIdOf(config);
+        id = monitorIdOf(config);
         if (config && id) {
           flight.onWire(id);
           flight.rememberError(id, error);
+          linkErrorToRequest(error, id);
           const captured = describeAxiosError(error, config);
           networkMonitor.update(id, {
             ...settledRequestSide(id, config),
@@ -475,12 +478,48 @@ function installWireTap(
       } catch {
         /* capture must never break a request */
       }
-      if (typeof rejected === "function") return rejected.call(this, error);
-      return Promise.reject(error);
+      if (typeof rejected !== "function") return Promise.reject(error);
+      if (!id) return rejected.call(this, error);
+      return linkReplacement(() => rejected.call(this, error), id, flight);
     };
   } catch {
     /* no tap: the tail and the watchdog still settle what they can */
   }
+}
+
+/**
+ * Runs the host's error handler for request `id`, and records whatever it
+ * rejects or throws with against that request — the app's own error, which
+ * carries nothing that leads back to it. See `errorOrigin.ts`.
+ *
+ * The outcome is handed on unchanged: the same value, the same rejection
+ * reason, a synchronous throw still thrown. A handler that recovers (resolves)
+ * is left alone.
+ */
+function linkReplacement(run: () => unknown, id: string, flight: Flight): unknown {
+  const link = (replaced: unknown) => {
+    try {
+      linkErrorToRequest(replaced, id);
+      // So the tail recognises it too, and records it as `handledAs`.
+      flight.remember(id, replaced);
+    } catch {
+      /* capture must never break a request */
+    }
+  };
+  let result: unknown;
+  try {
+    result = run();
+  } catch (thrown) {
+    link(thrown);
+    throw thrown;
+  }
+  if (result !== null && typeof result === "object" && typeof (result as Promise<unknown>).then === "function") {
+    return (result as Promise<unknown>).then(undefined, (replaced: unknown) => {
+      link(replaced);
+      throw replaced;
+    });
+  }
+  return result;
 }
 
 /** Whether a host handler ahead of Blix currently carries the wire tap. */
@@ -673,6 +712,8 @@ export function attachHttpMonitor(
         const config = stampedConfigOf(error);
         const id = monitorIdOf(config) ?? flight.idOf(error);
         if (id) {
+          // What the caller is about to receive, recorded against its request.
+          linkErrorToRequest(error, id);
           const known = networkMonitor.getById(id);
           const wire = isCapturedError(known?.error) ? known.error : undefined;
           // The app's own error, standing where the client's used to be: the

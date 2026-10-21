@@ -27,6 +27,7 @@ import {
   now,
 } from "./monitorConfig";
 import { openOwnerWindow } from "./monitorContext";
+import { requestOfError } from "./errorOrigin";
 import { describeError, isCapturedError } from "./monitorError";
 import { estimateBytes, networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
@@ -180,6 +181,13 @@ function failedRequestFor(
   return best;
 }
 
+/** Everything the server said on `entry`, whatever the status: the body of a
+ * failure, or of a success the app then treated as one. */
+function bodyOf(entry: MonitorEntry): unknown {
+  if (isCapturedError(entry.error)) return entry.error.response;
+  return entry.state === "success" ? entry.responsePayload : undefined;
+}
+
 /**
  * A failed query's or mutation's error, with the server's answer beside it.
  *
@@ -187,13 +195,23 @@ function failedRequestFor(
  * axios failure into its own error routinely keeps a message and a status of
  * a response that said much more. The HTTP entry still has the whole body:
  * it is lent here, as it came back, whatever its shape.
+ *
+ * The request is found exactly when the error is one the wire tap saw the app
+ * hand back (`errorOrigin.ts`) — no status needed, nothing guessed. Otherwise
+ * `failedRequestFor` guesses, and `responseMatch` says which it was.
  */
 function describeFailure(error: unknown, ownerId: string): unknown {
   const described = describeError(error, MAX_QUERY_DATA_BYTES);
   if (!isCapturedError(described) || described.response !== undefined) return described;
-  const source = failedRequestFor(ownerId, described.status);
+
+  const exactId = requestOfError(error);
+  const exact = exactId ? networkMonitor.getById(exactId) : undefined;
+  const source = exact
+    ? { entry: exact, body: bodyOf(exact) }
+    : failedRequestFor(ownerId, described.status);
   if (!source) return described;
   lend(source.entry.id, ownerId);
+
   const wire = isCapturedError(source.entry.error) ? source.entry.error : undefined;
   // The body goes where `captureError` puts one — ahead of the details, the
   // cause and the stack — so it is what the panel shows first.
@@ -205,8 +223,9 @@ function describeFailure(error: unknown, ownerId: string): unknown {
     ...(described.statusText === undefined && wire?.statusText
       ? { statusText: wire.statusText }
       : {}),
-    response: source.body,
+    ...(source.body !== undefined ? { response: source.body } : {}),
     responseFrom: source.entry.id,
+    responseMatch: exact ? "exact" : "guess",
     ...(details !== undefined ? { details } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(stack !== undefined ? { stack } : {}),
