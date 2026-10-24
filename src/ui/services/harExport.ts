@@ -35,6 +35,31 @@ function bodyText(value: unknown): string {
   }
 }
 
+/** A header's value, by name in any case. */
+function headerOf(map: Record<string, string> | undefined, name: string): string | undefined {
+  for (const [key, value] of Object.entries(map ?? {})) {
+    if (key.toLowerCase() === name) return value;
+  }
+  return undefined;
+}
+
+/** The body's type as its own headers declare it — not "application/json"
+ * for everything, which made a HAR viewer render HTML and images as JSON. */
+function mimeTypeOf(headers: Record<string, string> | undefined, body: unknown): string {
+  return headerOf(headers, "content-type") ?? (body !== null && typeof body === "object" ? "application/json" : "text/plain");
+}
+
+/** `nextHopProtocol` as HAR writes it: `h2` → `HTTP/2`. */
+function httpVersionOf(entry: MonitorEntry): string {
+  const protocol = entry.wire?.protocol?.toLowerCase();
+  if (!protocol) return "HTTP/1.1";
+  if (protocol === "h2") return "HTTP/2";
+  if (protocol === "h3" || protocol.startsWith("h3-")) return "HTTP/3";
+  return protocol.toUpperCase();
+}
+
+const utf8Length = (text: string) => new TextEncoder().encode(text).length;
+
 function queryString(url: string): { name: string; value: string }[] {
   const at = url.indexOf("?");
   if (at < 0) return [];
@@ -58,25 +83,45 @@ function toEntry(entry: MonitorEntry) {
       ? Math.max(0, total - Math.max(0, blocked) - Math.max(0, receive))
       : -1;
 
+  const responseValue = entry.responsePayload ?? errorBody(entry.error);
   const requestBody = bodyText(entry.requestPayload);
-  const responseBody = bodyText(entry.responsePayload ?? errorBody(entry.error));
+  const responseBody = bodyText(responseValue);
+  const httpVersion = httpVersionOf(entry);
+
+  // What the browser measured, when it measured it: its phases, its total and
+  // the real byte counts. Otherwise Blix's own clock, as before.
+  const wire = entry.wire && !entry.wire.restricted ? entry.wire : undefined;
+  const phase = (ms: number | undefined) => (ms === undefined ? -1 : ms);
+  const timings = wire
+    ? {
+        blocked: phase(wire.queueMs),
+        dns: phase(wire.dnsMs),
+        // HAR counts TLS inside `connect`, and repeats it under `ssl`.
+        connect: wire.connectMs === undefined && wire.tlsMs === undefined ? -1 : (wire.connectMs ?? 0) + (wire.tlsMs ?? 0),
+        send: 0,
+        wait: phase(wire.waitMs),
+        receive: phase(wire.downloadMs),
+        ssl: phase(wire.tlsMs),
+      }
+    : { blocked, dns: -1, connect: -1, send: 0, wait, receive, ssl: -1 };
+  const errorStatusText = (entry.error as { statusText?: unknown } | undefined)?.statusText;
 
   return {
     startedDateTime: new Date(entry.at).toISOString(),
-    time: total,
+    time: wire ? wire.totalMs : total,
     request: {
       method: entry.method,
       url: absoluteUrl(entry),
-      httpVersion: "HTTP/1.1",
+      httpVersion,
       cookies: [],
       headers: toHeaders(entry.requestHeaders),
       queryString: queryString(entry.url),
       headersSize: -1,
-      bodySize: requestBody.length,
+      bodySize: requestBody ? utf8Length(requestBody) : 0,
       ...(requestBody
         ? {
             postData: {
-              mimeType: "application/json",
+              mimeType: mimeTypeOf(entry.requestHeaders, entry.requestPayload),
               text: requestBody,
             },
           }
@@ -84,21 +129,21 @@ function toEntry(entry: MonitorEntry) {
     },
     response: {
       status: entry.status ?? 0,
-      statusText: entry.state === "error" ? "Error" : "",
-      httpVersion: "HTTP/1.1",
+      statusText: typeof errorStatusText === "string" ? errorStatusText : entry.state === "error" ? "Error" : "",
+      httpVersion,
       cookies: [],
       headers: toHeaders(entry.responseHeaders),
       content: {
-        size: responseBody.length,
-        mimeType: "application/json",
+        size: wire?.decodedBodySize ?? utf8Length(responseBody),
+        mimeType: mimeTypeOf(entry.responseHeaders, responseValue),
         text: responseBody,
       },
       redirectURL: "",
       headersSize: -1,
-      bodySize: responseBody.length,
+      bodySize: wire?.encodedBodySize ?? -1,
     },
     cache: {},
-    timings: { blocked, dns: -1, connect: -1, send: 0, wait, receive, ssl: -1 },
+    timings,
     // Non-standard but harmless, and preserved by tools that round-trip HAR.
     _initiator: entry.initiator?.[0]?.file,
     _replayOf: entry.replayOf,

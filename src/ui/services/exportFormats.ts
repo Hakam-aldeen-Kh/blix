@@ -68,7 +68,12 @@ function statusOf(entry: MonitorEntry): string {
  * comma in a query string silently splitting a row.
  */
 function csvField(value: unknown): string {
-  const s = value == null ? "" : String(value);
+  let s = value == null ? "" : String(value);
+  // A cell that starts with = + - @ (or a tab / CR before one) is a formula to
+  // Excel and Sheets, and the name column is a URL's last path segment — a
+  // route like `/search/=HYPERLINK(…)` ran as one when the export was opened.
+  // A leading apostrophe is the standard defence: shown as text, not run.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
 }
 
@@ -119,8 +124,15 @@ function mdCell(value: unknown): string {
 
 /** Backticks around a value that is code — a URL, a method, an action type. */
 function mdCode(value: unknown): string {
-  const s = String(value ?? "");
-  return s ? `\`${mdCell(s)}\`` : "";
+  const s = mdCell(String(value ?? ""));
+  if (!s) return "";
+  // A code span is closed by a run of backticks as long as its opener, so the
+  // opener has to be longer than any run inside; padded when the text itself
+  // starts or ends with one.
+  const longest = Math.max(0, ...(s.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longest + 1);
+  const pad = s.startsWith("`") || s.endsWith("`") ? " " : "";
+  return `${fence}${pad}${s}${pad}${fence}`;
 }
 
 const MD_HEADER = "| # | Method | Name | Status | Time | Size |";
