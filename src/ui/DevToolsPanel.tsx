@@ -39,6 +39,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -297,6 +298,27 @@ export default function DevTools() {
   const panel = usePanelSize(panelRef, open);
   const dock = useDockGeometry(open, panelRef, panel.stacked);
   const menu = useContextMenu();
+
+  // Whether focus is in the panel — kept up to date as it moves anywhere on
+  // the page, so it still says so after the element holding it is removed.
+  const focusInside = useRef(false);
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      focusInside.current = !!rootRef.current?.contains(e.target as Node);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, []);
+  // A relayout can remove the focused control: docked to a side, the toolbar
+  // narrows and drops its dock buttons — the one just pressed included. Focus
+  // then fell to <body>, where none of the panel's keys answer, and a
+  // keyboard user was put out of the panel. It comes back to the panel.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || !focusInside.current) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body) root.focus({ preventScroll: true });
+  }, [panel.tinyToolbar, panel.stacked, dock.mode]);
 
   // Open the database, restore the log if "Preserve log" is on, and start
   // flushing. Deliberately on mount rather than at module scope, so a developer
