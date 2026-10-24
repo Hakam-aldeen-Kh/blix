@@ -229,7 +229,7 @@ function matchToken(
       // matches neither value, so `-client:axios` keeps it rather than guess.
       return entry.client === token.value;
     case "url":
-      return entry.url.toLowerCase().includes(token.value);
+      return `${entry.baseURL ?? ""}${entry.url}`.toLowerCase().includes(token.value);
     case "larger-than": {
       const threshold = parseSize(token.value);
       return threshold == null ? true : (entry.sizeBytes ?? 0) > threshold;

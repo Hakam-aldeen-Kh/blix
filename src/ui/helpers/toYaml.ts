@@ -130,11 +130,20 @@ function scalar(value: unknown, indent: string): string {
     // newlines and strips the trailing one. Anything carrying *other* control
     // characters falls through to quoting instead.
     if (value.includes("\n") && !hasControlChar(value, true)) {
-      const body = value
-        .split("\n")
-        .map((line) => (line ? `${indent}  ${line}` : ""))
-        .join("\n");
-      return `|-\n${body}`;
+      // Chomping follows the text: `-` for no final newline, none for one,
+      // `+` for several — `|-` on all of them dropped every trailing newline.
+      const trailing = /\n*$/.exec(value)?.[0].length ?? 0;
+      const chomp = trailing === 0 ? "-" : trailing === 1 ? "" : "+";
+      const lines = (trailing ? value.slice(0, -trailing) : value).split("\n");
+      // Kept newlines past the first are empty lines at the end of the block.
+      for (let k = 1; k < trailing; k++) lines.push("");
+      // YAML takes a block's indentation from its first non-empty line, so a
+      // text that starts indented needs it stated, or its own spaces are read
+      // as indentation and lost.
+      const firstText = lines.find((line) => line !== "");
+      const indicator = firstText?.startsWith(" ") ? "2" : "";
+      const body = lines.map((line) => (line ? `${indent}  ${line}` : "")).join("\n");
+      return `|${indicator}${chomp}\n${body}`;
     }
     // Anything still carrying a control character has to be double-quoted;
     // single quotes would emit it raw and produce unparseable YAML.
@@ -161,12 +170,16 @@ export function toYaml(value: unknown): { text: string; truncated: boolean } {
   let truncated = false;
 
   /** Returns false once the ceiling is hit, so callers can unwind. */
+  /** Whether the last line pushed is a `|+` block — see the return below. */
+  let endsInKeptBlock = false;
   const push = (line: string): boolean => {
     if (out.length >= YAML_MAX_LINES) {
       truncated = true;
       return false;
     }
     out.push(line);
+    const head = line.split("\n", 1)[0];
+    endsInKeptBlock = line.includes("\n") && (head.endsWith("|+") || head.endsWith("|2+"));
     return true;
   };
 
@@ -227,5 +240,8 @@ export function toYaml(value: unknown): { text: string; truncated: boolean } {
   };
 
   walk(value, "", "");
-  return { text: out.join("\n"), truncated };
+  // A `|+` block keeps the line breaks after its last line, and the last
+  // line of the text has none unless one is added: at the end of the output
+  // it would lose a newline that the same block keeps anywhere else.
+  return { text: out.join("\n") + (endsInKeptBlock ? "\n" : ""), truncated };
 }
