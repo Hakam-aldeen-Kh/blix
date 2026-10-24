@@ -213,6 +213,13 @@ class NetworkMonitor {
     // on the way back), so they merge rather than replace.
     if (patch.marks) merged.marks = { ...prev.marks, ...patch.marks };
 
+    // A query or mutation's meta is rebuilt from the cache on every event, and
+    // the cache knows nothing of the requests `linkChild` recorded: replaced
+    // whole, a row lost its linked requests at its next status change.
+    if (patch.query && prev.query?.causedIds && patch.query.causedIds === undefined) {
+      merged.query = { ...patch.query, causedIds: prev.query.causedIds };
+    }
+
     if (patch.endTime != null && merged.startTime != null) {
       merged.durationMs = Math.round(patch.endTime - merged.startTime);
       merged.endAbs = merged.timeOrigin + patch.endTime;
