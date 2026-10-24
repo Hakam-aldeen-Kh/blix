@@ -74,6 +74,9 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "check:prod-guard": "node scripts/check-prod-guard.mjs",
     "check:redaction": "node scripts/check-redaction.mjs",
     "check:isolation": "node scripts/check-isolation.mjs",
@@ -87,6 +90,10 @@
     "check:adversarial": "node scripts/check-adversarial.mjs",
     "check:linking": "node scripts/check-linking.mjs",
     "check": "pnpm check:prod-guard && pnpm check:redaction && pnpm check:isolation && pnpm check:snippets && pnpm check:keyboard && pnpm check:hydration && pnpm check:http && pnpm check:storage && pnpm check:panel && pnpm check:linking",
+    "check:package": "node scripts/check-package.mjs",
+    "check:e2e": "node scripts/check-e2e.mjs",
+    "check:browser": "pnpm check:official && pnpm check:adversarial && pnpm check:e2e",
+    "release:check": "pnpm typecheck && pnpm test && pnpm build && pnpm check && pnpm check:package && pnpm check:browser",
     "prepublishOnly": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {
@@ -111,6 +118,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^5.0.5",
     "axios": "^1.20.0",
     "esbuild": "0.27.7",
     "jsdom": "^30.1.2",
@@ -118,7 +126,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
