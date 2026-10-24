@@ -24,10 +24,10 @@
  */
 
 import { readAuthorization } from "./monitorAuth";
-import { linkErrorToRequest } from "./errorOrigin";
+import { linkToRequest } from "./errorOrigin";
 import { asContext, captureError, isCapturedError, type CapturedError } from "./monitorError";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
-import { getOwner } from "./monitorContext";
+import { getOwner, type CaptureOwner } from "./monitorContext";
 import { flattenCapturedHeaders } from "./monitorSerialize";
 import { stampAxiosFetchOptions, stampMonitorId } from "./monitorStamp";
 import { expectAxiosTransport, releaseAxiosTransport } from "./monitorTransport";
@@ -54,6 +54,7 @@ interface InterceptorManagerLike {
   use(
     onFulfilled?: ((value: any) => any) | null,
     onRejected?: ((error: any) => any) | null,
+    options?: { synchronous?: boolean; runWhen?: ((config: any) => boolean) | null },
   ): number;
   eject(id: number): void;
 }
@@ -257,6 +258,8 @@ const WATCHDOG_GRACE_MS = 3000;
 class Flight {
   private readonly seen = new WeakMap<object, string>();
   private readonly wireErrors = new WeakSet<object>();
+  /** Errors a request interceptor threw, already settled as `setup`. */
+  private readonly setupErrors = new WeakSet<object>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Started and not yet seen on the wire or settled. */
   private readonly waiting = new Set<string>();
@@ -346,6 +349,33 @@ class Flight {
     }
   }
 
+  /**
+   * A request interceptor of the host's threw or rejected while handling
+   * `config`: the request never left. Settled as `setup` at once, on the
+   * request whose config it was holding — no counting of what else is in the
+   * air, and no waiting for the watchdog.
+   */
+  setupFailed(config: MonitoredConfig | undefined, error: unknown): void {
+    const id = monitorIdOf(config);
+    if (!id || networkMonitor.getById(id)?.state !== "pending") return;
+    if (error !== null && typeof error === "object") this.setupErrors.add(error);
+    this.remember(id, error);
+    linkToRequest(error, id);
+    // An interceptor that cancels on purpose (`CanceledError`) aborted it.
+    const aborted =
+      error !== null && typeof error === "object" && !!(error as MonitoredError).__CANCEL__;
+    networkMonitor.update(id, {
+      state: aborted ? "aborted" : "error",
+      endTime: now(),
+      error: captureError(error, { kind: aborted ? "aborted" : "setup" }),
+    });
+    this.settled(id);
+  }
+
+  isSetupError(error: unknown): boolean {
+    return error !== null && typeof error === "object" && this.setupErrors.has(error);
+  }
+
   /** A failure nothing could attribute. Settles the one waiting request, if
    * there is exactly one; with several in the air it is a guess, and a wrong
    * answer on the wrong row is worse than a row the watchdog settles later. */
@@ -371,6 +401,7 @@ class Flight {
 /* ─────────────────────────────── wire tap ─────────────────────────────── */
 
 const WIRE_TAP = Symbol.for("blix.wireTap");
+const REQUEST_TAP = Symbol.for("blix.requestTap");
 
 /**
  * One registered interceptor, as axios's `InterceptorManager` stores it.
@@ -385,6 +416,7 @@ interface StoredHandler {
   fulfilled?: ((value: any) => any) | null;
   rejected?: ((error: any) => any) | null;
   [WIRE_TAP]?: { fulfilled: StoredHandler["fulfilled"]; rejected: StoredHandler["rejected"] };
+  [REQUEST_TAP]?: StoredHandler["fulfilled"];
 }
 
 function handlersOf(manager: InterceptorManagerLike): (StoredHandler | null)[] | undefined {
@@ -458,7 +490,7 @@ function installWireTap(
         if (config && id) {
           flight.onWire(id);
           flight.rememberError(id, error);
-          linkErrorToRequest(error, id);
+          linkToRequest(error, id);
           const captured = describeAxiosError(error, config);
           networkMonitor.update(id, {
             ...settledRequestSide(id, config),
@@ -471,9 +503,11 @@ function installWireTap(
           });
         } else {
           // No config this early means it never reached the adapter: a request
-          // interceptor threw. Claimed here, while it is still the error that
-          // was thrown and not what the app's handlers turn it into.
-          flight.unclaimed(error);
+          // interceptor threw. Normally settled already, by the request tap;
+          // otherwise claimed here, while it is still the error that was
+          // thrown and not what the app's handlers turn it into.
+          id = flight.idOf(error);
+          if (!id) flight.unclaimed(error);
         }
       } catch {
         /* capture must never break a request */
@@ -499,7 +533,7 @@ function installWireTap(
 function linkReplacement(run: () => unknown, id: string, flight: Flight): unknown {
   const link = (replaced: unknown) => {
     try {
-      linkErrorToRequest(replaced, id);
+      linkToRequest(replaced, id);
       // So the tail recognises it too, and records it as `handledAs`.
       flight.remember(id, replaced);
     } catch {
@@ -520,6 +554,103 @@ function linkReplacement(run: () => unknown, id: string, flight: Flight): unknow
     });
   }
   return result;
+}
+
+/**
+ * Wraps a host request interceptor so that, if it throws or rejects, the
+ * request whose config it was handling is settled as `setup` there and then.
+ *
+ * Without it, that error reaches the response chain with no config, and with
+ * another request in the air there is no telling which one it belonged to: the
+ * failed request stayed `pending` until the watchdog called it a timeout. Here
+ * the config is still in hand, so nothing has to be told apart.
+ *
+ * Wrapped in place, like the wire tap, so `eject` ids stay what they were. The
+ * outcome is handed on unchanged.
+ */
+function tapRequestHandler(
+  handler: StoredHandler | undefined,
+  own: StoredHandler | undefined,
+  flight: Flight,
+): void {
+  if (!handler || handler === own || handler[REQUEST_TAP] !== undefined) return;
+  const fulfilled = handler.fulfilled;
+  if (typeof fulfilled !== "function") return;
+  handler[REQUEST_TAP] = fulfilled;
+  handler.fulfilled = function (this: unknown, config: MonitoredConfig) {
+    const fail = (error: unknown) => {
+      try {
+        flight.setupFailed(config, error);
+      } catch {
+        /* capture must never break a request */
+      }
+    };
+    let result: unknown;
+    try {
+      result = fulfilled.call(this, config);
+    } catch (error) {
+      fail(error);
+      throw error;
+    }
+    if (result !== null && typeof result === "object" && typeof (result as Promise<unknown>).then === "function") {
+      return (result as Promise<unknown>).then(undefined, (error: unknown) => {
+        fail(error);
+        throw error;
+      });
+    }
+    return result;
+  };
+}
+
+/**
+ * Taps every host request interceptor: the ones there now, and — by hooking
+ * `use` on this manager — every one registered later, at registration, so not
+ * even the first request through a late one goes untapped. Returns the undo.
+ */
+function installRequestTaps(
+  manager: InterceptorManagerLike,
+  own: StoredHandler | undefined,
+  flight: Flight,
+): () => void {
+  try {
+    for (const handler of handlersOf(manager) ?? []) {
+      if (handler !== null && typeof handler === "object") tapRequestHandler(handler, own, flight);
+    }
+  } catch {
+    /* untapped: the unclaimed failure and the watchdog remain */
+  }
+  const hadOwnUse = Object.prototype.hasOwnProperty.call(manager, "use");
+  const use = manager.use;
+  try {
+    manager.use = function (
+      this: InterceptorManagerLike,
+      ...args: Parameters<InterceptorManagerLike["use"]>
+    ) {
+      const id = use.apply(this, args);
+      try {
+        tapRequestHandler(handlerAt(manager, id), own, flight);
+      } catch {
+        /* capture must never break a registration */
+      }
+      return id;
+    };
+  } catch {
+    /* a sealed manager: later interceptors go untapped */
+  }
+  return () => {
+    try {
+      if (hadOwnUse) manager.use = use;
+      else delete (manager as Partial<InterceptorManagerLike>).use;
+      for (const handler of handlersOf(manager) ?? []) {
+        const original = handler?.[REQUEST_TAP];
+        if (!handler || !original) continue;
+        handler.fulfilled = original;
+        delete handler[REQUEST_TAP];
+      }
+    } catch {
+      /* nothing to restore */
+    }
+  };
 }
 
 /** Whether a host handler ahead of Blix currently carries the wire tap. */
@@ -601,6 +732,8 @@ export function attachHttpMonitor(
   const flight = new Flight();
   // Filled in once Blix's own response interceptor is registered, below.
   let ownResponse: StoredHandler | undefined;
+  /** The query or mutation each config was created under — see `runWhen`. */
+  const owners = new WeakMap<object, CaptureOwner>();
 
   const requestId = managers.request.use((config: MonitoredConfig) => {
     if (networkMonitor.isPaused) return config;
@@ -626,7 +759,7 @@ export function attachHttpMonitor(
       const hadFormData =
         typeof FormData !== "undefined" && config.data instanceof FormData;
       const requestPayload = serializeBody(config.data);
-      const owner = getOwner();
+      const owner = owners.get(config);
       // The request-time snapshot: all a request that never settles will ever
       // show. Flattened once and unmasked, so `Authorization` can be read before
       // `serializeHeaders` masks it for storage.
@@ -664,7 +797,26 @@ export function attachHttpMonitor(
       /* capture must never break a request */
     }
     return config;
+  }, undefined, {
+    // The one moment Blix is inside the caller's call: axios asks `runWhen`
+    // while it builds the interceptor chain, synchronously in `request()`.
+    // The interceptor above runs a microtask later, after the `queryFn` that
+    // made the call has returned — too late to read who made it.
+    runWhen(config: unknown) {
+      try {
+        const owner = getOwner();
+        if (owner && config !== null && typeof config === "object") owners.set(config, owner);
+      } catch {
+        /* capture must never break a request */
+      }
+      return true;
+    },
   });
+  const removeRequestTaps = installRequestTaps(
+    managers.request,
+    handlerAt(managers.request, requestId),
+    flight,
+  );
 
   // The tail: last in the response chain, so it sees what the caller will —
   // the decrypted body, or the error the app turned the failure into. By the
@@ -708,12 +860,14 @@ export function attachHttpMonitor(
       return response;
     },
     (error: MonitoredError) => {
+      // Settled when it was thrown, by the request tap.
+      if (flight.isSetupError(error)) return Promise.reject(error);
       try {
         const config = stampedConfigOf(error);
         const id = monitorIdOf(config) ?? flight.idOf(error);
         if (id) {
           // What the caller is about to receive, recorded against its request.
-          linkErrorToRequest(error, id);
+          linkToRequest(error, id);
           const known = networkMonitor.getById(id);
           const wire = isCapturedError(known?.error) ? known.error : undefined;
           // The app's own error, standing where the client's used to be: the
@@ -760,6 +914,7 @@ export function attachHttpMonitor(
     managers.request.eject(requestId);
     managers.response.eject(responseId);
     removeWireTap(managers);
+    removeRequestTaps();
     flight.dispose();
     // Unmark, or the guard above turns a dispose-then-reattach — Strict Mode,
     // HMR — into a silent permanent no-op. Same reasoning as `tapQueryClient`.

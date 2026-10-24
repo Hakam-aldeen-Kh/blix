@@ -29,6 +29,7 @@
 
 import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
+import { linkToRequest } from "./errorOrigin";
 import { getOwner } from "./monitorContext";
 import { captureError, captureHttpFailure } from "./monitorError";
 import { captureFrames } from "./monitorInitiator";
@@ -724,6 +725,9 @@ export function attachFetchMonitor(options: FetchMonitorOptions = {}): () => voi
     return pending.then(
       (response) => {
         try {
+          // So an error the app builds from this response — `{ response: r }`,
+          // or `r` itself thrown — leads back to this request exactly.
+          linkToRequest(response, entryId);
           respond(entryId, response, cap, signal);
         } catch {
           /* capture must never break a request */
@@ -732,6 +736,7 @@ export function attachFetchMonitor(options: FetchMonitorOptions = {}): () => voi
       },
       (error: unknown) => {
         try {
+          linkToRequest(error, entryId);
           fail(entryId, error, signal);
         } catch {
           /* noop */

@@ -223,9 +223,10 @@ function ErrorLab() {
     mutationFn: async ({ shape, thrower }: { shape: string; thrower: Thrower }) =>
       unlessSoftFailure(await THROWERS[thrower](shape)),
   });
-  // The stress tests' mutation: fetch, so nothing links its error to its
-  // request — Blix can only match it by status and time. The error keeps the
-  // status and nothing else, and the tag says which request was really its.
+  // The stress tests' mutation: fetch, and an error that keeps the status and
+  // nothing else, so nothing on it leads to its request — only the request the
+  // mutation itself started does (`"caused"`). The tag says which request was
+  // really its.
   const fetchMutation = useMutation({
     mutationFn: async ({ i, delay, tag }: { i: number; delay: number; tag: string }) => {
       const r = await fetch(`/api/stress/update?i=${i}&status=409`, {

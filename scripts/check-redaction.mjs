@@ -44,6 +44,8 @@ async function loadCapture() {
         export { tapQueryClient } from ${from("queryCapture.ts")};
         export { createReduxMonitorMiddleware } from ${from("reduxCapture.ts")};
         export { networkMonitor } from ${from("networkMonitor.ts")};
+        export { getOwner } from ${from("monitorContext.ts")};
+        export { linkToRequest } from ${from("errorOrigin.ts")};
       `,
       resolveDir: root,
       loader: "ts",
@@ -111,6 +113,44 @@ const entryWhere = (match) => {
   const entry = networkMonitor.getSnapshot().find(match);
   expect(entry, "no entry was captured");
   return entry;
+};
+
+/** A settled HTTP entry: failed with `body` at 4xx/5xx, else succeeded with it. */
+const settledRequest = (method, url, status, body, extra = {}) => {
+  const id = networkMonitor.nextId();
+  networkMonitor.start({ id, method, url, at: Date.now(), startTime: performance.now(), ...extra });
+  if (extra.ownerId) networkMonitor.linkChild(extra.ownerId, id);
+  networkMonitor.update(id, {
+    status,
+    endTime: performance.now(),
+    ...(status >= 400
+      ? { state: "error", error: { kind: "http", message: String(status), status, response: body } }
+      : { state: "success", responsePayload: body }),
+  });
+  return id;
+};
+const failedRequest = (method, url, status, body) => settledRequest(method, url, status, body);
+
+/** A request started the way the fetch and XHR wrappers start one: under
+ * whichever query or mutation is running right now. */
+const requestUnderOwner = (url, status, body) =>
+  settledRequest("POST", url, status, body, { ownerId: capture.getOwner()?.id });
+
+/** One mutation object across its whole life, as TanStack keeps it: `at`
+ * moves its state, `rerender` replaces its options the way an observer does,
+ * and `run` calls `mutationFn` the way TanStack does — read off `options`. */
+const stableMutation = (mutationId, mutationFn) => {
+  const mutation = { mutationId, options: { mutationFn }, state: { status: "idle" } };
+  return {
+    at(status, extra = {}) {
+      mutation.state = { status, variables: { n: mutationId }, ...extra };
+      return mutation;
+    },
+    rerender() {
+      mutation.options = { mutationFn };
+    },
+    run: () => mutation.options.mutationFn(),
+  };
 };
 
 // The sanity check everything below rests on: the fixture really does hold
@@ -389,7 +429,7 @@ const scenarios = [
     },
   },
   {
-    name: "19. a failed mutation whose error lost the body borrows it from the request that failed",
+    name: "19. a failed mutation whose error carries its fetch Response borrows that request's body, exactly",
     run: () => {
       let emit = () => {};
       const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
@@ -398,91 +438,120 @@ const scenarios = [
       emit({ type: "added", mutation: { mutationId: 77, state: { status: "idle" } } });
 
       const body = { result: 1042, succeeded: false, message: "conflict" };
-      const id = networkMonitor.nextId();
-      networkMonitor.start({
-        id,
-        method: "DELETE",
-        url: "/orders/5",
-        at: Date.now(),
-        startTime: performance.now(),
-      });
-      networkMonitor.update(id, {
-        state: "error",
-        status: 409,
-        endTime: performance.now(),
-        error: { kind: "http", message: "Request failed with status code 409", status: 409, response: body },
-      });
+      const id = failedRequest("DELETE", "/orders/5", 409, body);
+      // A decoy that failed alike, later: only a link may decide.
+      failedRequest("DELETE", "/orders/6", 409, { result: 9999 });
+      const response = { status: 409 };
+      capture.linkToRequest(response, id);
 
-      const thrown = Object.assign(new Error("conflict"), { status: 409 });
+      const thrown = Object.assign(new Error("conflict"), { status: 409, response });
       emit({ type: "updated", mutation: { mutationId: 77, state: { status: "error", error: thrown } } });
       const entry = entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "77");
       expect(entry.error?.response?.result === 1042, `stored ${JSON.stringify(entry.error)}`);
       expect(entry.error?.responseFrom === id, "responseFrom does not name the request");
+      expect(entry.error?.responseMatch === "exact", `responseMatch is ${entry.error?.responseMatch}`);
       expect(entry.error?.kind === "http", `kind is ${JSON.stringify(entry.error?.kind)}`);
     },
   },
   {
-    name: "20. two mutations failing alike at once each borrow their own request, and keep it when described again",
+    name: "19b. a failure nothing links to a request borrows nothing, with a same-status failure in the log",
     run: () => {
       let emit = () => {};
       const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
       const idle = { subscribe: () => () => {}, getAll: () => [] };
       capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
-      const request = (url, body) => {
-        const id = networkMonitor.nextId();
-        networkMonitor.start({ id, method: "POST", url, at: Date.now(), startTime: performance.now() });
-        networkMonitor.update(id, {
-          state: "error",
-          status: 400,
-          endTime: performance.now(),
-          error: { kind: "http", message: "400", status: 400, response: body },
-        });
-        return id;
-      };
-      emit({ type: "added", mutation: { mutationId: 81, state: { status: "idle" } } });
-      emit({ type: "added", mutation: { mutationId: 82, state: { status: "idle" } } });
-      const a = request("/a", { which: "a" });
-      const b = request("/b", { which: "b" });
-      const fail = (mutationId) =>
-        emit({
-          type: "updated",
-          mutation: {
-            mutationId,
-            state: { status: "error", variables: { n: mutationId }, error: Object.assign(new Error("400"), { status: 400 }) },
-          },
-        });
-      fail(81);
-      fail(82);
+      emit({ type: "added", mutation: { mutationId: 78, state: { status: "idle" } } });
+      emit({ type: "updated", mutation: { mutationId: 78, state: { status: "pending" } } });
+      failedRequest("POST", "/decoy", 409, { result: 9999 });
+      const thrown = Object.assign(new Error("conflict"), { status: 409 });
+      emit({ type: "updated", mutation: { mutationId: 78, state: { status: "error", error: thrown } } });
+      const entry = entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "78");
+      expect(entry.error?.responseFrom === undefined, `borrowed from ${entry.error?.responseFrom}`);
+      expect(entry.error?.response === undefined, `stored ${JSON.stringify(entry.error)}`);
+    },
+  },
+  {
+    name: "20. two mutations failing alike at once each borrow the request they caused, and keep it when described again",
+    run: () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      const ids = {};
+      const m81 = stableMutation(81, () => (ids[81] = requestUnderOwner("/a", 400, { which: "a" })));
+      const m82 = stableMutation(82, () => (ids[82] = requestUnderOwner("/b", 400, { which: "b" })));
+      emit({ type: "added", mutation: m81.at("idle") });
+      emit({ type: "added", mutation: m82.at("idle") });
+      emit({ type: "updated", mutation: m81.at("pending") });
+      emit({ type: "updated", mutation: m82.at("pending") });
+      // An observer re-rendering on `pending` hands each a fresh options object
+      // before `mutationFn` runs.
+      m81.rerender();
+      m82.rerender();
+      // The owner is set only during the call itself.
+      expect(capture.getOwner() === null, "an owner leaked out of the call");
+      m81.run();
+      m82.run();
+      expect(capture.getOwner() === null, "an owner leaked out of the call");
+      const error = () => Object.assign(new Error("400"), { status: 400 });
+      emit({ type: "updated", mutation: m81.at("error", { error: error() }) });
+      emit({ type: "updated", mutation: m82.at("error", { error: error() }) });
       // A later cache event re-describes the same failure.
-      fail(81);
+      emit({ type: "observerRemoved", mutation: m81.at("error", { error: error() }) });
       const of = (hash) => entryWhere((e) => e.method === "MUTATE" && e.query?.hash === hash);
-      expect(of("81").error?.responseFrom === a, `81 borrowed ${of("81").error?.responseFrom}, not ${a}`);
-      expect(of("82").error?.responseFrom === b, `82 borrowed ${of("82").error?.responseFrom}, not ${b}`);
+      expect(of("81").error?.responseFrom === ids[81], `81 borrowed ${of("81").error?.responseFrom}, not ${ids[81]}`);
+      expect(of("82").error?.responseFrom === ids[82], `82 borrowed ${of("82").error?.responseFrom}, not ${ids[82]}`);
+      expect(of("81").error?.responseMatch === "caused", `responseMatch is ${of("81").error?.responseMatch}`);
       expect(of("81").requestPayload?.n === 81, "the mutation's variables were not recorded");
     },
   },
   {
-    name: "21. a failure the app raised on a 200 envelope borrows the successful response's body",
+    name: "21. a failure the app raised on a 200 envelope borrows the body of the request it caused",
     run: () => {
       let emit = () => {};
       const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
       const idle = { subscribe: () => () => {}, getAll: () => [] };
       capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
-      emit({ type: "added", mutation: { mutationId: 91, state: { status: "idle" } } });
-      const id = networkMonitor.nextId();
-      networkMonitor.start({ id, method: "POST", url: "/soft", at: Date.now(), startTime: performance.now() });
-      networkMonitor.update(id, {
-        state: "success",
-        status: 200,
-        endTime: performance.now(),
-        responsePayload: { succeeded: false, result: 2001 },
-      });
+      let id;
+      const m = stableMutation(91, () => (id = requestUnderOwner("/soft", 200, { succeeded: false, result: 2001 })));
+      emit({ type: "added", mutation: m.at("idle") });
+      emit({ type: "updated", mutation: m.at("pending") });
+      m.run();
       emit({
         type: "updated",
-        mutation: { mutationId: 91, state: { status: "error", error: Object.assign(new Error("blocked"), { status: 200 }) } },
+        mutation: m.at("error", { error: Object.assign(new Error("blocked"), { status: 200 }) }),
       });
       const entry = entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "91");
       expect(entry.error?.response?.result === 2001, `stored ${JSON.stringify(entry.error)}`);
+      expect(entry.error?.responseFrom === id, "responseFrom does not name the request");
+    },
+  },
+  {
+    name: "21b. a failure whose request is still reading its body gets the body once it is read",
+    run: async () => {
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      capture.tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      emit({ type: "added", mutation: { mutationId: 95, state: { status: "idle" } } });
+      // `fetch` resolved at the headers, and the app threw on `!r.ok` before
+      // Blix finished reading the body.
+      const id = networkMonitor.nextId();
+      networkMonitor.start({ id, method: "POST", url: "/slow-body", at: Date.now(), startTime: performance.now() });
+      networkMonitor.update(id, { status: 422 });
+      const response = { status: 422 };
+      capture.linkToRequest(response, id);
+      const thrown = Object.assign(new Error("invalid"), { status: 422, response });
+      emit({ type: "updated", mutation: { mutationId: 95, state: { status: "error", error: thrown } } });
+      const of = () => entryWhere((e) => e.method === "MUTATE" && e.query?.hash === "95");
+      expect(of().error?.responseFrom === id, "responseFrom does not name the request");
+      networkMonitor.update(id, {
+        state: "error",
+        endTime: performance.now(),
+        error: { kind: "http", message: "422", status: 422, response: { errors: ["name"] } },
+      });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(of().error?.response?.errors?.[0] === "name", `stored ${JSON.stringify(of().error)}`);
     },
   },
   {

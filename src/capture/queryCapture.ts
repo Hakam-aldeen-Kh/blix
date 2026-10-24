@@ -26,7 +26,7 @@ import {
   MONITOR_ENABLED,
   now,
 } from "./monitorConfig";
-import { openOwnerWindow } from "./monitorContext";
+import { ownCallsOf, type CaptureOwner } from "./monitorContext";
 import { requestOfError } from "./errorOrigin";
 import { describeError, isCapturedError } from "./monitorError";
 import { estimateBytes, networkMonitor } from "./networkMonitor";
@@ -48,6 +48,8 @@ export interface QueryLike {
   queryHash: string;
   queryKey: readonly unknown[];
   state: QueryStateLike;
+  /** Holds the `queryFn` Blix wraps — see `ownCallsOf`. */
+  options?: unknown;
   getObserversCount?(): number;
 }
 export interface MutationStateLike {
@@ -59,6 +61,8 @@ export interface MutationStateLike {
 export interface MutationLike {
   mutationId: number;
   state: MutationStateLike;
+  /** Holds the `mutationFn` Blix wraps — see `ownCallsOf`. */
+  options?: unknown;
 }
 export interface CacheEventLike {
   type: string;
@@ -110,82 +114,107 @@ function frame(direction: WsFrame["direction"], event: string): WsFrame {
   return { id: `qf${frameCounter}`, at: Date.now(), direction, event, data: undefined, sizeBytes: 0 };
 }
 
-/** Clock slack between `Date.now()` (frames) and `timeOrigin + performance.now()`
- * (entries), when deciding whether a request started inside a fetch. */
-const CLOCK_SLACK_MS = 100;
-
 /** What an HTTP entry's server said, when it is the answer to a failure with
  * `status`: the body of a failed request, or — for a failure the app raised
  * itself on a 2xx, an envelope saying `succeeded: false` — the body of a
  * successful one. */
-function answerOf(entry: MonitorEntry | undefined, status: number | undefined): unknown {
-  if (entry === undefined || (entry.kind ?? "http") !== "http") return undefined;
-  if (status !== undefined && entry.status !== status) return undefined;
+function answerOf(entry: MonitorEntry, status: number | undefined): unknown {
   if (isCapturedError(entry.error)) return entry.error.response;
   const succeeded = status !== undefined && status >= 200 && status < 300;
   return succeeded && entry.state === "success" ? entry.responsePayload : undefined;
 }
 
-/** Which failure each request's answer was lent to, so that two that failed
- * alike at once each get their own — while the same failure, described again
- * on every later cache event, keeps the one it got. Bounded: only recent
- * ones matter. */
-const lent = new Map<string, string>();
-const MAX_LENT = 500;
+/** Whether `entry` can be the request a failure with `status` failed on. A
+ * request still reading its body already has its status. */
+function couldAnswer(entry: MonitorEntry | undefined, status: number | undefined): entry is MonitorEntry {
+  if (entry === undefined || (entry.kind ?? "http") !== "http") return false;
+  if (status !== undefined) return entry.status === status;
+  // No status to go by: only a request that failed is a failure's answer.
+  return entry.state === "pending" || isCapturedError(entry.error);
+}
 
-function lend(requestId: string, ownerId: string): void {
-  lent.set(requestId, ownerId);
-  if (lent.size > MAX_LENT) lent.delete(lent.keys().next().value as string);
+/** The requests each query or mutation had caused before its current fetch
+ * (or `mutate`) began — so the ones that attempt caused are known exactly,
+ * with no clock involved. */
+const causedBefore = new Map<string, Set<string>>();
+
+function beginAttempt(id: string): void {
+  causedBefore.set(id, new Set(networkMonitor.getById(id)?.query?.causedIds ?? []));
 }
 
 /**
- * The HTTP request a failed query or mutation most likely failed on.
+ * The HTTP request a failed query or mutation failed on — only ever when that
+ * is known, never inferred:
  *
- * The requests it is known to have caused come first. That link is often
- * missing — a mutation runs its `mutationFn` after awaiting `onMutate`, when
- * the ownership window has long closed — so after that, the earliest request
- * with the same status since this fetch began that no other failure has
- * claimed. Earliest, because of several that fail together, the first to fail
- * is the first whose caller hears of it. A guess, which is why the entry it
- * came from is recorded next to the body it lent.
+ * - **`"exact"`** — the error is an object Blix saw come out of a request, or
+ *   carries one as its `response` or `cause`: the app's replacement for an
+ *   axios error, a `fetch` `Response` (`errorOrigin.ts`).
+ * - **`"caused"`** — this attempt caused exactly one request that answered
+ *   with the error's status. Retries count as one when they ran one after
+ *   another: the error is the last one's.
+ *
+ * Anything else gets no request. Matching by status and time across the whole
+ * log was tried, and with `fetch` it was wrong every time it found anything:
+ * the app throws on `!r.ok` before Blix has read the body, so the request
+ * really failed on was still pending, and an older failure with the same
+ * status was taken instead.
  */
-function failedRequestFor(
+function sourceOf(
+  error: unknown,
   ownerId: string,
   status: number | undefined,
-): { entry: MonitorEntry; body: unknown } | undefined {
+): { entry: MonitorEntry; match: "exact" | "caused" } | undefined {
+  const exactId = requestOfError(error);
+  const exact = exactId ? networkMonitor.getById(exactId) : undefined;
+  if (exact && (exact.kind ?? "http") === "http") return { entry: exact, match: "exact" };
+
   const owner = networkMonitor.getById(ownerId);
-  if (!owner) return undefined;
-
-  const caused = owner.query?.causedIds ?? [];
-  for (let i = caused.length - 1; i >= 0; i -= 1) {
-    const entry = networkMonitor.getById(caused[i]);
-    const body = answerOf(entry, status);
-    if (entry && body !== undefined) return { entry, body };
+  const before = causedBefore.get(ownerId);
+  if (!owner || !before) return undefined;
+  const candidates: MonitorEntry[] = [];
+  for (const id of owner.query?.causedIds ?? []) {
+    if (before.has(id)) continue;
+    const entry = networkMonitor.getById(id);
+    if (couldAnswer(entry, status)) candidates.push(entry);
   }
-
-  if (status === undefined) return undefined;
-  let since = owner.startAbs;
-  for (const f of owner.frames ?? []) {
-    if (f.direction === "out" && f.event === "fetch" && f.at > since) since = f.at;
+  if (candidates.length === 0) return undefined;
+  // Several are one only as a chain of retries: each started after the one
+  // before it had ended. Overlapping ones could be any of them.
+  for (let i = 1; i < candidates.length; i += 1) {
+    const prevEnd = candidates[i - 1].endAbs;
+    if (prevEnd === undefined || candidates[i].startAbs < prevEnd) return undefined;
   }
-  since -= CLOCK_SLACK_MS;
-
-  let best: { entry: MonitorEntry; body: unknown } | undefined;
-  for (const entry of networkMonitor.getSnapshot()) {
-    const holder = lent.get(entry.id);
-    if (entry.startAbs < since || (holder !== undefined && holder !== ownerId)) continue;
-    const body = answerOf(entry, status);
-    if (body === undefined) continue;
-    if (!best || (entry.endAbs ?? Infinity) < (best.entry.endAbs ?? Infinity)) best = { entry, body };
-  }
-  return best;
+  return { entry: candidates[candidates.length - 1], match: "caused" };
 }
 
-/** Everything the server said on `entry`, whatever the status: the body of a
- * failure, or of a success the app then treated as one. */
-function bodyOf(entry: MonitorEntry): unknown {
-  if (isCapturedError(entry.error)) return entry.error.response;
-  return entry.state === "success" ? entry.responsePayload : undefined;
+/** Failures whose request was still reading its body when they were
+ * described, by owner row: described again once it has. */
+const awaitingBody = new Map<string, { requestId: string; error: unknown; since: number }>();
+/** How long a failure waits for its request's body. */
+const BODY_WAIT_MS = 30_000;
+let unsubscribeAwaiting: (() => void) | null = null;
+
+function checkAwaiting(): void {
+  for (const [ownerId, wait] of [...awaitingBody]) {
+    const request = networkMonitor.getById(wait.requestId);
+    if (request?.state === "pending" && Date.now() - wait.since < BODY_WAIT_MS) continue;
+    awaitingBody.delete(ownerId);
+    if (!request || request.state === "pending") continue;
+    const owner = networkMonitor.getById(ownerId);
+    // Only the failure it was waiting for: a refetch since has its own.
+    if (owner?.state !== "error" || !isCapturedError(owner.error)) continue;
+    if (owner.error.responseFrom !== wait.requestId || owner.error.response !== undefined) continue;
+    networkMonitor.update(ownerId, { error: describeFailure(wait.error, ownerId) });
+  }
+  if (awaitingBody.size === 0 && unsubscribeAwaiting) {
+    unsubscribeAwaiting();
+    unsubscribeAwaiting = null;
+  }
+}
+
+function awaitBody(ownerId: string, requestId: string, error: unknown): void {
+  awaitingBody.set(ownerId, { requestId, error, since: Date.now() });
+  if (!unsubscribeAwaiting) unsubscribeAwaiting = networkMonitor.subscribe(checkAwaiting);
 }
 
 /**
@@ -194,25 +223,20 @@ function bodyOf(entry: MonitorEntry): unknown {
  * What the cache holds is whatever the app threw, and an app that turns an
  * axios failure into its own error routinely keeps a message and a status of
  * a response that said much more. The HTTP entry still has the whole body:
- * it is lent here, as it came back, whatever its shape.
- *
- * The request is found exactly when the error is one the wire tap saw the app
- * hand back (`errorOrigin.ts`) — no status needed, nothing guessed. Otherwise
- * `failedRequestFor` guesses, and `responseMatch` says which it was.
+ * it is lent here, as it came back, whatever its shape — from the request
+ * `sourceOf` knows it failed on, and from no other.
  */
 function describeFailure(error: unknown, ownerId: string): unknown {
   const described = describeError(error, MAX_QUERY_DATA_BYTES);
   if (!isCapturedError(described) || described.response !== undefined) return described;
 
-  const exactId = requestOfError(error);
-  const exact = exactId ? networkMonitor.getById(exactId) : undefined;
-  const source = exact
-    ? { entry: exact, body: bodyOf(exact) }
-    : failedRequestFor(ownerId, described.status);
+  const source = sourceOf(error, ownerId, described.status);
   if (!source) return described;
-  lend(source.entry.id, ownerId);
+  const { entry, match } = source;
+  if (entry.state === "pending") awaitBody(ownerId, entry.id, error);
+  const body = entry.state === "pending" ? undefined : answerOf(entry, described.status);
 
-  const wire = isCapturedError(source.entry.error) ? source.entry.error : undefined;
+  const wire = isCapturedError(entry.error) ? entry.error : undefined;
   // The body goes where `captureError` puts one — ahead of the details, the
   // cause and the stack — so it is what the panel shows first.
   const { details, cause, stack, handledAs, ...head } = described;
@@ -223,9 +247,9 @@ function describeFailure(error: unknown, ownerId: string): unknown {
     ...(described.statusText === undefined && wire?.statusText
       ? { statusText: wire.statusText }
       : {}),
-    ...(source.body !== undefined ? { response: source.body } : {}),
-    responseFrom: source.entry.id,
-    responseMatch: exact ? "exact" : "guess",
+    ...(body !== undefined ? { response: body } : {}),
+    responseFrom: entry.id,
+    responseMatch: match,
     ...(details !== undefined ? { details } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(stack !== undefined ? { stack } : {}),
@@ -237,6 +261,18 @@ function describeFailure(error: unknown, ownerId: string): unknown {
 function withSize(data: unknown): { responsePayload: unknown; sizeBytes: number } {
   return { responsePayload: data, sizeBytes: estimateBytes(data) };
 }
+
+const queryOwner = (id: string, q: QueryLike): CaptureOwner => ({
+  id,
+  kind: "query",
+  label: keyLabel(q.queryKey),
+});
+
+const mutationOwner = (id: string, m: MutationLike): CaptureOwner => ({
+  id,
+  kind: "mutation",
+  label: `mutation #${m.mutationId}`,
+});
 
 function keyLabel(key: readonly unknown[]): string {
   try {
@@ -320,15 +356,16 @@ function handleQueryEvent(event: CacheEventLike): void {
     });
   }
 
+  // Before TanStack calls `queryFn`: it reads it after this `fetch` dispatch,
+  // and again for each retry.
+  ownCallsOf(q, "queryFn", queryOwner(id, q));
+
   const actionType = event.action?.type;
   switch (actionType) {
     case "fetch":
       fetchCounts.set(q.queryHash, (fetchCounts.get(q.queryHash) ?? 0) + 1);
       networkMonitor.appendFrame(id, frame("out", "fetch"));
-      // Opened *after* the frame is recorded but still synchronously within
-      // this dispatch — the queryFn TanStack is about to call runs in the
-      // same task, which is what makes the correlation work at all.
-      openOwnerWindow({ id, kind: "query", label: keyLabel(q.queryKey) });
+      beginAttempt(id);
       // The row lives for the whole session, so its clock restarts with each
       // fetch: the duration it shows is this fetch's, not the time since the
       // key was first seen. `startAbs` — what the list sorts by — is untouched.
@@ -396,9 +433,11 @@ function handleMutationEvent(event: CacheEventLike): void {
       },
     });
     mutationStatus.set(m.mutationId, m.state.status);
+    // Hooked at once: `mutationFn` runs after `onMutate` has been awaited.
+    ownCallsOf(m, "mutationFn", mutationOwner(id, m));
     if (m.state.status === "pending") {
       networkMonitor.appendFrame(id, frame("out", "mutate"));
-      openOwnerWindow({ id, kind: "mutation", label: `mutation #${m.mutationId}` });
+      beginAttempt(id);
     }
     return;
   }
@@ -429,6 +468,7 @@ function handleMutationEvent(event: CacheEventLike): void {
 
   if (status === "pending") {
     networkMonitor.appendFrame(id, frame("out", "mutate"));
+    beginAttempt(id);
     networkMonitor.update(id, { state: "pending", startTime: now(), query: meta("pending") });
   } else if (status === "success") {
     networkMonitor.appendFrame(id, frame("in", "success"));
