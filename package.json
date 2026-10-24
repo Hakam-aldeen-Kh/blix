@@ -54,11 +54,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./capture": {
       "types": "./dist/capture/index.d.ts",
-      "import": "./dist/capture/index.js"
+      "import": "./dist/capture/index.js",
+      "default": "./dist/capture/index.js"
     },
     "./package.json": "./package.json"
   },
