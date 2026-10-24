@@ -231,9 +231,12 @@ entry is still settled correctly.
 
 Three limits:
 
-- **An error thrown by a request interceptor** never reaches the wire. It is
-  attributed to its request when that is the only one in the air; with several
-  it is left to the timeout watchdog below rather than guessed at.
+- **An error thrown by a request interceptor** never reaches the wire. Blix
+  wraps your request interceptors — the ones registered before it and any
+  registered later — so the request whose config was in hand is settled as
+  `setup` the moment the interceptor throws or rejects, however many others are
+  in the air. (With `legacyInterceptorReqResOrdering: false`, Blix's
+  interceptor runs after yours, so a request yours refuses never gets a row.)
 - **A request with a `timeout`** that is still pending 3 s past it is settled
   as a timeout that says Blix saw no answer — and corrected if one arrives
   after all. **A request with no `timeout`** that never answers stays
@@ -639,7 +642,7 @@ and not just the response body:
 | `status`, `statusText` | When the server answered. |
 | `response` | **The response body**, when there was one. |
 | `responseFrom` | Query and mutation rows only: the id of the HTTP entry `response` was taken from, when the error your app threw did not carry the body. |
-| `responseMatch` | With `responseFrom`: `"exact"` when the error is the one your interceptor handed back for that request, `"guess"` when it was matched by status and time. |
+| `responseMatch` | With `responseFrom`: `"exact"` when the error is, or carries, an object that came out of that request; `"caused"` when it is the one request with the error's status that this attempt made. |
 | `details` | Your error class's own fields that none of the others cover — `result`, `errors`, a numeric `code` — masked like any stored value. Not read from axios's errors. |
 | `timeoutMs` | The timeout the request ran under, when that is what ended it. |
 | `cause` | What the error says caused it — the same fields, without `kind`. |
@@ -668,22 +671,28 @@ said: Blix takes the body from the HTTP request it failed on, and
 `responseFrom` names that request. How it finds the request is in
 `responseMatch`:
 
-- **`"exact"`** — the error is the one your axios response interceptor handed
-  back for that request. Blix's hook on your first response interceptor sees
-  both the client's error and the one your handler rejects or throws with, and
-  records the second against the request. No status is needed, and two
-  requests failing alike at the same moment cannot be confused. An error that
-  carries that one as its `cause` (`new Error("…", { cause })`) is followed to
-  it too.
-- **`"guess"`** — nothing links the error to a request, so Blix takes the
-  request it is known to have caused, or else the earliest request with the
-  same status since it started that no other failure has claimed. This needs a
-  `status` on the error. It is what a failure your app raises itself after a
-  2xx (an envelope saying `succeeded: false`) gets, and it takes the successful
-  response's body the same way.
+- **`"exact"`** — the error is an object Blix saw come out of that request.
+  With axios, the error your response interceptor handed back: Blix's hook on
+  your first response interceptor sees both the client's error and the one
+  your handler rejects or throws with, and records the second against the
+  request. With `fetch`, the `Response` itself — thrown as is, or kept on your
+  error as `response` (`Object.assign(new Error("…"), { response: r })`). No
+  status is needed, and two requests failing alike at the same moment cannot
+  be confused. An error that carries such an object as its `cause`
+  (`new Error("…", { cause })`) is followed to it too.
+- **`"caused"`** — nothing on the error leads to a request, but the query or
+  mutation made exactly one request with the error's status during this
+  attempt — a request it started directly, as **Linked events** describes. Retries that ran one after
+  another count as one; the error is the last one's. It is what a failure your
+  app raises itself after a 2xx (an envelope saying `succeeded: false`) gets,
+  and it takes the successful response's body the same way.
 
-A thrown string, or an error with no status that never passed through an axios
-interceptor, cannot be tied to a request: its row shows the error alone.
+Nothing else is matched — not by status, not by time. A failure that neither
+links nor a single caused request tie to a request shows the error alone,
+rather than another request's body. When the request is still reading its body
+as the failure is recorded (with `fetch`, your code sees `r.ok` before Blix has
+the body), `responseFrom` is set at once and `response` follows as soon as the
+body is in.
 
 #### `entry.wire` — `WireTiming`
 
@@ -1042,7 +1051,9 @@ caused a request, that a request came from a query, or that one entry is a
 replay of another, the row grows a coloured tick and the foot of the detail
 pane grows a chip you can click to step straight to the other side. The
 relation is observed, never inferred: no tick means *not known*, not
-*unrelated*.
+*unrelated*. A request belongs to a query or mutation when its `queryFn` or
+`mutationFn` starts it directly — before its first `await`. One started after
+an `await`, or by other code running in the same tick, gets no link.
 
 **About Blix says which build you are running and what it is wired to.** Open
 it from the command palette, the overflow menu or the foot of the `?` sheet.

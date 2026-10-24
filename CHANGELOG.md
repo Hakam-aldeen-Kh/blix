@@ -13,11 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interceptor replaces the client's error with its own, Blix records the
   replacement against its request, so a failed query or mutation holding it —
   or holding an error that carries it as `cause` — shows that request's body
-  with no status needed and no guessing. `responseMatch` says whether the
-  request was found this way (`"exact"`) or by status and time (`"guess"`),
-  and the network row records what the caller received as `handledAs`.
+  with no status needed and no guessing. The network row records what the
+  caller received as `handledAs`.
+- **…and with `fetch` too.** An error that carries the `Response` (or is the
+  `Response`) leads to its request the same way. `responseMatch` says how the
+  request was found: `"exact"`, or `"caused"` — the one request with the
+  error's status that the query or mutation made.
 
 ### Changed
+
+- **Blix no longer guesses which request a failure came from.** A failed query
+  or mutation used to fall back to the earliest request with the same status
+  since it started. With `fetch` that was wrong whenever it found anything: the
+  app throws before Blix has read the body, so an older failure was taken
+  instead. Now the body is lent only from a request Blix knows the failure came
+  from, and a row with no such request shows the error alone. When that
+  request is still downloading its body, the body follows once it arrives.
+- **A request belongs to a query or mutation only when its `queryFn` or
+  `mutationFn` starts it directly.** Ownership used to stay open until the end
+  of the tick, so unrelated code running in it, and the code after an `await`
+  in another query, were linked to the wrong query. This holds for `fetch`,
+  XHR and axios alike.
 
 - **"In progress" is a clear blue.** In Blix, Blix Light, Nord and Gruvbox the
   colour of 1xx, 3xx and pending requests was a grey-blue too close to the grey
@@ -28,6 +44,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Timing shows each request its own phases.** Requests to the same URL
+  started within a few milliseconds of each other each got the previous one's
+  browser timing. They are now told apart by when they ended as well as when
+  they started.
+- **A request interceptor that throws settles its request as `setup` at
+  once.** With another request in the air, the failed one stayed `pending`
+  until the watchdog marked it a timeout.
+- **Query and mutation rows keep their linked requests.** Every status change
+  dropped the requests a row was known to have caused.
 - **A floating panel stays on screen when the window shrinks.** One that had
   fitted was left hanging off the bottom, and reopening it did not help.
 - **Every failed request has a square status dot.** A 404 is amber, for
