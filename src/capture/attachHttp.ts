@@ -70,6 +70,40 @@ interface HttpMonitorTarget {
     request: InterceptorManagerLike;
     response: InterceptorManagerLike;
   };
+  /** axios's own URL builder — see `urlOf`. */
+  getUri?(config?: any): string;
+}
+
+/** The query or mutation that owns the entry `id`, as an owner. */
+function ownerOfEntry(id: string | undefined): CaptureOwner | undefined {
+  const entry = id ? networkMonitor.getById(id) : undefined;
+  if (!entry?.ownerId || (entry.initiatorKind !== "query" && entry.initiatorKind !== "mutation")) return undefined;
+  return { id: entry.ownerId, kind: entry.initiatorKind, label: "" };
+}
+
+/**
+ * The request's URL with the query string axios will send.
+ *
+ * axios builds the query from `params` in its adapter, after every
+ * interceptor has run, so `config.url` alone was missing it — the entry read
+ * `/orders` for a request that went out as `/orders?page=2`. `getUri` is the
+ * builder the adapter uses, on the same config, with the same
+ * `paramsSerializer`; only its query string is taken, so `url` stays as the
+ * app wrote it.
+ */
+function urlOf(instance: HttpMonitorTarget, config: MonitoredConfig): string {
+  const url = config.url ?? "";
+  if (config.params === undefined || config.params === null) return url;
+  if (typeof instance.getUri !== "function") return url;
+  try {
+    const built = instance.getUri(config);
+    const query = built.indexOf("?");
+    if (query < 0) return url;
+    const own = url.search(/[?#]/);
+    return (own < 0 ? url : url.slice(0, own)) + built.slice(query);
+  } catch {
+    return url;
+  }
 }
 
 /** The fields of an axios request config Blix reads or writes. */
@@ -79,6 +113,7 @@ type MonitoredConfig = {
   baseURL?: string;
   data?: unknown;
   headers?: unknown;
+  params?: unknown;
   /** axios's basic-auth option — see `settledRequestSide`. */
   auth?: unknown;
   /** axios's own timeout, in ms; `0` or absent means none. */
@@ -334,9 +369,33 @@ class Flight {
   }
 
   /** The request reached the wire: it is no longer a candidate for an
-   * unclaimed pre-dispatch failure. */
+   * unclaimed pre-dispatch failure, and no transport is still to carry it.
+   * Released here and not only at settle: a request the app retries is never
+   * settled by the tail — the retry is — and its hand-off, left behind, took
+   * the next plain XHR to the same path for itself. */
   onWire(id: string): void {
     this.waiting.delete(id);
+    releaseAxiosTransport(id);
+  }
+
+  /** Request id → the request sent again under its config (a retry). */
+  private readonly retries = new Map<string, string>();
+
+  /** `next` was sent with the config `previous` went out with. */
+  retriedAs(previous: string, next: string): void {
+    this.retries.set(previous, next);
+    if (this.retries.size > 500) this.retries.delete(this.retries.keys().next().value as string);
+  }
+
+  /** The last request in `id`'s chain of retries — `id` itself if none. */
+  latest(id: string): string {
+    let current = id;
+    for (let hops = 0; hops < 20; hops += 1) {
+      const next = this.retries.get(current);
+      if (next === undefined) return current;
+      current = next;
+    }
+    return current;
   }
 
   settled(id: string): void {
@@ -533,9 +592,12 @@ function installWireTap(
 function linkReplacement(run: () => unknown, id: string, flight: Flight): unknown {
   const link = (replaced: unknown) => {
     try {
-      linkToRequest(replaced, id);
+      // A handler that retried (`api(error.config)`) rejects with what the
+      // retry ended in: that failure is the retry's, not the one it replaced.
+      const target = flight.latest(id);
+      linkToRequest(replaced, target);
       // So the tail recognises it too, and records it as `handledAs`.
-      flight.remember(id, replaced);
+      flight.remember(target, replaced);
     } catch {
       /* capture must never break a request */
     }
@@ -744,6 +806,12 @@ export function attachHttpMonitor(
       installWireTap(managers, ownResponse, flight);
 
       const id = networkMonitor.nextId();
+      // A stamp already there means axios built this config for an earlier
+      // request: the app is sending that request again (a 401 refresh-retry,
+      // `api(error.config)`). Recorded, so what the retry ends in is the
+      // retry's, and so it keeps the earlier request's owner.
+      const previous = monitorIdOf(config);
+      if (previous) flight.retriedAs(previous, id);
       config.__monitorId = id;
       // Second, invisible stamp for `captureEncrypted`. Kept separate from
       // `__monitorId` rather than replacing it: this one has to survive being
@@ -759,7 +827,7 @@ export function attachHttpMonitor(
       const hadFormData =
         typeof FormData !== "undefined" && config.data instanceof FormData;
       const requestPayload = serializeBody(config.data);
-      const owner = owners.get(config);
+      const owner = owners.get(config) ?? ownerOfEntry(previous);
       // The request-time snapshot: all a request that never settles will ever
       // show. Flattened once and unmasked, so `Authorization` can be read before
       // `serializeHeaders` masks it for storage.
@@ -771,7 +839,7 @@ export function attachHttpMonitor(
           id,
           client: "axios",
           method: (config.method ?? "post").toUpperCase(),
-          url: config.url ?? "",
+          url: urlOf(instance, config),
           baseURL: config.baseURL,
           at: Date.now(),
           startTime: now(),

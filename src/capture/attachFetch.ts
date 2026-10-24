@@ -36,6 +36,7 @@ import { captureFrames } from "./monitorInitiator";
 import {
   estimateBytes,
   flattenHeaders,
+  impliedContentType,
   serializeBody,
   serializeHeaders,
 } from "./monitorSerialize";
@@ -268,11 +269,15 @@ function describe(input: unknown, rawInit: unknown): Outgoing {
     resolved = null;
   }
 
+  const headers = flattenHeaders(init?.headers !== undefined ? init.headers : request?.headers);
+  const implied = impliedContentType(init?.body);
+  if (implied && headerValue(headers, "content-type") === null) headers["content-type"] = implied;
+
   return {
     url,
     resolved,
     method: String(init?.method ?? request?.method ?? "GET").toUpperCase(),
-    headers: flattenHeaders(init?.headers !== undefined ? init.headers : request?.headers),
+    headers,
     signal: (init?.signal !== undefined ? init.signal : request?.signal) ?? null,
     request,
     init,

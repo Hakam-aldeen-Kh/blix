@@ -20,20 +20,34 @@
  * capture modules on both sides can use it without importing each other.
  */
 
-const origins = new WeakMap<object, string>();
+/** Stands for "came out of more than one request". */
+const AMBIGUOUS = Symbol("ambiguous");
+
+const origins = new WeakMap<object, string | typeof AMBIGUOUS>();
 
 /** How far down a chain of `cause`s an error is followed. */
 const CAUSE_DEPTH = 4;
 
-/** Records that `value` — an error, or a `fetch` `Response` — came from the
+/**
+ * Records that `value` — an error, or a `fetch` `Response` — came from the
  * request entry `id`. Primitives — a thrown string — have no identity and are
- * skipped. */
+ * skipped.
+ *
+ * One object can come out of several requests: `controller.abort()` rejects
+ * every fetch on that signal with the signal's one `AbortError`, and a host may
+ * reject with a shared error instance. Such an object leads nowhere from then
+ * on — recording the last request it came from linked a failure, "exactly", to
+ * a request it never made.
+ */
 export function linkToRequest(value: unknown, id: string): void {
-  if (value !== null && typeof value === "object") origins.set(value, id);
+  if (value === null || typeof value !== "object") return;
+  const known = origins.get(value);
+  origins.set(value, known === undefined || known === id ? id : AMBIGUOUS);
 }
 
-/** The id linked to `value`, or to the `response` it carries. */
-function linkedId(value: object): string | undefined {
+/** The id linked to `value`, or to the `response` it carries; `AMBIGUOUS`
+ * when the object came out of more than one request. */
+function linkedId(value: object): string | typeof AMBIGUOUS | undefined {
   const id = origins.get(value);
   if (id) return id;
   let response: unknown;
@@ -58,6 +72,8 @@ export function requestOfError(error: unknown): string | undefined {
   for (let depth = 0; depth <= CAUSE_DEPTH; depth += 1) {
     if (current === null || typeof current !== "object") return undefined;
     const id = linkedId(current);
+    // Shared by several requests: unknown, not whichever came last.
+    if (id === AMBIGUOUS) return undefined;
     if (id) return id;
     try {
       current = (current as { cause?: unknown }).cause;

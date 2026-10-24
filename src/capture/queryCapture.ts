@@ -28,7 +28,7 @@ import {
 } from "./monitorConfig";
 import { ownCallsOf, type CaptureOwner } from "./monitorContext";
 import { requestOfError } from "./errorOrigin";
-import { describeError, isCapturedError } from "./monitorError";
+import { captureError, describeError, isCapturedError } from "./monitorError";
 import { estimateBytes, networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
 import type { MonitorEntry, QueryMeta, WsFrame } from "./monitorTypes";
@@ -100,13 +100,33 @@ export function getTappedQueryClient(): QueryClientLike | null {
   return activeClient;
 }
 
-/** queryHash / String(mutationId) -> the one row that accumulates that key's
- * whole session history. */
-const queryEntryIds = new Map<string, string>();
-const mutationEntryIds = new Map<number, string>();
-/** The last status each mutation was recorded at — see `handleMutationEvent`. */
-const mutationStatus = new Map<number, string>();
-const fetchCounts = new Map<string, number>();
+/**
+ * One client's bookkeeping, kept per client and never shared: two clients — or
+ * a new one after HMR, whose caches count mutation ids from 1 again — use the
+ * same query hashes and `mutationId`s for different things, and shared maps
+ * merged them into one row. Kept by client, not by tap, so a dispose and
+ * reinstall of the same client (Strict Mode) finds its rows again.
+ */
+interface TapState {
+  /** queryHash -> the one row that accumulates that key's whole history. */
+  queryIds: Map<string, string>;
+  /** mutationId -> its row. */
+  mutationIds: Map<number, string>;
+  /** The last status each mutation was recorded at — see `handleMutationEvent`. */
+  mutationStatus: Map<number, string>;
+  fetchCounts: Map<string, number>;
+}
+
+const tapStates = new WeakMap<object, TapState>();
+
+function stateOf(client: object): TapState {
+  let state = tapStates.get(client);
+  if (!state) {
+    state = { queryIds: new Map(), mutationIds: new Map(), mutationStatus: new Map(), fetchCounts: new Map() };
+    tapStates.set(client, state);
+  }
+  return state;
+}
 
 let frameCounter = 0;
 function frame(direction: WsFrame["direction"], event: string): WsFrame {
@@ -227,7 +247,21 @@ function awaitBody(ownerId: string, requestId: string, error: unknown): void {
  * `sourceOf` knows it failed on, and from no other.
  */
 function describeFailure(error: unknown, ownerId: string): unknown {
-  const described = describeError(error, MAX_QUERY_DATA_BYTES);
+  let described = describeError(error, MAX_QUERY_DATA_BYTES);
+  if (!isCapturedError(described)) {
+    // Not an error at all, yet linked to a request: a `fetch` `Response`
+    // thrown as it is (`if (!r.ok) throw r`). It is described as the failure
+    // of that request rather than stored as an opaque object.
+    const linked = requestOfError(error);
+    const entry = linked ? networkMonitor.getById(linked) : undefined;
+    if (!entry || (entry.kind ?? "http") !== "http") return described;
+    const wire = isCapturedError(entry.error) ? entry.error : undefined;
+    described = captureError(error, {
+      kind: wire?.kind ?? "http",
+      status: entry.status,
+      statusText: wire?.statusText,
+    });
+  }
   if (!isCapturedError(described) || described.response !== undefined) return described;
 
   const source = sourceOf(error, ownerId, described.status);
@@ -288,7 +322,7 @@ function toEntryState(status: string): "pending" | "success" | "error" {
   return "pending";
 }
 
-function toQueryMeta(q: QueryLike): QueryMeta {
+function toQueryMeta(q: QueryLike, t: TapState): QueryMeta {
   return {
     sub: "query",
     hash: q.queryHash,
@@ -300,11 +334,11 @@ function toQueryMeta(q: QueryLike): QueryMeta {
     dataUpdatedAt: q.state.dataUpdatedAt,
     errorUpdatedAt: q.state.errorUpdatedAt,
     failureCount: q.state.fetchFailureCount,
-    fetchCount: fetchCounts.get(q.queryHash) ?? 0,
+    fetchCount: t.fetchCounts.get(q.queryHash) ?? 0,
   };
 }
 
-function handleQueryEvent(event: CacheEventLike): void {
+function handleQueryEvent(event: CacheEventLike, t: TapState): void {
   const q = event.query;
   if (!q) return;
 
@@ -315,32 +349,32 @@ function handleQueryEvent(event: CacheEventLike): void {
   }
 
   if (event.type === "observerAdded" || event.type === "observerRemoved") {
-    const id = queryEntryIds.get(q.queryHash);
+    const id = t.queryIds.get(q.queryHash);
     if (id && networkMonitor.getById(id)) {
-      networkMonitor.update(id, { query: toQueryMeta(q) });
+      networkMonitor.update(id, { query: toQueryMeta(q, t) });
     }
     return;
   }
 
   if (event.type === "removed") {
-    const id = queryEntryIds.get(q.queryHash);
+    const id = t.queryIds.get(q.queryHash);
     if (id && networkMonitor.getById(id)) {
       // This is the moment `gcTime: 0` actually happens — recording it,
       // rather than deleting the row, is what makes that setting visible.
       networkMonitor.appendFrame(id, frame("system", "removed"));
-      networkMonitor.update(id, { query: { ...toQueryMeta(q), gcRemoved: true } });
+      networkMonitor.update(id, { query: { ...toQueryMeta(q, t), gcRemoved: true } });
     }
     return;
   }
 
   if (event.type !== "added" && event.type !== "updated") return;
 
-  const existingId = queryEntryIds.get(q.queryHash);
+  const existingId = t.queryIds.get(q.queryHash);
   const isNew = !existingId || !networkMonitor.getById(existingId);
   const id = isNew ? networkMonitor.nextId() : (existingId as string);
 
   if (isNew) {
-    queryEntryIds.set(q.queryHash, id);
+    t.queryIds.set(q.queryHash, id);
     networkMonitor.start({
       id,
       kind: "query",
@@ -352,7 +386,7 @@ function handleQueryEvent(event: CacheEventLike): void {
       sizeBytes: 0,
       frames: [],
       requestPayload: { key: [...q.queryKey] },
-      query: toQueryMeta(q),
+      query: toQueryMeta(q, t),
     });
   }
 
@@ -363,13 +397,13 @@ function handleQueryEvent(event: CacheEventLike): void {
   const actionType = event.action?.type;
   switch (actionType) {
     case "fetch":
-      fetchCounts.set(q.queryHash, (fetchCounts.get(q.queryHash) ?? 0) + 1);
+      t.fetchCounts.set(q.queryHash, (t.fetchCounts.get(q.queryHash) ?? 0) + 1);
       networkMonitor.appendFrame(id, frame("out", "fetch"));
       beginAttempt(id);
       // The row lives for the whole session, so its clock restarts with each
       // fetch: the duration it shows is this fetch's, not the time since the
       // key was first seen. `startAbs` — what the list sorts by — is untouched.
-      networkMonitor.update(id, { state: "pending", startTime: now(), query: toQueryMeta(q) });
+      networkMonitor.update(id, { state: "pending", startTime: now(), query: toQueryMeta(q, t) });
       break;
     case "success":
       networkMonitor.appendFrame(id, frame("in", "success"));
@@ -377,7 +411,7 @@ function handleQueryEvent(event: CacheEventLike): void {
         state: "success",
         endTime: now(),
         ...withSize(truncateForPersist(q.state.data, MAX_QUERY_DATA_BYTES).value),
-        query: toQueryMeta(q),
+        query: toQueryMeta(q, t),
       });
       break;
     case "error":
@@ -389,31 +423,33 @@ function handleQueryEvent(event: CacheEventLike): void {
         // Described, never copied: a queryFn that uses axios rejects with an
         // error whose enumerable `config` holds the request's headers.
         error: describeFailure(q.state.error, id),
-        query: toQueryMeta(q),
+        query: toQueryMeta(q, t),
       });
       break;
     case "invalidate":
       networkMonitor.appendFrame(id, frame("system", "invalidate"));
-      networkMonitor.update(id, { query: toQueryMeta(q) });
+      networkMonitor.update(id, { query: toQueryMeta(q, t) });
       break;
     default:
       // "setState", or "added"/"updated" with no action — just resync the
       // meta. Skipped on a brand-new row: `start()` above already carries it.
-      if (!isNew) networkMonitor.update(id, { query: toQueryMeta(q) });
+      if (!isNew) networkMonitor.update(id, { query: toQueryMeta(q, t) });
   }
 }
 
-function handleMutationEvent(event: CacheEventLike): void {
+function handleMutationEvent(event: CacheEventLike, t: TapState): void {
   const m = event.mutation;
   if (!m) return;
   if (event.type === "observerResultsUpdated" || event.type === "observerOptionsUpdated") return;
 
-  const existingId = mutationEntryIds.get(m.mutationId);
-  const isNew = !existingId;
+  const existingId = t.mutationIds.get(m.mutationId);
+  // Missing from the log too — cleared, or never started while capture was
+  // paused — and the next event starts the row again, as for a query.
+  const isNew = !existingId || !networkMonitor.getById(existingId);
   const id = isNew ? networkMonitor.nextId() : (existingId as string);
 
   if (isNew) {
-    mutationEntryIds.set(m.mutationId, id);
+    t.mutationIds.set(m.mutationId, id);
     networkMonitor.start({
       id,
       kind: "query",
@@ -432,14 +468,11 @@ function handleMutationEvent(event: CacheEventLike): void {
         observers: 0,
       },
     });
-    mutationStatus.set(m.mutationId, m.state.status);
     // Hooked at once: `mutationFn` runs after `onMutate` has been awaited.
     ownCallsOf(m, "mutationFn", mutationOwner(id, m));
-    if (m.state.status === "pending") {
-      networkMonitor.appendFrame(id, frame("out", "mutate"));
-      beginAttempt(id);
-    }
-    return;
+    // A row started late — after a clear, or a pause — is past `idle`: the
+    // status it is at is recorded below like any change, error and all.
+    t.mutationStatus.delete(m.mutationId);
   }
 
   // A mutation is added to the cache before it runs, with no variables yet:
@@ -456,8 +489,8 @@ function handleMutationEvent(event: CacheEventLike): void {
   // on each moved its end time, so its duration grew for as long as it stayed
   // in the cache.
   const status = m.state.status;
-  if (mutationStatus.get(m.mutationId) === status) return;
-  mutationStatus.set(m.mutationId, status);
+  if (t.mutationStatus.get(m.mutationId) === status) return;
+  t.mutationStatus.set(m.mutationId, status);
   const meta = (s: "pending" | "success" | "error"): QueryMeta => ({
     sub: "mutation",
     hash: String(m.mutationId),
@@ -504,10 +537,11 @@ export function tapQueryClient(client: QueryClientLike): () => void {
   if (tapped.has(client)) return () => {};
   tapped.add(client);
   activeClient = client;
+  const state = stateOf(client);
 
   try {
     for (const q of client.getQueryCache().getAll() as QueryLike[]) {
-      handleQueryEvent({ type: "added", query: q });
+      handleQueryEvent({ type: "added", query: q }, state);
     }
   } catch {
     /* backfill is best-effort */
@@ -515,14 +549,14 @@ export function tapQueryClient(client: QueryClientLike): () => void {
 
   const unsubQuery = client.getQueryCache().subscribe((event) => {
     try {
-      handleQueryEvent(event);
+      handleQueryEvent(event, state);
     } catch {
       /* capture must never break the app */
     }
   });
   const unsubMutation = client.getMutationCache().subscribe((event) => {
     try {
-      handleMutationEvent(event);
+      handleMutationEvent(event, state);
     } catch {
       /* capture must never break the app */
     }
