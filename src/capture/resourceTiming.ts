@@ -154,6 +154,16 @@ function addressOf(entry: MonitorEntry): { full: string; path: string } | null {
 /** How long a timing entry waits for the requests it could belong to to
  * settle before it is matched against the ones that have. */
 const MAX_DEFER_MS = 10_000;
+/** Rounding between the two clocks' readings of one instant, in ms. */
+const END_SLACK_MS = 1;
+
+/** Whether Blix stopped at the headers — a body it chose not to read — so the
+ * entry's end is the browser's `responseStart`, not its `responseEnd`. */
+function stoppedAtHeaders(entry: MonitorEntry): boolean {
+  const error = entry.error as { response?: unknown } | undefined;
+  const body = entry.responsePayload ?? error?.response;
+  return typeof body === "string" && body.startsWith("«body not captured:");
+}
 
 /** A timing entry's candidate: same address, and a start the browser's can
  * follow. `undefined` when `entry` cannot be the request `t` describes. */
@@ -185,9 +195,11 @@ function candidate(
  * enough: requests to the same URL started within a millisecond are equally
  * close to every timing entry, and the first entry to arrive (the fastest
  * request's) took the first candidate — every one of them got its neighbour's
- * phases. Their ends tell them apart. Blix hears of the end at `responseEnd`
- * when it read the body, and at `responseStart` when it stopped at the headers,
- * so the closer of the two is the distance.
+ * phases. Their ends tell them apart: Blix hears of an end — `responseEnd`
+ * when it read the body, `responseStart` when it stopped at the headers —
+ * only after the browser has it, so the earliest end not before the browser's
+ * is the one. Closest-either-side was not: with ends ~10 ms apart and a busy
+ * main thread, a neighbour that ended just before won.
  *
  * Which is why a timing entry is matched only once every request it could
  * belong to has ended: matched earlier, it would pick among the ones that
@@ -221,14 +233,17 @@ function findEntry(
       if (!deferred) return "wait";
       continue;
     }
+    // Blix is told of the end after the browser has it, never before — by
+    // however long the main thread was busy. So a candidate that ended before
+    // this one did is not it, and of the rest the earliest to end is: the
+    // browser hands out completions in the order they happen, so the k-th
+    // timing entry to arrive belongs to the k-th of these requests to end.
+    const anchor = stoppedAtHeaders(entry) ? t.responseStart : t.responseEnd;
+    const lag = entry.endTime - anchor;
+    if (lag < -END_SLACK_MS) continue;
+    // The start only breaks a tie; an exact URL beats a path match.
     const lead = Math.abs(t.startTime - entry.startTime);
-    const lag = Math.min(
-      Math.abs(entry.endTime - t.responseEnd),
-      Math.abs(entry.endTime - t.responseStart),
-    );
-    // Closest on both ends wins; an exact URL beats a path match at the same
-    // distance.
-    const score = lead + lag + (match.exact ? 0 : 0.5);
+    const score = Math.max(lag, 0) + lead / 1000 + (match.exact ? 0 : 0.5);
     if (score < bestScore) {
       best = entry;
       bestScore = score;
