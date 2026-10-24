@@ -50,10 +50,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function capture(value: unknown, maxBytes: number): unknown {
-  return truncateForPersist(value, maxBytes).value;
-}
-
 /**
  * Diffs `prev` against `next`, returning a bounded list of changed paths.
  * `slices` collects the top-level keys touched, which is what the Redux
@@ -76,8 +72,14 @@ export function diffState(
       return;
     }
     const entry: StateDiffEntry = { path, op };
-    if (before !== undefined) entry.before = capture(before, o.maxValueBytes);
-    if (after !== undefined) entry.after = capture(after, o.maxValueBytes);
+    // A value cut short is no longer the value: the diff says it is partial.
+    const keep = (value: unknown) => {
+      const kept = truncateForPersist(value, o.maxValueBytes);
+      if (kept.truncated) truncated = true;
+      return kept.value;
+    };
+    if (before !== undefined) entry.before = keep(before);
+    if (after !== undefined) entry.after = keep(after);
     changes.push(entry);
 
     const top = path.split(/[.[]/)[0];
@@ -100,7 +102,16 @@ export function diffState(
 
     if (Array.isArray(a) && Array.isArray(b)) {
       if (a.length !== b.length) {
-        record(path || "(root)", "change", `length ${a.length}`, `length ${b.length}`);
+        // Index by index, a removal from the middle reads as every later
+        // element changing. The array whole, before and after, is what
+        // happened — when it is small enough to keep; past that, a summary
+        // that says it is one.
+        if (Math.max(a.length, b.length) <= o.arrayScanCap) {
+          record(path || "(root)", "change", a, b);
+        } else {
+          truncated = true;
+          record(path || "(root)", "change", `length ${a.length}`, `length ${b.length}`);
+        }
         return;
       }
       let refDifferent = 0;
