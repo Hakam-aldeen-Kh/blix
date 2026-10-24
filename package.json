@@ -81,7 +81,10 @@
     "check:http": "node scripts/check-http.mjs",
     "check:storage": "node scripts/check-storage.mjs",
     "check:panel": "node scripts/check-panel.mjs",
-    "check": "pnpm check:prod-guard && pnpm check:redaction && pnpm check:isolation && pnpm check:snippets && pnpm check:keyboard && pnpm check:hydration && pnpm check:http && pnpm check:storage && pnpm check:panel",
+    "check:official": "node scripts/check-official.mjs",
+    "check:adversarial": "node scripts/check-adversarial.mjs",
+    "check:linking": "node scripts/check-linking.mjs",
+    "check": "pnpm check:prod-guard && pnpm check:redaction && pnpm check:isolation && pnpm check:snippets && pnpm check:keyboard && pnpm check:hydration && pnpm check:http && pnpm check:storage && pnpm check:panel && pnpm check:linking",
     "prepublishOnly": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {
@@ -109,6 +112,7 @@
     "axios": "^1.20.0",
     "esbuild": "0.27.7",
     "jsdom": "^30.1.2",
+    "playwright-core": "1.64.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
