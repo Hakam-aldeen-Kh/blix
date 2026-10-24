@@ -29,12 +29,14 @@
 
 import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
+import { linkToRequest } from "./errorOrigin";
 import { getOwner } from "./monitorContext";
 import { captureError, captureHttpFailure } from "./monitorError";
 import { captureFrames } from "./monitorInitiator";
 import {
   estimateBytes,
   flattenHeaders,
+  impliedContentType,
   serializeBody,
   serializeHeaders,
 } from "./monitorSerialize";
@@ -267,11 +269,15 @@ function describe(input: unknown, rawInit: unknown): Outgoing {
     resolved = null;
   }
 
+  const headers = flattenHeaders(init?.headers !== undefined ? init.headers : request?.headers);
+  const implied = impliedContentType(init?.body);
+  if (implied && headerValue(headers, "content-type") === null) headers["content-type"] = implied;
+
   return {
     url,
     resolved,
     method: String(init?.method ?? request?.method ?? "GET").toUpperCase(),
-    headers: flattenHeaders(init?.headers !== undefined ? init.headers : request?.headers),
+    headers,
     signal: (init?.signal !== undefined ? init.signal : request?.signal) ?? null,
     request,
     init,
@@ -724,6 +730,9 @@ export function attachFetchMonitor(options: FetchMonitorOptions = {}): () => voi
     return pending.then(
       (response) => {
         try {
+          // So an error the app builds from this response — `{ response: r }`,
+          // or `r` itself thrown — leads back to this request exactly.
+          linkToRequest(response, entryId);
           respond(entryId, response, cap, signal);
         } catch {
           /* capture must never break a request */
@@ -732,6 +741,7 @@ export function attachFetchMonitor(options: FetchMonitorOptions = {}): () => voi
       },
       (error: unknown) => {
         try {
+          linkToRequest(error, entryId);
           fail(entryId, error, signal);
         } catch {
           /* noop */

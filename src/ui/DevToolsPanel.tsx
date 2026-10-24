@@ -205,6 +205,7 @@ export default function DevTools() {
   const host = useHostTheme();
   const [previewPref, setPreviewPref] = useState<ThemePref | null>(null);
   const dataFormat = normalizeDataFormat(prefs.dataFormat);
+  const diffFormat = normalizeDataFormat(prefs.diffFormat ?? "diff");
   const themePref = normalizeThemePref(prefs.theme);
   const theme = resolveTheme(previewPref ?? themePref, host);
   // Written to the root's `style` rather than shipped as one CSS block per
@@ -437,6 +438,9 @@ export default function DevTools() {
   }, []);
   const onDataFormat = useCallback((next: DataFormat) => {
     savePrefs({ dataFormat: next });
+  }, []);
+  const onDiffFormat = useCallback((next: DataFormat) => {
+    savePrefs({ diffFormat: next });
   }, []);
   // Read straight from prefs rather than mirroring it in local state: prefs
   // already re-render this component through `useSyncExternalStore`, and the
@@ -1299,7 +1303,6 @@ export default function DevTools() {
             searchRef={searchRef}
             deepSearch={deepSearch}
             onDeepSearch={onDeepSearch}
-            searching={list.searching}
             shown={list.filtered.length}
             total={list.counts.all}
             paused={paused}
@@ -1478,6 +1481,8 @@ export default function DevTools() {
                 nouns={nouns}
                 format={dataFormat}
                 onFormat={onDataFormat}
+                diffFormat={diffFormat}
+                onDiffFormat={onDiffFormat}
                 authUnmasked={authUnmasked}
                 replayArmedId={replayArmedId}
                 onReplay={runReplay}

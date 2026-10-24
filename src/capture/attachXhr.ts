@@ -28,6 +28,7 @@ import { readAuthorization } from "./monitorAuth";
 import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner } from "./monitorContext";
 import { captureError, captureHttpFailure, type FailureKind } from "./monitorError";
+import { impliedContentType } from "./monitorSerialize";
 import { claimAxiosTransport } from "./monitorTransport";
 import type { MonitorEntry } from "./monitorTypes";
 import { estimateBytes, networkMonitor, serializeBody, serializeHeaders } from "./networkMonitor";
@@ -59,6 +60,45 @@ interface Pending {
 const WRAPPED = /* @__PURE__ */ Symbol.for("blix.xhrMonitor");
 
 const meta = new WeakMap<XMLHttpRequest, Pending>();
+
+/**
+ * The entry each XHR object is carrying right now.
+ *
+ * One object can carry several requests: reused once it has finished, or
+ * `open()`ed again mid-flight. The listeners `begin` adds stay on the object,
+ * so without this a later request's `loadend` also ran an earlier one's — and
+ * wrote the later answer onto the earlier row.
+ */
+const active = new WeakMap<XMLHttpRequest, { id: string; finish(): void }>();
+
+/**
+ * `open()` was called on `xhr`: whatever it was carrying ends here.
+ *
+ * Finished already (`DONE`) — the app reuses the object from its own `load` or
+ * `loadend` handler, which runs before Blix's — it is recorded now, while its
+ * status and body can still be read; `open()` resets them. Still in flight, it
+ * is dropped, and the standard has the browser fire no event for that: it ends
+ * aborted.
+ */
+function dropActive(xhr: XMLHttpRequest): void {
+  const current = active.get(xhr);
+  if (current === undefined) return;
+  active.delete(xhr);
+  const { id } = current;
+  if (networkMonitor.getById(id)?.state !== "pending") return;
+  if (xhr.readyState === 4) {
+    current.finish();
+    return;
+  }
+  settle(id, {
+    state: "aborted",
+    endTime: now(),
+    error: captureError(
+      { name: "XMLHttpRequest", message: "open() was called again before this request finished" },
+      { kind: "aborted" },
+    ),
+  });
+}
 
 function resolve(url: string): URL | null {
   try {
@@ -151,8 +191,9 @@ export function attachXhrMonitor(options: XhrMonitorOptions = {}): () => void {
 
   proto.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
     try {
+      dropActive(this);
       const href = String(url);
-      meta.set(this, { method: String(method).toUpperCase(), url: href, resolved: resolve(href), headers: {} });
+      meta.set(this,{ method: String(method).toUpperCase(), url: href, resolved: resolve(href), headers: {} });
     } catch {
       /* capture must never break a request */
     }
@@ -218,6 +259,10 @@ function begin(
   const requestPayload = isDocument ? "«document body»" : serializeBody(body ?? undefined);
   const owner = getOwner();
   const auth = readAuthorization(pending.headers, "fetch");
+  // What `send()` adds when the page set no type — the same rules as fetch.
+  const implied = isDocument ? undefined : impliedContentType(body);
+  const typed = Object.keys(pending.headers).some((name) => name.toLowerCase() === "content-type");
+  const headers = implied && !typed ? { ...pending.headers, "content-type": implied } : pending.headers;
 
   networkMonitor.start(
     {
@@ -230,7 +275,7 @@ function begin(
       at: Date.now(),
       startTime: now(),
       requestPayload,
-      requestHeaders: serializeHeaders(pending.headers),
+      requestHeaders: serializeHeaders(headers),
       sizeBytes: estimateBytes(requestPayload),
       hadFormData,
       ownerId: owner?.id,
@@ -243,12 +288,20 @@ function begin(
 
   // Which of the three failure events fired. `loadend` follows every one of
   // them and a success alike, so it is where the entry settles — once.
+  //
+  // Each listener answers only while this request is the one the object is
+  // carrying (see `active`), and all four are removed once it has settled.
+  const listening = new AbortController();
+  const options = { signal: listening.signal };
   let failure: FailureKind | undefined;
-  xhr.addEventListener("timeout", () => (failure = "timeout"));
-  xhr.addEventListener("abort", () => (failure = "aborted"));
-  xhr.addEventListener("error", () => (failure = "network"));
+  let finished = false;
 
-  xhr.addEventListener("loadend", () => {
+  /** Records the outcome, once — from `loadend`, or from `open()` reusing the
+   * object before Blix's `loadend` listener ran (see `dropActive`). */
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    listening.abort();
     try {
       const endTime = now();
 
@@ -291,5 +344,23 @@ function begin(
     } catch {
       /* capture must never break a request */
     }
-  });
+  };
+
+  active.set(xhr, { id, finish });
+  const mine = () => active.get(xhr)?.id === id;
+  xhr.addEventListener("timeout", () => mine() && (failure = "timeout"), options);
+  xhr.addEventListener("abort", () => mine() && (failure = "aborted"), options);
+  xhr.addEventListener("error", () => mine() && (failure = "network"), options);
+  xhr.addEventListener(
+    "loadend",
+    () => {
+      if (!mine()) {
+        listening.abort();
+        return;
+      }
+      active.delete(xhr);
+      finish();
+    },
+    options,
+  );
 }

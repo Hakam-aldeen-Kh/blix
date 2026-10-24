@@ -129,7 +129,9 @@ export interface BxPalette {
  * The brand's own pair, from BRAND_BOOK §4. Grey carries, green and red
  * signal: the graphite ramp is the book's 950/900/850/800/700, the text levels
  * its 100/200/400 and `mark` its 500. Source and syntax colours are
- * desaturated so nothing but ok, err and warn reads as a signal. Hairlines are
+ * desaturated so nothing but ok, err and warn reads as a signal. `info` is
+ * the exception: as a grey-blue it was too close to `mark` to tell a redirect
+ * or a request in flight from a 304 or a cancelled one, so it is a clear blue. Hairlines are
  * opaque here — the book draws them as steps of the ramp, not as alphas.
  */
 const BLIX: BxPalette = {
@@ -140,7 +142,7 @@ const BLIX: BxPalette = {
   line: "#212326", lineSoft: "#18191c",
   lineStrong: "#2d3035",
   fg: "#e6e7ea", fg2: "#c9cbd0", fg3: "#8b909a", mark: "#5a5e66",
-  ok: "#4ea674", warn: "#e3a541", err: "#d9605f", info: "#8fa3b8",
+  ok: "#4ea674", warn: "#e3a541", err: "#d9605f", info: "#64a8f5",
   accent: "#c9cbd0", wait: "#2d3035",
   synKey: "#7db3e8", synStr: "#d7a86e", synNum: "#b39df2",
   synBool: "#e88b9e", synPunct: "#5a5e66",
@@ -159,7 +161,7 @@ const BLIX_LIGHT: BxPalette = {
   line: "#e6e7ea", lineSoft: "#efeff0",
   lineStrong: "#c9cbd0",
   fg: "#16181b", fg2: "#3e4249", fg3: "#5e636c", mark: "#a2a6ae",
-  ok: "#2d8753", warn: "#946200", err: "#c23f3d", info: "#4e6e8a",
+  ok: "#2d8753", warn: "#946200", err: "#c23f3d", info: "#1d64c4",
   accent: "#3e4249", wait: "#e6e7ea",
   synKey: "#1f5f9e", synStr: "#8a5a12", synNum: "#6b4bc9",
   synBool: "#b03a5b", synPunct: "#a2a6ae",
@@ -230,8 +232,8 @@ const NORD: BxPalette = {
   hoverFloat: "#495265",
   line: "rgba(236,239,244,.09)", lineSoft: "rgba(236,239,244,.045)",
   lineStrong: "rgba(236,239,244,.12)",
-  fg: "#eceff4", fg2: "#d8dee9", fg3: "#b4bdcd", mark: "#8792a6",
-  ok: "#a3be8c", warn: "#ebcb8b", err: "#bf616a", info: "#88c0d0",
+  fg: "#eceff4", fg2: "#d8dee9", fg3: "#b4bdcd", mark: "#6b7385",
+  ok: "#a3be8c", warn: "#ebcb8b", err: "#bf616a", info: "#8fd0f0",
   accent: "#88c0d0", wait: "#616c82",
   synKey: "#8fbcbb", synStr: "#a3be8c", synNum: "#ebcb8b",
   synBool: "#c5a3bf", synPunct: "#8792a6",
@@ -325,7 +327,7 @@ const GRUVBOX: BxPalette = {
   line: "rgba(251,241,199,.09)", lineSoft: "rgba(251,241,199,.045)",
   lineStrong: "rgba(251,241,199,.12)",
   fg: "#fbf1c7", fg2: "#d5c4a1", fg3: "#b5a68d", mark: "#928374",
-  ok: "#b8bb26", warn: "#fabd2f", err: "#fb4934", info: "#83a598",
+  ok: "#b8bb26", warn: "#fabd2f", err: "#fb4934", info: "#83b4f0",
   accent: "#83a598", wait: "#504945",
   synKey: "#8ec07c", synStr: "#b8bb26", synNum: "#d3869b",
   synBool: "#fabd2f", synPunct: "#928374",

@@ -5,7 +5,7 @@
  * Query cache actions don't need one — see the per-service rationale in
  * `services/reduxActions.ts` / `services/queryActions.ts`. */
 
-import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { copyText, responseCopyText } from "../helpers/format";
 import { toCurl, toFetch } from "../services/snippets";
 import { canReplay, replayEntry } from "../services/replayRequest";
@@ -81,6 +81,42 @@ export function ContextMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry, state.confirming, error]);
 
+  // A menu, for the keyboard as for the pointer: focus lands on the first
+  // item when it opens, the arrow keys move between items, and focus goes
+  // back to whatever had it when the menu closes.
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    items()[0]?.focus();
+    return () => {
+      if (before?.isConnected) before.focus();
+    };
+    // Once per opening: the entry is fixed for the menu's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const items = (): HTMLButtonElement[] =>
+    [...(ref.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])].filter(
+      (b) => !b.disabled,
+    );
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const list = items();
+    if (list.length === 0) return;
+    const at = list.indexOf(document.activeElement as HTMLButtonElement);
+    const go = (i: number) => {
+      e.preventDefault();
+      list[(i + list.length) % list.length].focus();
+    };
+    if (e.key === "ArrowDown") go(at + 1);
+    else if (e.key === "ArrowUp") go(at < 0 ? list.length - 1 : at - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(list.length - 1);
+    else if (e.key === "Tab") {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   const run = (fn: () => unknown) => () => {
     try {
       const result = fn();
@@ -107,6 +143,9 @@ export function ContextMenu({
     <div
       ref={ref}
       className="nm-menu"
+      role="menu"
+      aria-label={`Actions for ${entry.url}`}
+      onKeyDown={onKeyDown}
       style={{ left: placement.left, top: placement.top, width: MENU_W }}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -122,11 +161,13 @@ export function ContextMenu({
           <div className="nm-menu-warn">
             This re-runs a write against the live backend.
           </div>
-          <button className="nm-menu-item nm-menu-danger" onClick={doReplay}>
+          <button role="menuitem"
+                className="nm-menu-item nm-menu-danger" onClick={doReplay}>
             <Icon name="replay" size={13} />
             Replay anyway
           </button>
-          <button className="nm-menu-item" onClick={onClose}>
+          <button role="menuitem"
+                className="nm-menu-item" onClick={onClose}>
             Cancel
           </button>
         </>
@@ -135,24 +176,28 @@ export function ContextMenu({
           {isHttp && (
             <>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() => copyText(`${entry.baseURL ?? ""}${entry.url}`))}
               >
                 <Icon name="copy" size={13} />
                 Copy URL
               </button>
-              <button className="nm-menu-item" onClick={run(() => copyText(toCurl(entry)))}>
+              <button role="menuitem"
+                className="nm-menu-item" onClick={run(() => copyText(toCurl(entry)))}>
                 <Icon name="terminal" size={13} />
                 Copy as cURL
               </button>
               {/* The same request as JS, for pasting back into this app's own
                   console — where most "does it still fail if I change one
                   header" experiments actually happen. */}
-              <button className="nm-menu-item" onClick={run(() => copyText(toFetch(entry)))}>
+              <button role="menuitem"
+                className="nm-menu-item" onClick={run(() => copyText(toFetch(entry)))}>
                 <Icon name="terminal" size={13} />
                 Copy as fetch
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() => copyText(responseCopyText(entry)))}
               >
@@ -160,6 +205,7 @@ export function ContextMenu({
                 Copy response
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() =>
                   copyText(JSON.stringify(entry.requestPayload ?? null, null, 2)),
@@ -172,6 +218,7 @@ export function ContextMenu({
               <div className="nm-menu-sep" />
 
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!replay.can}
                 title={replay.reason}
@@ -188,6 +235,7 @@ export function ContextMenu({
           {isRedux && (
             <>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() =>
                   copyText(
@@ -203,6 +251,7 @@ export function ContextMenu({
                 Copy action
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!entry.redux?.diff?.changes.length}
                 onClick={run(() => copyText(JSON.stringify(entry.redux?.diff ?? null, null, 2)))}
@@ -211,6 +260,7 @@ export function ContextMenu({
                 Copy diff
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() => copyText(JSON.stringify(getCurrentState(store), null, 2)))}
               >
@@ -220,11 +270,13 @@ export function ContextMenu({
 
               <div className="nm-menu-sep" />
 
-              <button className="nm-menu-item" onClick={run(() => onFilterToType(`url:${entry.url}`))}>
+              <button role="menuitem"
+                className="nm-menu-item" onClick={run(() => onFilterToType(`url:${entry.url}`))}>
                 <Icon name="search" size={13} />
                 Filter to this action type
               </button>
-              <button className="nm-menu-item" onClick={run(() => ignoreActionType(entry.url))}>
+              <button role="menuitem"
+                className="nm-menu-item" onClick={run(() => ignoreActionType(entry.url))}>
                 <Icon name="clear" size={13} />
                 Ignore this action type
               </button>
@@ -232,6 +284,7 @@ export function ContextMenu({
               <div className="nm-menu-sep" />
 
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!redispatch.can}
                 title={redispatch.reason}
@@ -247,6 +300,7 @@ export function ContextMenu({
           {isQuery && (
             <>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() => copyText(JSON.stringify(entry.query?.key ?? [], null, 2)))}
               >
@@ -254,6 +308,7 @@ export function ContextMenu({
                 Copy key
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 onClick={run(() => copyText(responseCopyText(entry)))}
               >
@@ -264,6 +319,7 @@ export function ContextMenu({
               <div className="nm-menu-sep" />
 
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!queryCheck.can}
                 title={queryCheck.reason}
@@ -273,6 +329,7 @@ export function ContextMenu({
                 Invalidate
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!queryCheck.can}
                 title={queryCheck.reason}
@@ -282,6 +339,7 @@ export function ContextMenu({
                 Refetch
               </button>
               <button
+                role="menuitem"
                 className="nm-menu-item"
                 disabled={!queryCheck.can}
                 title={queryCheck.reason}
@@ -290,7 +348,8 @@ export function ContextMenu({
                 <Icon name="clear" size={13} />
                 Reset
               </button>
-              <button className="nm-menu-item" onClick={run(() => removeQuery(entry))}>
+              <button role="menuitem"
+                className="nm-menu-item" onClick={run(() => removeQuery(entry))}>
                 <Icon name="clear" size={13} />
                 Remove from cache
               </button>
@@ -300,7 +359,8 @@ export function ContextMenu({
 
           {isWs && (
             <button
-              className="nm-menu-item"
+              role="menuitem"
+                className="nm-menu-item"
               onClick={run(() => copyText(JSON.stringify(entry.frames ?? [], null, 2)))}
             >
               <Icon name="copy" size={13} />

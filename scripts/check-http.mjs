@@ -35,6 +35,7 @@ async function loadCapture() {
       contents: `
         export { attachHttpMonitor } from ${from("attachHttp.ts")};
         export { networkMonitor } from ${from("networkMonitor.ts")};
+        export { tapQueryClient } from ${from("queryCapture.ts")};
       `,
       resolveDir: root,
       loader: "ts",
@@ -52,7 +53,7 @@ async function loadCapture() {
   return import(`data:text/javascript;base64,${code}`);
 }
 
-const { attachHttpMonitor, networkMonitor } = await loadCapture();
+const { attachHttpMonitor, networkMonitor, tapQueryClient } = await loadCapture();
 
 const expect = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -232,6 +233,73 @@ const scenarios = [
       const entry = entryFor("/never-sent-2");
       expect(entry.state === "error", `state is ${entry.state}`);
       expect(entry.error?.kind === "setup", `kind is ${entry.error?.kind}`);
+    },
+  },
+  {
+    name: "8. an app error with no status still leads a failed mutation to its request, exactly",
+    run: async () => {
+      const api = instanceWith({
+        "/orders/7": { status: 409, data: { result: 1042, message: "in use" } },
+        // Fails alike at the same moment: a guess by status could take either.
+        "/orders/8": { status: 409, data: { result: 9999, message: "decoy" } },
+      });
+      api.interceptors.response.use(undefined, () => Promise.reject(new ApiError("Could not delete")));
+      attachHttpMonitor(api);
+
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      emit({ type: "added", mutation: { mutationId: 501, state: { status: "idle" } } });
+      emit({ type: "updated", mutation: { mutationId: 501, state: { status: "pending" } } });
+
+      const [mine] = await Promise.allSettled([api.delete("/orders/7"), api.delete("/orders/8")]);
+      const thrown = mine.reason;
+      expect(thrown instanceof ApiError && thrown.message === "Could not delete", "the caller did not get the app's error unchanged");
+      emit({ type: "updated", mutation: { mutationId: 501, state: { status: "error", error: thrown } } });
+
+      const entry = networkMonitor.getSnapshot().find((e) => e.method === "MUTATE" && e.query?.hash === "501");
+      expect(entry.error?.responseMatch === "exact", `matched by ${entry.error?.responseMatch}`);
+      expect(entry.error?.response?.result === 1042, `borrowed ${JSON.stringify(entry.error?.response)}`);
+      expect(entry.error?.status === 409, `status is ${entry.error?.status}`);
+      const request = entryFor("/orders/7");
+      expect(entry.error?.responseFrom === request.id, "responseFrom does not name /orders/7");
+      expect(request.error?.handledAs?.message === "Could not delete", "the request does not record what the caller received");
+    },
+  },
+  {
+    name: "9. …through a wrapper's `cause`, and from a handler that throws instead of rejecting",
+    run: async () => {
+      const api = instanceWith({ "/orders/9": { status: 500, data: { message: "boom" } } });
+      api.interceptors.response.use(undefined, () => {
+        throw new ApiError("sync");
+      });
+      attachHttpMonitor(api);
+
+      let emit = () => {};
+      const cache = { subscribe: (fn) => ((emit = fn), () => {}), getAll: () => [] };
+      const idle = { subscribe: () => () => {}, getAll: () => [] };
+      tapQueryClient({ getQueryCache: () => idle, getMutationCache: () => cache });
+      emit({ type: "added", mutation: { mutationId: 502, state: { status: "idle" } } });
+
+      const thrown = await api.delete("/orders/9").catch((e) => e);
+      expect(thrown instanceof ApiError && thrown.message === "sync", "the thrown error changed on the way out");
+      const wrapped = new Error("Delete failed", { cause: thrown });
+      emit({ type: "updated", mutation: { mutationId: 502, state: { status: "error", error: wrapped } } });
+
+      const entry = networkMonitor.getSnapshot().find((e) => e.method === "MUTATE" && e.query?.hash === "502");
+      expect(entry.error?.responseMatch === "exact", `matched by ${entry.error?.responseMatch}`);
+      expect(entry.error?.response?.message === "boom", `borrowed ${JSON.stringify(entry.error?.response)}`);
+    },
+  },
+  {
+    name: "10. a host handler that recovers still resolves with its own value",
+    run: async () => {
+      const api = instanceWith({ "/orders/10": { status: 404, data: {} } });
+      api.interceptors.response.use(undefined, () => ({ fallback: true }));
+      attachHttpMonitor(api);
+      const value = await api.get("/orders/10");
+      expect(value?.fallback === true, `resolved with ${JSON.stringify(value)}`);
     },
   },
 ];

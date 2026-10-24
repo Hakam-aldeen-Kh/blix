@@ -644,6 +644,7 @@ const TABLE = `
 .nm-trow[data-tone="ok"]   .nm-row-rail::before { background: var(--bx-ok); }
 .nm-trow[data-tone="warn"] .nm-row-rail::before { background: var(--bx-warn); }
 .nm-trow[data-tone="err"]  .nm-row-rail::before { background: var(--bx-err); border-radius: 0; }
+.nm-trow[data-failed] .nm-row-rail::before { border-radius: 0; }
 .nm-trow[data-tone="info"] .nm-row-rail::before { background: none; box-shadow: inset 0 0 0 1px var(--bx-info); }
 /* A response a rule supplied rather than the server: an outlined amber dot.
    Nothing sets it yet - the feature it belongs to is not built. */

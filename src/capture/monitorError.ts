@@ -49,6 +49,10 @@ export interface CapturedError {
   /** Query/mutation only: the id of the HTTP entry `response` was taken from,
    * when the error the app threw did not carry the body itself. */
   responseFrom?: string;
+  /** How `responseFrom` was found: `"exact"` — the error is, or carries, an
+   * object that came out of that request — or `"caused"`, the one request with
+   * the error's status that this attempt made. Never inferred from timing. */
+  responseMatch?: "exact" | "caused";
   /** The error's own fields that none of the above covers — whatever a host's
    * error class carries: `result`, `errors`, a numeric `code`, the body under
    * `data`. Masked and bounded like any stored value. */

@@ -111,6 +111,7 @@ export const DEFAULT_PREFS: MonitorPrefs = {
   // The tree is what the panel always opened with, and it is the right default
   // for "what is in here?" — the other formats answer narrower questions.
   dataFormat: "tree",
+  diffFormat: "diff",
   section: "network",
   // The 26px step. The redesign is an argument for density — the mockups are
   // drawn at 26 and the extra rows are the reason anyone opens a devtool —
@@ -223,7 +224,7 @@ export function sanitizePrefs(raw: unknown): Partial<MonitorPrefs> {
   if (typeof raw.section === "string" && SECTIONS.includes(raw.section)) out.section = raw.section;
   if (typeof raw.density === "string" && DENSITIES.includes(raw.density)) out.density = raw.density;
 
-  for (const key of ["theme", "dataFormat", "fabRadius", "hiddenColumns"] as const) {
+  for (const key of ["theme", "dataFormat", "diffFormat", "fabRadius", "hiddenColumns"] as const) {
     const value = raw[key];
     if (typeof value === "string") out[key] = value;
   }

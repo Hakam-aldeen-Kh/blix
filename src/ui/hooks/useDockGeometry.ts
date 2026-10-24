@@ -70,6 +70,31 @@ export function clampPos(pos: Pos, size: Size): Pos {
   };
 }
 
+/**
+ * A floating panel's position after the viewport changed under it.
+ *
+ * `clampPos` only keeps the panel grabbable — right for a drag, where parking
+ * it half off-screen is a choice. But a panel that fitted before the window
+ * shrank was left hanging off the bottom, and reopening it did not help. So
+ * the far edges pull it back in, as far as it fits; a panel deliberately
+ * parked partly off the left or top edge stays where it was put.
+ */
+export function refitPos(pos: Pos, size: Size): Pos {
+  if (typeof window === "undefined") return pos;
+  // The size the panel renders at — fitted to the viewport, like `panelStyle`.
+  const w = Math.min(size.w, Math.max(0, window.innerWidth - MARGIN * 2));
+  const h = Math.min(size.h, Math.max(0, window.innerHeight - MARGIN * 2));
+  const maxX = window.innerWidth - w - MARGIN;
+  const maxY = window.innerHeight - h - MARGIN;
+  return clampPos(
+    {
+      x: pos.x > maxX ? Math.max(MARGIN, maxX) : pos.x,
+      y: pos.y > maxY ? Math.max(MARGIN, maxY) : pos.y,
+    },
+    size,
+  );
+}
+
 export function defaultPosForCorner(corner: Corner, size: Size): Pos {
   if (typeof window === "undefined") return { x: MARGIN, y: MARGIN };
   return {
@@ -370,10 +395,17 @@ export function useDockGeometry(
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
-  // Keep a floating panel on-screen when the window is resized.
+  // Keep a floating panel on-screen when the window is resized — and when it
+  // opens, since the window may have changed while it was closed.
   useEffect(() => {
     if (!open || mode !== "float") return;
-    const onResize = () => setPos((p) => (p ? clampPos(p, size) : p));
+    const onResize = () =>
+      setPos((p) => {
+        if (!p) return p;
+        const next = refitPos(p, size);
+        return next.x === p.x && next.y === p.y ? p : next;
+      });
+    onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [open, mode, size]);

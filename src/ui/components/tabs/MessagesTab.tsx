@@ -42,9 +42,11 @@ export function MessagesTab({
   if (frames.length === 0) {
     return (
       <div className="nm-empty">
-        <p className="nm-empty-title">No frames yet</p>
+        <p className="nm-empty-title">{entry.query ? "No events yet" : "No frames yet"}</p>
         <p className="nm-empty-sub">
-          Messages on this connection will appear here as they arrive.
+          {entry.query
+            ? "Fetches, results and invalidations appear here as they happen."
+            : "Messages on this connection will appear here as they arrive."}
         </p>
       </div>
     );

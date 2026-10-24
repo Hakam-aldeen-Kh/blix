@@ -118,7 +118,7 @@ function sliceSize(value: unknown): string {
  *
  * **The slice picker is navigation, not a setting**, which is why it gets its
  * own bar above the format toolbar rather than a slot inside it. A real store
- * is a dozen reducers wide with names like `cifCorporateSlice`; sharing a row
+ * is a dozen reducers wide with names like `customerProfileSlice`; sharing a row
  * with the format switch left it clipping names mid-word and squeezing the
  * size readout into a column narrow enough to wrap.
  *
@@ -395,6 +395,24 @@ function metaOf(entry: MonitorEntry): string[] {
   return parts.filter(Boolean);
 }
 
+/**
+ * A Redux action as it was dispatched: `type` first, and `meta` only when
+ * there was one. It is stored as `{ payload, meta }` — the shape re-dispatch
+ * reads back — with the type beside it, so the Action tab used to show no
+ * type and a `meta: undefined` on every plain action.
+ */
+function actionView(entry: MonitorEntry): unknown {
+  const stored = entry.requestPayload;
+  if (!entry.redux || stored === null || typeof stored !== "object") return stored;
+  const { payload, meta, ...rest } = stored as Record<string, unknown>;
+  return {
+    type: entry.redux.type,
+    ...(payload !== undefined ? { payload } : {}),
+    ...(meta !== undefined ? { meta } : {}),
+    ...rest,
+  };
+}
+
 export function DetailPane({
   resolved,
   hidingLabel,
@@ -410,6 +428,8 @@ export function DetailPane({
   nouns,
   format,
   onFormat,
+  diffFormat,
+  onDiffFormat,
   authUnmasked,
   replayArmedId,
   onReplay,
@@ -449,6 +469,9 @@ export function DetailPane({
    * for every request they click. */
   format: DataFormat;
   onFormat: (format: DataFormat) => void;
+  /** The Diff tab's format, remembered apart — see `MonitorPrefs.diffFormat`. */
+  diffFormat: DataFormat;
+  onDiffFormat: (format: DataFormat) => void;
 }) {
   const [tab, setTab] = useState<Tab>("preview");
   const [curlCopied, setCurlCopied] = useState(false);
@@ -759,7 +782,7 @@ export function DetailPane({
           />
         )}
         {activeTab === "diff" && (
-          <DiffTab entry={entry} query={query} format={format} onFormat={onFormat} />
+          <DiffTab entry={entry} query={query} format={diffFormat} onFormat={onDiffFormat} />
         )}
         {activeTab === "reduxState" && (
           <ReduxStateTab
@@ -789,7 +812,8 @@ export function DetailPane({
         )}
         {activeTab === "payload" && (
           <DataView
-            value={entry.requestPayload}
+            value={entry.redux ? actionView(entry) : entry.requestPayload}
+            emptyLabel={entry.query ? "no variables" : "no request body"}
             query={query}
             entryId={`${entry.id}:payload`}
             format={format}

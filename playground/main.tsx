@@ -70,7 +70,7 @@ const ACTIONS = ["getAll", "getById", "search", "update"];
 
 const SLICES = [
   "auth", "cart", "tickets", "agents", "macros", "presence", "orders",
-  "invoices", "settings", "notifications", "cifCorporateSlice", "featureFlags",
+  "invoices", "settings", "notifications", "customerProfileSlice", "featureFlags",
   "uiLayout", "search",
 ];
 
@@ -187,6 +187,11 @@ const THROWERS = {
         code: error.response?.data?.result,
       });
     }),
+  // No status anywhere: wraps the app's error, which Blix linked to its request.
+  "Error (no status)": (shape: string) =>
+    api.delete(`/errors/${shape}`).catch((error) => {
+      throw new Error("Could not complete the request", { cause: error });
+    }),
   "plain object": (shape: string) =>
     axios.delete(`/errors/${shape}`).catch((error) => {
       throw { status: error.response?.status, body: error.response?.data };
@@ -218,6 +223,25 @@ function ErrorLab() {
     mutationFn: async ({ shape, thrower }: { shape: string; thrower: Thrower }) =>
       unlessSoftFailure(await THROWERS[thrower](shape)),
   });
+  // The stress tests' mutation: fetch, and an error that keeps the status and
+  // nothing else, so nothing on it leads to its request — only the request the
+  // mutation itself started does (`"caused"`). The tag says which request was
+  // really its.
+  const fetchMutation = useMutation({
+    mutationFn: async ({ i, delay, tag }: { i: number; delay: number; tag: string }) => {
+      const r = await fetch(`/api/stress/update?i=${i}&status=409`, {
+        method: "POST",
+        headers: { "x-delay": String(delay), "x-tag": tag },
+      });
+      if (!r.ok) throw Object.assign(new Error("Request failed"), { status: r.status });
+      return r.json();
+    },
+  });
+  useEffect(() => {
+    (window as unknown as { guessLab: unknown }).guessLab = (i: number, delay: number, tag: string) =>
+      fetchMutation.mutate({ i, delay, tag });
+  }, [fetchMutation.mutate]);
+
   // For driving the lab from the console: `errorLab("soft-200", "string")`.
   useEffect(() => {
     (window as unknown as { errorLab: unknown }).errorLab = (shape: string, thrower: Thrower) =>
@@ -271,6 +295,9 @@ function Page() {
     dispatchSome(30);
     socket.connect("demo", "wss://playground.local/cable");
     socket.subscribe("tickets");
+    // A listener, as an app would register: without one the fake socket has
+    // nobody to deliver to, and the Messages tab never sees an incoming frame.
+    socket.onMessage(() => {});
     return () => socket.disconnect();
   }, []);
 
@@ -352,6 +379,9 @@ function Page() {
 }
 
 const queryClient = new QueryClient();
+
+// Handles for the stress tests in the console. Development playground only.
+(window as unknown as { pg: unknown }).pg = { queryClient, axios, api };
 
 function App() {
   useEffect(() => tapQueryClient(queryClient as never), []);

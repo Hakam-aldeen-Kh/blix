@@ -63,7 +63,11 @@ async function api(url, req, res) {
   const [, , mod = "misc", action = "getAll"] = url.pathname.split("/");
   // `?delay=` and `?status=` override the derived behaviour — the failure
   // buttons in the playground use them to produce a timeout or a 500 on demand.
-  const delay = Number(url.searchParams.get("delay"));
+  // `x-delay` and `x-tag` do the same without changing the URL: the stress
+  // tests send identical URLs, each with its own delay, and read the tag back
+  // to know which response is whose.
+  const delay = Number(url.searchParams.get("delay")) || Number(req.headers["x-delay"]);
+  const tag = req.headers["x-tag"];
   await wait(delay > 0 ? delay : i % 11 === 0 ? 1400 : 40 + ((i * 37) % 320));
   const forced = Number(url.searchParams.get("status"));
   const status = forced >= 100 ? forced : i % 13 === 5 ? 500 : i % 17 === 9 ? 404 : req.method === "POST" ? 201 : 200;
@@ -83,8 +87,8 @@ async function api(url, req, res) {
   res.end(
     JSON.stringify(
       status >= 400
-        ? { error: status === 500 ? "Internal error" : "Not found", module: mod, action }
-        : { module: mod, action, count: rows.length, rows },
+        ? { error: status === 500 ? "Internal error" : "Not found", module: mod, action, i, ...(tag ? { tag } : {}) }
+        : { module: mod, action, count: rows.length, ...(tag ? { tag } : {}), rows },
     ),
   );
 }

@@ -99,7 +99,14 @@ function toWireTiming(t: PerformanceResourceTiming): WireTiming {
     // Everything before DNS: waiting for a connection slot, the HTTP cache
     // lookup, a service worker starting up.
     const queue = span(t.startTime, t.domainLookupStart || t.fetchStart);
-    if (queue !== undefined) wire.queueMs = queue;
+    // A request that reuses a connection waits for its slot *after* the
+    // connection phases — between `connectEnd` and `requestStart` — under the
+    // browser's per-host connection limit. That is queueing too: left out, a
+    // burst of requests at page load showed seconds that no phase accounted for.
+    const stalled = span(t.connectEnd || t.fetchStart, t.requestStart);
+    if (queue !== undefined || stalled !== undefined) {
+      wire.queueMs = round((queue ?? 0) + (stalled ?? 0));
+    }
     const dns = span(t.domainLookupStart, t.domainLookupEnd);
     if (dns !== undefined) wire.dnsMs = dns;
     // `secureConnectionStart` sits inside the connect span on HTTPS; split so
@@ -144,15 +151,67 @@ function addressOf(entry: MonitorEntry): { full: string; path: string } | null {
   }
 }
 
+/** How long a timing entry waits for the requests it could belong to to
+ * settle before it is matched against the ones that have. */
+const MAX_DEFER_MS = 10_000;
+/** Rounding between the two clocks' readings of one instant, in ms. */
+const END_SLACK_MS = 1;
+
+/** Whether Blix stopped at the headers — a body it chose not to read — so the
+ * entry's end is the browser's `responseStart`, not its `responseEnd`. */
+function stoppedAtHeaders(entry: MonitorEntry): boolean {
+  const error = entry.error as { response?: unknown } | undefined;
+  const body = entry.responsePayload ?? error?.response;
+  return typeof body === "string" && body.startsWith("«body not captured:");
+}
+
+/** A timing entry's candidate: same address, and a start the browser's can
+ * follow. `undefined` when `entry` cannot be the request `t` describes. */
+function candidate(
+  t: PerformanceResourceTiming,
+  timingPath: string,
+  entry: MonitorEntry,
+  loadId: string | undefined,
+): { exact: boolean } | undefined {
+  if ((entry.kind ?? "http") !== "http" || entry.wire || entry.loadId !== loadId) return undefined;
+  // The browser's clock starts at or after the call, never meaningfully before.
+  if (t.startTime - entry.startTime < -START_SLACK_MS) return undefined;
+  // Nor can Blix hear of the end of a request before the browser has finished
+  // it: it is told of the headers at `responseStart` at the earliest.
+  if (entry.endTime !== undefined && entry.endTime < t.responseStart - START_SLACK_MS) return undefined;
+
+  const address = addressOf(entry);
+  if (!address) return undefined;
+  const exact = address.full === t.name;
+  if (!exact && address.path !== timingPath) return undefined;
+  return { exact };
+}
+
 /**
- * The monitor entry a timing entry describes.
+ * The monitor entry a timing entry describes — or `"wait"` while a request it
+ * could belong to has not ended yet.
  *
- * By address and by time: the same URL, started within a few milliseconds of
- * when the browser says the request started. An exact URL match is preferred;
- * a path match covers axios, whose final query string (`params`) is built
- * after the interceptor that recorded the URL.
+ * By address, and by **both ends** of the request. The start alone is not
+ * enough: requests to the same URL started within a millisecond are equally
+ * close to every timing entry, and the first entry to arrive (the fastest
+ * request's) took the first candidate — every one of them got its neighbour's
+ * phases. Their ends tell them apart: Blix hears of an end — `responseEnd`
+ * when it read the body, `responseStart` when it stopped at the headers —
+ * only after the browser has it, so the earliest end not before the browser's
+ * is the one. Closest-either-side was not: with ends ~10 ms apart and a busy
+ * main thread, a neighbour that ended just before won.
+ *
+ * Which is why a timing entry is matched only once every request it could
+ * belong to has ended: matched earlier, it would pick among the ones that
+ * happened to finish first.
+ *
+ * An exact URL match is preferred; a path match covers axios, whose final
+ * query string (`params`) is built after the interceptor that recorded the URL.
  */
-function findEntry(t: PerformanceResourceTiming): MonitorEntry | undefined {
+function findEntry(
+  t: PerformanceResourceTiming,
+  deferred: boolean,
+): MonitorEntry | "wait" | undefined {
   let timingPath: string;
   try {
     const u = new URL(t.name);
@@ -168,19 +227,23 @@ function findEntry(t: PerformanceResourceTiming): MonitorEntry | undefined {
 
   for (let i = 0; i < entries.length && i < SCAN_LIMIT; i += 1) {
     const entry = entries[i];
-    if ((entry.kind ?? "http") !== "http" || entry.wire || entry.loadId !== loadId) continue;
-    // The browser's clock starts at or after the call, never meaningfully before.
-    const lead = t.startTime - entry.startTime;
-    if (lead < -START_SLACK_MS) continue;
-    if (entry.endTime !== undefined && t.startTime > entry.endTime + START_SLACK_MS) continue;
-
-    const address = addressOf(entry);
-    if (!address) continue;
-    const exact = address.full === t.name;
-    if (!exact && address.path !== timingPath) continue;
-
-    // Closest start wins; an exact URL beats a path match at the same distance.
-    const score = Math.abs(lead) + (exact ? 0 : 0.5);
+    const match = candidate(t, timingPath, entry, loadId);
+    if (!match) continue;
+    if (entry.endTime === undefined) {
+      if (!deferred) return "wait";
+      continue;
+    }
+    // Blix is told of the end after the browser has it, never before — by
+    // however long the main thread was busy. So a candidate that ended before
+    // this one did is not it, and of the rest the earliest to end is: the
+    // browser hands out completions in the order they happen, so the k-th
+    // timing entry to arrive belongs to the k-th of these requests to end.
+    const anchor = stoppedAtHeaders(entry) ? t.responseStart : t.responseEnd;
+    const lag = entry.endTime - anchor;
+    if (lag < -END_SLACK_MS) continue;
+    // The start only breaks a tie; an exact URL beats a path match.
+    const lead = Math.abs(t.startTime - entry.startTime);
+    const score = Math.max(lag, 0) + lead / 1000 + (match.exact ? 0 : 0.5);
     if (score < bestScore) {
       best = entry;
       bestScore = score;
@@ -189,10 +252,7 @@ function findEntry(t: PerformanceResourceTiming): MonitorEntry | undefined {
   return best;
 }
 
-function attach(t: PerformanceResourceTiming): void {
-  if (t.initiatorType !== "fetch" && t.initiatorType !== "xmlhttprequest") return;
-  const entry = findEntry(t);
-  if (!entry) return;
+function attach(t: PerformanceResourceTiming, entry: MonitorEntry): void {
   const wire = toWireTiming(t);
   networkMonitor.update(entry.id, {
     wire,
@@ -200,6 +260,51 @@ function attach(t: PerformanceResourceTiming): void {
     // browser's is the real decoded length, when it is willing to say.
     ...(wire.decodedBodySize ? { sizeBytes: wire.decodedBodySize } : {}),
   });
+}
+
+/** Timing entries waiting for their candidates to end, oldest first. */
+const waiting: { timing: PerformanceResourceTiming; since: number }[] = [];
+let unsubscribe: (() => void) | null = null;
+
+/** Matches what can be matched now; the rest keeps waiting. Re-run on every
+ * change to the log while anything waits. */
+function drain(): void {
+  for (let i = 0; i < waiting.length; ) {
+    const { timing, since } = waiting[i];
+    let found: MonitorEntry | "wait" | undefined;
+    try {
+      found = findEntry(timing, performance.now() - since > MAX_DEFER_MS);
+    } catch {
+      found = undefined;
+    }
+    if (found === "wait") {
+      i += 1;
+      continue;
+    }
+    waiting.splice(i, 1);
+    if (found) {
+      try {
+        attach(timing, found);
+      } catch {
+        /* a timing entry Blix cannot read is one row without phases */
+      }
+    }
+  }
+  if (waiting.length === 0 && unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  } else if (waiting.length > 0 && !unsubscribe) {
+    unsubscribe = networkMonitor.subscribe(drain);
+  }
+}
+
+function receive(t: PerformanceResourceTiming): void {
+  if (t.initiatorType !== "fetch" && t.initiatorType !== "xmlhttprequest") return;
+  waiting.push({ timing: t, since: performance.now() });
+  drain();
+  // A candidate that never ends changes nothing in the log: this is what
+  // stops the wait for it.
+  if (waiting.length > 0) setTimeout(drain, MAX_DEFER_MS + 50);
 }
 
 let observer: PerformanceObserver | null = null;
@@ -216,7 +321,7 @@ export function startResourceTiming(): void {
     observer = new PerformanceObserver((list) => {
       for (const item of list.getEntries()) {
         try {
-          attach(item as PerformanceResourceTiming);
+          receive(item as PerformanceResourceTiming);
         } catch {
           /* a timing entry Blix cannot read is one row without phases */
         }

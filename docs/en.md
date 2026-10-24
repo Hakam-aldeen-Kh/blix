@@ -231,9 +231,12 @@ entry is still settled correctly.
 
 Three limits:
 
-- **An error thrown by a request interceptor** never reaches the wire. It is
-  attributed to its request when that is the only one in the air; with several
-  it is left to the timeout watchdog below rather than guessed at.
+- **An error thrown by a request interceptor** never reaches the wire. Blix
+  wraps your request interceptors — the ones registered before it and any
+  registered later — so the request whose config was in hand is settled as
+  `setup` the moment the interceptor throws or rejects, however many others are
+  in the air. (With `legacyInterceptorReqResOrdering: false`, Blix's
+  interceptor runs after yours, so a request yours refuses never gets a row.)
 - **A request with a `timeout`** that is still pending 3 s past it is settled
   as a timeout that says Blix saw no answer — and corrected if one arrives
   after all. **A request with no `timeout`** that never answers stays
@@ -549,7 +552,15 @@ Blix reads bodies from clones, so your code always receives an untouched
 | request body is a `ReadableStream` | request body not captured — reading it would consume the upload |
 
 A skipped body is recorded as `«body not captured: …»` with the reason, so an
-empty Response tab always means an empty response. The cap applies to request
+empty Response tab always means an empty response. Such a request's duration
+ends at its headers — Blix cannot time a download it is not reading.
+
+A request body your code passed without a `Content-Type` is shown with the one
+the browser sends for it: `text/plain;charset=UTF-8` for a string,
+`application/x-www-form-urlencoded;charset=UTF-8` for `URLSearchParams`, a
+`Blob`'s own type. For `FormData` the boundary is chosen by the browser when the
+request is sent and never shown to the page, so it reads
+`multipart/form-data; boundary=(chosen by the browser)`. The cap applies to request
 and response bodies alike, defaults to **5 MB**, and is set with
 `maxBodyBytes`:
 
@@ -639,6 +650,7 @@ and not just the response body:
 | `status`, `statusText` | When the server answered. |
 | `response` | **The response body**, when there was one. |
 | `responseFrom` | Query and mutation rows only: the id of the HTTP entry `response` was taken from, when the error your app threw did not carry the body. |
+| `responseMatch` | With `responseFrom`: `"exact"` when the error is, or carries, an object that came out of that request; `"caused"` when it is the one request with the error's status that this attempt made. |
 | `details` | Your error class's own fields that none of the others cover — `result`, `errors`, a numeric `code` — masked like any stored value. Not read from axios's errors. |
 | `timeoutMs` | The timeout the request ran under, when that is what ended it. |
 | `cause` | What the error says caused it — the same fields, without `kind`. |
@@ -661,14 +673,38 @@ Query and mutation rows, and a Redux action whose payload is an error, store
 the same shape. Only named fields are ever read from an axios error: never its
 request config or headers.
 
-When your app replaces the client's error with its own — a message and a
+When your app replaces the client's error with its own — a message, perhaps a
 status, and no body — a failed query or mutation still shows what the server
-said: Blix takes the body from the HTTP request it failed on. That is the
-request it is known to have caused, or else the earliest request with the same
-status since it started that no other failure has claimed. It is a best guess,
-so `responseFrom` names the request it came from. A failure your app raises on
-a 2xx (an envelope saying `succeeded: false`) takes the successful response's
-body the same way.
+said: Blix takes the body from the HTTP request it failed on, and
+`responseFrom` names that request. How it finds the request is in
+`responseMatch`:
+
+- **`"exact"`** — the error is an object Blix saw come out of that request.
+  With axios, the error your response interceptor handed back: Blix's hook on
+  your first response interceptor sees both the client's error and the one
+  your handler rejects or throws with, and records the second against the
+  request. With `fetch`, the `Response` itself — thrown as is, or kept on your
+  error as `response` (`Object.assign(new Error("…"), { response: r })`). No
+  status is needed, and two requests failing alike at the same moment cannot
+  be confused. An error that carries such an object as its `cause`
+  (`new Error("…", { cause })`) is followed to it too. An object that came
+  out of more than one request — the one `AbortError` a shared
+  `controller.abort()` rejects every fetch with — leads to none of them. When
+  your interceptor retried the request (`api(error.config)`), what it rejects
+  with belongs to the retry.
+- **`"caused"`** — nothing on the error leads to a request, but the query or
+  mutation made exactly one request with the error's status during this
+  attempt — a request it started directly, as **Linked events** describes. Retries that ran one after
+  another count as one; the error is the last one's. It is what a failure your
+  app raises itself after a 2xx (an envelope saying `succeeded: false`) gets,
+  and it takes the successful response's body the same way.
+
+Nothing else is matched — not by status, not by time. A failure that neither
+links nor a single caused request tie to a request shows the error alone,
+rather than another request's body. When the request is still reading its body
+as the failure is recorded (with `fetch`, your code sees `r.ok` before Blix has
+the body), `responseFrom` is set at once and `response` follows as soon as the
+body is in.
 
 #### `entry.wire` — `WireTiming`
 
@@ -718,8 +754,10 @@ export const store = configureStore({
 });
 ```
 
-Options: `ignore` (exact types or `"prefix/*"` globs), `coalesceMs` (repeat
-dispatches of one type inside this window fold into a single row), and
+Options: `ignore` (exact types or `"prefix/*"` globs), `coalesceMs` (identical
+dispatches — same type and same payload — inside this window, with nothing else
+changing the state between them, fold into a single row counting them; its
+diff runs from before the first to after the last), and
 `maxActionsPerSecond` (above this rate, capture drops to type + timing and
 skips diffing). Outside development the factory returns a pure pass-through
 middleware, so calling it unguarded is *behaviourally* free — but see
@@ -929,8 +967,10 @@ have to read the status bar to know one is applied. `.*` widens the search to
 request and response bodies.
 
 **Each row starts with a status dot** — round when the request worked, square
-and red when it failed, hollow while it is still in flight — so the outcome
-reads by shape as well as colour. Failing rows are tinted red, and stay red
+when it failed, hollow while it is still in flight — so the outcome reads by
+shape as well as colour. The colour is severity: a 5xx, a 401 and a request
+with no answer are red, while any other 4xx is amber — a 404 on an avatar is
+not the same news as a 500 on checkout. Both are failures, and both are square. Failing rows are tinted red, and stay red
 when selected; any other selected row gets a green edge. The bars on the right
 are drawn in one neutral colour so they compare as lengths: green for the
 selected row, red for failures.
@@ -1025,7 +1065,9 @@ caused a request, that a request came from a query, or that one entry is a
 replay of another, the row grows a coloured tick and the foot of the detail
 pane grows a chip you can click to step straight to the other side. The
 relation is observed, never inferred: no tick means *not known*, not
-*unrelated*.
+*unrelated*. A request belongs to a query or mutation when its `queryFn` or
+`mutationFn` starts it directly — before its first `await`. One started after
+an `await`, or by other code running in the same tick, gets no link.
 
 **About Blix says which build you are running and what it is wired to.** Open
 it from the command palette, the overflow menu or the foot of the `?` sheet.
@@ -1045,19 +1087,41 @@ request and response bodies too. On top of that the field takes
 
 | Token | Matches |
 | --- | --- |
-| `method:post` | The method, as a substring |
-| `status:500`, `status:5xx` | An exact status, or a status class |
+| `method:post` | The method, as a substring — see below for what it holds in each source |
+| `status:500`, `status:5xx` | An exact status, or a status class (`1xx` to `5xx`) |
 | `is:error` | `error`, `ok`, `pending`, `aborted`, `pinned`, `replay`, `encrypted` |
 | `type:ws` | The source: `http`, `ws`, `redux`, `query` |
 | `client:fetch` | `fetch` or `axios` — which capture path recorded the request |
 | `url:checkout` | The URL, as a substring |
-| `larger-than:10k` | Size above a threshold — `b`, `k`/`kb`, `m`/`mb` |
+| `larger-than:10k` | Size above a threshold — `b`, `k`/`kb`, `m`/`mb`, `g`/`gb` |
 | `slower-than:500` | Duration above a threshold, in ms — or `slower-than:1.5s` |
 | `has:frames` | `frames`, `initiator`, `error`, `replay`, `body` |
+
+`method:` reads the column each source shows in place of a method:
+
+| Source | `method:` matches |
+| --- | --- |
+| Network | `get`, `post`, `put`, `patch`, `delete`, `head`, `options` |
+| Realtime | `ws` |
+| Redux | The slice — the action type up to its first `/`. `method:cart` matches `cart/added` and `cart/cleared` |
+| Query | `query` for a query, `mutate` for a mutation |
+
+A few spellings are accepted as well: `is:success` for `is:ok`, `is:running`
+for `is:pending`, and `status-code:`, `larger:` and `slower:` for `status:`,
+`larger-than:` and `slower-than:`. Field values are case-insensitive, and an
+`is:` or `has:` value not in the lists above matches nothing.
 
 Tokens are ANDed. A leading `-` negates any of them — `-polling`,
 `-status:2xx` — and `"double quotes"` keep a value with spaces together. Only
 plain text reaches into bodies; a field token never does.
+
+```text
+is:error method:post          every failed POST
+status:4xx -status:404        every 4xx except 404
+url:orders slower-than:1s     order requests that took more than a second
+type:redux method:cart        every cart action
+method:mutate is:error        every failed mutation
+```
 
 ### Viewing payloads
 

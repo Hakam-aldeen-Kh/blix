@@ -136,6 +136,7 @@ export function DataView({
   extraFormat,
   copyOverride,
   sizeBytes,
+  emptyLabel = "not captured",
   children,
 }: {
   value: unknown;
@@ -150,6 +151,9 @@ export function DataView({
    * failed request shows Blix's description of the failure; what a developer
    * wants on the clipboard is the body the server sent. */
   copyOverride?: () => string;
+  /** What an absent value means here. "not captured" by default; a request
+   * that simply sent no body is not a capture failure. */
+  emptyLabel?: string;
   /** The entry's captured size, for the formats that never build a flat
    * string. Tree and Table render from the parsed value, so stringifying one
    * just to measure it would put a full JSON.stringify in every render. */
@@ -271,7 +275,7 @@ export function DataView({
   // a frame, a pending request — rendered one more hook than the render
   // before it, and React tore down the host app's whole tree.
   if (value === undefined) {
-    return <div className="nm-empty">— not captured —</div>;
+    return <div className="nm-empty">— {emptyLabel} —</div>;
   }
 
   /** What Copy puts on the clipboard: whatever is on screen. */

@@ -26,9 +26,10 @@ import {
   MONITOR_ENABLED,
   now,
 } from "./monitorConfig";
-import { openOwnerWindow } from "./monitorContext";
-import { describeError, isCapturedError } from "./monitorError";
-import { networkMonitor } from "./networkMonitor";
+import { ownCallsOf, type CaptureOwner } from "./monitorContext";
+import { requestOfError } from "./errorOrigin";
+import { captureError, describeError, isCapturedError } from "./monitorError";
+import { estimateBytes, networkMonitor } from "./networkMonitor";
 import { truncateForPersist } from "./monitorTruncate";
 import type { MonitorEntry, QueryMeta, WsFrame } from "./monitorTypes";
 
@@ -47,6 +48,8 @@ export interface QueryLike {
   queryHash: string;
   queryKey: readonly unknown[];
   state: QueryStateLike;
+  /** Holds the `queryFn` Blix wraps — see `ownCallsOf`. */
+  options?: unknown;
   getObserversCount?(): number;
 }
 export interface MutationStateLike {
@@ -58,6 +61,8 @@ export interface MutationStateLike {
 export interface MutationLike {
   mutationId: number;
   state: MutationStateLike;
+  /** Holds the `mutationFn` Blix wraps — see `ownCallsOf`. */
+  options?: unknown;
 }
 export interface CacheEventLike {
   type: string;
@@ -95,11 +100,33 @@ export function getTappedQueryClient(): QueryClientLike | null {
   return activeClient;
 }
 
-/** queryHash / String(mutationId) -> the one row that accumulates that key's
- * whole session history. */
-const queryEntryIds = new Map<string, string>();
-const mutationEntryIds = new Map<number, string>();
-const fetchCounts = new Map<string, number>();
+/**
+ * One client's bookkeeping, kept per client and never shared: two clients — or
+ * a new one after HMR, whose caches count mutation ids from 1 again — use the
+ * same query hashes and `mutationId`s for different things, and shared maps
+ * merged them into one row. Kept by client, not by tap, so a dispose and
+ * reinstall of the same client (Strict Mode) finds its rows again.
+ */
+interface TapState {
+  /** queryHash -> the one row that accumulates that key's whole history. */
+  queryIds: Map<string, string>;
+  /** mutationId -> its row. */
+  mutationIds: Map<number, string>;
+  /** The last status each mutation was recorded at — see `handleMutationEvent`. */
+  mutationStatus: Map<number, string>;
+  fetchCounts: Map<string, number>;
+}
+
+const tapStates = new WeakMap<object, TapState>();
+
+function stateOf(client: object): TapState {
+  let state = tapStates.get(client);
+  if (!state) {
+    state = { queryIds: new Map(), mutationIds: new Map(), mutationStatus: new Map(), fetchCounts: new Map() };
+    tapStates.set(client, state);
+  }
+  return state;
+}
 
 let frameCounter = 0;
 function frame(direction: WsFrame["direction"], event: string): WsFrame {
@@ -107,75 +134,107 @@ function frame(direction: WsFrame["direction"], event: string): WsFrame {
   return { id: `qf${frameCounter}`, at: Date.now(), direction, event, data: undefined, sizeBytes: 0 };
 }
 
-/** Clock slack between `Date.now()` (frames) and `timeOrigin + performance.now()`
- * (entries), when deciding whether a request started inside a fetch. */
-const CLOCK_SLACK_MS = 100;
-
 /** What an HTTP entry's server said, when it is the answer to a failure with
  * `status`: the body of a failed request, or — for a failure the app raised
  * itself on a 2xx, an envelope saying `succeeded: false` — the body of a
  * successful one. */
-function answerOf(entry: MonitorEntry | undefined, status: number | undefined): unknown {
-  if (entry === undefined || (entry.kind ?? "http") !== "http") return undefined;
-  if (status !== undefined && entry.status !== status) return undefined;
+function answerOf(entry: MonitorEntry, status: number | undefined): unknown {
   if (isCapturedError(entry.error)) return entry.error.response;
   const succeeded = status !== undefined && status >= 200 && status < 300;
   return succeeded && entry.state === "success" ? entry.responsePayload : undefined;
 }
 
-/** Which failure each request's answer was lent to, so that two that failed
- * alike at once each get their own — while the same failure, described again
- * on every later cache event, keeps the one it got. Bounded: only recent
- * ones matter. */
-const lent = new Map<string, string>();
-const MAX_LENT = 500;
+/** Whether `entry` can be the request a failure with `status` failed on. A
+ * request still reading its body already has its status. */
+function couldAnswer(entry: MonitorEntry | undefined, status: number | undefined): entry is MonitorEntry {
+  if (entry === undefined || (entry.kind ?? "http") !== "http") return false;
+  if (status !== undefined) return entry.status === status;
+  // No status to go by: only a request that failed is a failure's answer.
+  return entry.state === "pending" || isCapturedError(entry.error);
+}
 
-function lend(requestId: string, ownerId: string): void {
-  lent.set(requestId, ownerId);
-  if (lent.size > MAX_LENT) lent.delete(lent.keys().next().value as string);
+/** The requests each query or mutation had caused before its current fetch
+ * (or `mutate`) began — so the ones that attempt caused are known exactly,
+ * with no clock involved. */
+const causedBefore = new Map<string, Set<string>>();
+
+function beginAttempt(id: string): void {
+  causedBefore.set(id, new Set(networkMonitor.getById(id)?.query?.causedIds ?? []));
 }
 
 /**
- * The HTTP request a failed query or mutation most likely failed on.
+ * The HTTP request a failed query or mutation failed on — only ever when that
+ * is known, never inferred:
  *
- * The requests it is known to have caused come first. That link is often
- * missing — a mutation runs its `mutationFn` after awaiting `onMutate`, when
- * the ownership window has long closed — so after that, the earliest request
- * with the same status since this fetch began that no other failure has
- * claimed. Earliest, because of several that fail together, the first to fail
- * is the first whose caller hears of it. A guess, which is why the entry it
- * came from is recorded next to the body it lent.
+ * - **`"exact"`** — the error is an object Blix saw come out of a request, or
+ *   carries one as its `response` or `cause`: the app's replacement for an
+ *   axios error, a `fetch` `Response` (`errorOrigin.ts`).
+ * - **`"caused"`** — this attempt caused exactly one request that answered
+ *   with the error's status. Retries count as one when they ran one after
+ *   another: the error is the last one's.
+ *
+ * Anything else gets no request. Matching by status and time across the whole
+ * log was tried, and with `fetch` it was wrong every time it found anything:
+ * the app throws on `!r.ok` before Blix has read the body, so the request
+ * really failed on was still pending, and an older failure with the same
+ * status was taken instead.
  */
-function failedRequestFor(
+function sourceOf(
+  error: unknown,
   ownerId: string,
   status: number | undefined,
-): { entry: MonitorEntry; body: unknown } | undefined {
+): { entry: MonitorEntry; match: "exact" | "caused" } | undefined {
+  const exactId = requestOfError(error);
+  const exact = exactId ? networkMonitor.getById(exactId) : undefined;
+  if (exact && (exact.kind ?? "http") === "http") return { entry: exact, match: "exact" };
+
   const owner = networkMonitor.getById(ownerId);
-  if (!owner) return undefined;
-
-  const caused = owner.query?.causedIds ?? [];
-  for (let i = caused.length - 1; i >= 0; i -= 1) {
-    const entry = networkMonitor.getById(caused[i]);
-    const body = answerOf(entry, status);
-    if (entry && body !== undefined) return { entry, body };
+  const before = causedBefore.get(ownerId);
+  if (!owner || !before) return undefined;
+  const candidates: MonitorEntry[] = [];
+  for (const id of owner.query?.causedIds ?? []) {
+    if (before.has(id)) continue;
+    const entry = networkMonitor.getById(id);
+    if (couldAnswer(entry, status)) candidates.push(entry);
   }
-
-  if (status === undefined) return undefined;
-  let since = owner.startAbs;
-  for (const f of owner.frames ?? []) {
-    if (f.direction === "out" && f.event === "fetch" && f.at > since) since = f.at;
+  if (candidates.length === 0) return undefined;
+  // Several are one only as a chain of retries: each started after the one
+  // before it had ended. Overlapping ones could be any of them.
+  for (let i = 1; i < candidates.length; i += 1) {
+    const prevEnd = candidates[i - 1].endAbs;
+    if (prevEnd === undefined || candidates[i].startAbs < prevEnd) return undefined;
   }
-  since -= CLOCK_SLACK_MS;
+  return { entry: candidates[candidates.length - 1], match: "caused" };
+}
 
-  let best: { entry: MonitorEntry; body: unknown } | undefined;
-  for (const entry of networkMonitor.getSnapshot()) {
-    const holder = lent.get(entry.id);
-    if (entry.startAbs < since || (holder !== undefined && holder !== ownerId)) continue;
-    const body = answerOf(entry, status);
-    if (body === undefined) continue;
-    if (!best || (entry.endAbs ?? Infinity) < (best.entry.endAbs ?? Infinity)) best = { entry, body };
+/** Failures whose request was still reading its body when they were
+ * described, by owner row: described again once it has. */
+const awaitingBody = new Map<string, { requestId: string; error: unknown; since: number }>();
+/** How long a failure waits for its request's body. */
+const BODY_WAIT_MS = 30_000;
+let unsubscribeAwaiting: (() => void) | null = null;
+
+function checkAwaiting(): void {
+  for (const [ownerId, wait] of [...awaitingBody]) {
+    const request = networkMonitor.getById(wait.requestId);
+    if (request?.state === "pending" && Date.now() - wait.since < BODY_WAIT_MS) continue;
+    awaitingBody.delete(ownerId);
+    if (!request || request.state === "pending") continue;
+    const owner = networkMonitor.getById(ownerId);
+    // Only the failure it was waiting for: a refetch since has its own.
+    if (owner?.state !== "error" || !isCapturedError(owner.error)) continue;
+    if (owner.error.responseFrom !== wait.requestId || owner.error.response !== undefined) continue;
+    networkMonitor.update(ownerId, { error: describeFailure(wait.error, ownerId) });
   }
-  return best;
+  if (awaitingBody.size === 0 && unsubscribeAwaiting) {
+    unsubscribeAwaiting();
+    unsubscribeAwaiting = null;
+  }
+}
+
+function awaitBody(ownerId: string, requestId: string, error: unknown): void {
+  awaitingBody.set(ownerId, { requestId, error, since: Date.now() });
+  if (!unsubscribeAwaiting) unsubscribeAwaiting = networkMonitor.subscribe(checkAwaiting);
 }
 
 /**
@@ -184,15 +243,34 @@ function failedRequestFor(
  * What the cache holds is whatever the app threw, and an app that turns an
  * axios failure into its own error routinely keeps a message and a status of
  * a response that said much more. The HTTP entry still has the whole body:
- * it is lent here, as it came back, whatever its shape.
+ * it is lent here, as it came back, whatever its shape — from the request
+ * `sourceOf` knows it failed on, and from no other.
  */
 function describeFailure(error: unknown, ownerId: string): unknown {
-  const described = describeError(error, MAX_QUERY_DATA_BYTES);
+  let described = describeError(error, MAX_QUERY_DATA_BYTES);
+  if (!isCapturedError(described)) {
+    // Not an error at all, yet linked to a request: a `fetch` `Response`
+    // thrown as it is (`if (!r.ok) throw r`). It is described as the failure
+    // of that request rather than stored as an opaque object.
+    const linked = requestOfError(error);
+    const entry = linked ? networkMonitor.getById(linked) : undefined;
+    if (!entry || (entry.kind ?? "http") !== "http") return described;
+    const wire = isCapturedError(entry.error) ? entry.error : undefined;
+    described = captureError(error, {
+      kind: wire?.kind ?? "http",
+      status: entry.status,
+      statusText: wire?.statusText,
+    });
+  }
   if (!isCapturedError(described) || described.response !== undefined) return described;
-  const source = failedRequestFor(ownerId, described.status);
+
+  const source = sourceOf(error, ownerId, described.status);
   if (!source) return described;
-  lend(source.entry.id, ownerId);
-  const wire = isCapturedError(source.entry.error) ? source.entry.error : undefined;
+  const { entry, match } = source;
+  if (entry.state === "pending") awaitBody(ownerId, entry.id, error);
+  const body = entry.state === "pending" ? undefined : answerOf(entry, described.status);
+
+  const wire = isCapturedError(entry.error) ? entry.error : undefined;
   // The body goes where `captureError` puts one — ahead of the details, the
   // cause and the stack — so it is what the panel shows first.
   const { details, cause, stack, handledAs, ...head } = described;
@@ -203,14 +281,32 @@ function describeFailure(error: unknown, ownerId: string): unknown {
     ...(described.statusText === undefined && wire?.statusText
       ? { statusText: wire.statusText }
       : {}),
-    response: source.body,
-    responseFrom: source.entry.id,
+    ...(body !== undefined ? { response: body } : {}),
+    responseFrom: entry.id,
+    responseMatch: match,
     ...(details !== undefined ? { details } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(stack !== undefined ? { stack } : {}),
     ...(handledAs !== undefined ? { handledAs } : {}),
   };
 }
+
+/** A settled row's data, and the size the list's Size column shows for it. */
+function withSize(data: unknown): { responsePayload: unknown; sizeBytes: number } {
+  return { responsePayload: data, sizeBytes: estimateBytes(data) };
+}
+
+const queryOwner = (id: string, q: QueryLike): CaptureOwner => ({
+  id,
+  kind: "query",
+  label: keyLabel(q.queryKey),
+});
+
+const mutationOwner = (id: string, m: MutationLike): CaptureOwner => ({
+  id,
+  kind: "mutation",
+  label: `mutation #${m.mutationId}`,
+});
 
 function keyLabel(key: readonly unknown[]): string {
   try {
@@ -226,7 +322,7 @@ function toEntryState(status: string): "pending" | "success" | "error" {
   return "pending";
 }
 
-function toQueryMeta(q: QueryLike): QueryMeta {
+function toQueryMeta(q: QueryLike, t: TapState): QueryMeta {
   return {
     sub: "query",
     hash: q.queryHash,
@@ -238,11 +334,11 @@ function toQueryMeta(q: QueryLike): QueryMeta {
     dataUpdatedAt: q.state.dataUpdatedAt,
     errorUpdatedAt: q.state.errorUpdatedAt,
     failureCount: q.state.fetchFailureCount,
-    fetchCount: fetchCounts.get(q.queryHash) ?? 0,
+    fetchCount: t.fetchCounts.get(q.queryHash) ?? 0,
   };
 }
 
-function handleQueryEvent(event: CacheEventLike): void {
+function handleQueryEvent(event: CacheEventLike, t: TapState): void {
   const q = event.query;
   if (!q) return;
 
@@ -253,32 +349,32 @@ function handleQueryEvent(event: CacheEventLike): void {
   }
 
   if (event.type === "observerAdded" || event.type === "observerRemoved") {
-    const id = queryEntryIds.get(q.queryHash);
+    const id = t.queryIds.get(q.queryHash);
     if (id && networkMonitor.getById(id)) {
-      networkMonitor.update(id, { query: toQueryMeta(q) });
+      networkMonitor.update(id, { query: toQueryMeta(q, t) });
     }
     return;
   }
 
   if (event.type === "removed") {
-    const id = queryEntryIds.get(q.queryHash);
+    const id = t.queryIds.get(q.queryHash);
     if (id && networkMonitor.getById(id)) {
       // This is the moment `gcTime: 0` actually happens — recording it,
       // rather than deleting the row, is what makes that setting visible.
       networkMonitor.appendFrame(id, frame("system", "removed"));
-      networkMonitor.update(id, { query: { ...toQueryMeta(q), gcRemoved: true } });
+      networkMonitor.update(id, { query: { ...toQueryMeta(q, t), gcRemoved: true } });
     }
     return;
   }
 
   if (event.type !== "added" && event.type !== "updated") return;
 
-  const existingId = queryEntryIds.get(q.queryHash);
+  const existingId = t.queryIds.get(q.queryHash);
   const isNew = !existingId || !networkMonitor.getById(existingId);
   const id = isNew ? networkMonitor.nextId() : (existingId as string);
 
   if (isNew) {
-    queryEntryIds.set(q.queryHash, id);
+    t.queryIds.set(q.queryHash, id);
     networkMonitor.start({
       id,
       kind: "query",
@@ -290,28 +386,32 @@ function handleQueryEvent(event: CacheEventLike): void {
       sizeBytes: 0,
       frames: [],
       requestPayload: { key: [...q.queryKey] },
-      query: toQueryMeta(q),
+      query: toQueryMeta(q, t),
     });
   }
+
+  // Before TanStack calls `queryFn`: it reads it after this `fetch` dispatch,
+  // and again for each retry.
+  ownCallsOf(q, "queryFn", queryOwner(id, q));
 
   const actionType = event.action?.type;
   switch (actionType) {
     case "fetch":
-      fetchCounts.set(q.queryHash, (fetchCounts.get(q.queryHash) ?? 0) + 1);
+      t.fetchCounts.set(q.queryHash, (t.fetchCounts.get(q.queryHash) ?? 0) + 1);
       networkMonitor.appendFrame(id, frame("out", "fetch"));
-      // Opened *after* the frame is recorded but still synchronously within
-      // this dispatch — the queryFn TanStack is about to call runs in the
-      // same task, which is what makes the correlation work at all.
-      openOwnerWindow({ id, kind: "query", label: keyLabel(q.queryKey) });
-      networkMonitor.update(id, { state: "pending", query: toQueryMeta(q) });
+      beginAttempt(id);
+      // The row lives for the whole session, so its clock restarts with each
+      // fetch: the duration it shows is this fetch's, not the time since the
+      // key was first seen. `startAbs` — what the list sorts by — is untouched.
+      networkMonitor.update(id, { state: "pending", startTime: now(), query: toQueryMeta(q, t) });
       break;
     case "success":
       networkMonitor.appendFrame(id, frame("in", "success"));
       networkMonitor.update(id, {
         state: "success",
         endTime: now(),
-        responsePayload: truncateForPersist(q.state.data, MAX_QUERY_DATA_BYTES).value,
-        query: toQueryMeta(q),
+        ...withSize(truncateForPersist(q.state.data, MAX_QUERY_DATA_BYTES).value),
+        query: toQueryMeta(q, t),
       });
       break;
     case "error":
@@ -323,31 +423,33 @@ function handleQueryEvent(event: CacheEventLike): void {
         // Described, never copied: a queryFn that uses axios rejects with an
         // error whose enumerable `config` holds the request's headers.
         error: describeFailure(q.state.error, id),
-        query: toQueryMeta(q),
+        query: toQueryMeta(q, t),
       });
       break;
     case "invalidate":
       networkMonitor.appendFrame(id, frame("system", "invalidate"));
-      networkMonitor.update(id, { query: toQueryMeta(q) });
+      networkMonitor.update(id, { query: toQueryMeta(q, t) });
       break;
     default:
       // "setState", or "added"/"updated" with no action — just resync the
       // meta. Skipped on a brand-new row: `start()` above already carries it.
-      if (!isNew) networkMonitor.update(id, { query: toQueryMeta(q) });
+      if (!isNew) networkMonitor.update(id, { query: toQueryMeta(q, t) });
   }
 }
 
-function handleMutationEvent(event: CacheEventLike): void {
+function handleMutationEvent(event: CacheEventLike, t: TapState): void {
   const m = event.mutation;
   if (!m) return;
   if (event.type === "observerResultsUpdated" || event.type === "observerOptionsUpdated") return;
 
-  const existingId = mutationEntryIds.get(m.mutationId);
-  const isNew = !existingId;
+  const existingId = t.mutationIds.get(m.mutationId);
+  // Missing from the log too — cleared, or never started while capture was
+  // paused — and the next event starts the row again, as for a query.
+  const isNew = !existingId || !networkMonitor.getById(existingId);
   const id = isNew ? networkMonitor.nextId() : (existingId as string);
 
   if (isNew) {
-    mutationEntryIds.set(m.mutationId, id);
+    t.mutationIds.set(m.mutationId, id);
     networkMonitor.start({
       id,
       kind: "query",
@@ -366,10 +468,11 @@ function handleMutationEvent(event: CacheEventLike): void {
         observers: 0,
       },
     });
-    if (m.state.status === "pending") {
-      openOwnerWindow({ id, kind: "mutation", label: `mutation #${m.mutationId}` });
-    }
-    return;
+    // Hooked at once: `mutationFn` runs after `onMutate` has been awaited.
+    ownCallsOf(m, "mutationFn", mutationOwner(id, m));
+    // A row started late — after a clear, or a pause — is past `idle`: the
+    // status it is at is recorded below like any change, error and all.
+    t.mutationStatus.delete(m.mutationId);
   }
 
   // A mutation is added to the cache before it runs, with no variables yet:
@@ -381,19 +484,40 @@ function handleMutationEvent(event: CacheEventLike): void {
     });
   }
 
-  if (m.state.status === "success") {
+  // Only a change of status is news. The cache keeps emitting for a settled
+  // mutation — an observer going, garbage collection — and settling it again
+  // on each moved its end time, so its duration grew for as long as it stayed
+  // in the cache.
+  const status = m.state.status;
+  if (t.mutationStatus.get(m.mutationId) === status) return;
+  t.mutationStatus.set(m.mutationId, status);
+  const meta = (s: "pending" | "success" | "error"): QueryMeta => ({
+    sub: "mutation",
+    hash: String(m.mutationId),
+    key: [],
+    status: s,
+    observers: 0,
+  });
+
+  if (status === "pending") {
+    networkMonitor.appendFrame(id, frame("out", "mutate"));
+    beginAttempt(id);
+    networkMonitor.update(id, { state: "pending", startTime: now(), query: meta("pending") });
+  } else if (status === "success") {
+    networkMonitor.appendFrame(id, frame("in", "success"));
     networkMonitor.update(id, {
       state: "success",
       endTime: now(),
-      responsePayload: truncateForPersist(m.state.data, MAX_QUERY_DATA_BYTES).value,
-      query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "success", observers: 0 },
+      ...withSize(truncateForPersist(m.state.data, MAX_QUERY_DATA_BYTES).value),
+      query: meta("success"),
     });
-  } else if (m.state.status === "error") {
+  } else if (status === "error") {
+    networkMonitor.appendFrame(id, frame("in", "error"));
     networkMonitor.update(id, {
       state: "error",
       endTime: now(),
       error: describeFailure(m.state.error, id),
-      query: { sub: "mutation", hash: String(m.mutationId), key: [], status: "error", observers: 0 },
+      query: meta("error"),
     });
   }
 }
@@ -413,10 +537,11 @@ export function tapQueryClient(client: QueryClientLike): () => void {
   if (tapped.has(client)) return () => {};
   tapped.add(client);
   activeClient = client;
+  const state = stateOf(client);
 
   try {
     for (const q of client.getQueryCache().getAll() as QueryLike[]) {
-      handleQueryEvent({ type: "added", query: q });
+      handleQueryEvent({ type: "added", query: q }, state);
     }
   } catch {
     /* backfill is best-effort */
@@ -424,14 +549,14 @@ export function tapQueryClient(client: QueryClientLike): () => void {
 
   const unsubQuery = client.getQueryCache().subscribe((event) => {
     try {
-      handleQueryEvent(event);
+      handleQueryEvent(event, state);
     } catch {
       /* capture must never break the app */
     }
   });
   const unsubMutation = client.getMutationCache().subscribe((event) => {
     try {
-      handleMutationEvent(event);
+      handleMutationEvent(event, state);
     } catch {
       /* capture must never break the app */
     }

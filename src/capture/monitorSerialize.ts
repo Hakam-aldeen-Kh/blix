@@ -304,3 +304,25 @@ export function estimateBytes(value: unknown): number {
   }
   return Math.min(total, ESTIMATE_CEILING);
 }
+
+/**
+ * The `Content-Type` the browser sends for `body` when the caller set none —
+ * fixed by the Fetch standard's "extract a body", which XHR's `send()` uses too, so it is known before the
+ * request leaves: a string is `text/plain`, `URLSearchParams` is form-encoded,
+ * a `Blob` is its own type. A `FormData`'s boundary is chosen by the browser at
+ * send time and never handed to the page, and the value says so rather than
+ * inventing one. Buffers and streams get no type. (A `Request` already carries
+ * its implied type in its `headers`.)
+ */
+export function impliedContentType(body: unknown): string | undefined {
+  if (body === null || body === undefined) return undefined;
+  if (typeof body === "string") return "text/plain;charset=UTF-8";
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    return "application/x-www-form-urlencoded;charset=UTF-8";
+  }
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    return "multipart/form-data; boundary=(chosen by the browser)";
+  }
+  if (typeof Blob !== "undefined" && body instanceof Blob && body.type) return body.type;
+  return undefined;
+}

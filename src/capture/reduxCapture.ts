@@ -25,6 +25,7 @@ import {
 } from "./monitorConfig";
 import { isErrorLike } from "./errorLike";
 import { describeError } from "./monitorError";
+import { captureFrames } from "./monitorInitiator";
 import { networkMonitor } from "./networkMonitor";
 import { diffState } from "./stateDiff";
 import { truncateForPersist } from "./monitorTruncate";
@@ -117,6 +118,13 @@ export function markReplaying<T>(entryId: string, fn: () => T): T {
   }
 }
 
+/** One dispatch still inside `next`: whether another was dispatched from
+ * within it, and the state that one started from. */
+interface Nesting {
+  nested: boolean;
+  ownNext: unknown;
+}
+
 /**
  * Builds the Redux-capture middleware. Returns a pure pass-through when the
  * monitor is disabled (production, or SSR), so the `.concat()` call at the
@@ -136,6 +144,13 @@ export function createReduxMonitorMiddleware<S>(
   let lastEntryId: string | null = null;
   let lastType: string | null = null;
   let lastAt = 0;
+  /** The dispatches still inside `next`, innermost last. */
+  const nesting: Nesting[] = [];
+  /** The current row's payload, serialized — see `canCoalesce`. */
+  let lastPayloadKey: string | null = null;
+  /** The state before the current row's first dispatch, and after its last. */
+  let rowPrevState: unknown;
+  let lastNextState: unknown;
 
   return (api) => (next) => (action) => {
     const type = (action as { type?: unknown } | null)?.type;
@@ -143,13 +158,39 @@ export function createReduxMonitorMiddleware<S>(
       return next(action);
     }
 
+    // Read before `next`, from this frame: what the "Dispatched by" tab shows.
+    // `1` is this middleware's own frame — see `captureFrames`.
+    let initiator: ReturnType<typeof captureFrames>;
+    try {
+      initiator = captureFrames(1);
+    } catch {
+      initiator = undefined;
+    }
+
     const prevState = api.getState();
+    // A dispatch made while this one is still inside `next` — a store
+    // subscriber, or an enhancer, dispatching in answer to it — has already
+    // run its reducer by the time `next` returns, so the state read then is
+    // past this action. What this action made is the state that nested
+    // dispatch started from.
+    const parent = nesting[nesting.length - 1];
+    if (parent && !parent.nested) {
+      parent.nested = true;
+      parent.ownNext = prevState;
+    }
+    const frame: Nesting = { nested: false, ownNext: undefined };
+    nesting.push(frame);
     const t0 = now();
-    const result = next(action); // never inside try/catch: a throwing reducer must throw normally
+    let result: unknown;
+    try {
+      result = next(action); // never inside try/catch: a throwing reducer must throw normally
+    } finally {
+      nesting.pop();
+    }
     const reducerMs = now() - t0;
 
     try {
-      const nextState = api.getState();
+      const nextState = frame.nested ? frame.ownNext : api.getState();
       const changed = prevState !== nextState;
       const flooding = isFlooding(maxPerSecond);
       const isError = (action as { error?: unknown }).error === true;
@@ -178,9 +219,20 @@ export function createReduxMonitorMiddleware<S>(
       // cut short, a credential masked, or an error replaced by its description.
       const replayable = !errorPayload && !truncatedPayload.truncated;
 
-      const diff = changed && !flooding ? diffState(prevState, nextState) : undefined;
       const slice = type.includes("/") ? type.slice(0, type.indexOf("/")) : type;
+      let payloadKey: string | null;
+      try {
+        payloadKey = JSON.stringify(payload) ?? "";
+      } catch {
+        payloadKey = null;
+      }
 
+      // One row stands for several dispatches only when it can do so exactly:
+      // the same action — type *and* payload, so no dispatch's payload is lost
+      // behind another's — and nothing else changed the state in between (an
+      // ignored action, a dispatch Blix did not see), so the row's diff, from
+      // before the first to after the last, is theirs alone.
+      //
       // A manual replay always gets its own visible row — folding it into a
       // recent natural dispatch of the same type would hide the fact that it
       // was replayed at all.
@@ -188,11 +240,16 @@ export function createReduxMonitorMiddleware<S>(
         !replayOfId &&
         lastEntryId != null &&
         lastType === type &&
+        payloadKey !== null &&
+        payloadKey === lastPayloadKey &&
+        prevState === lastNextState &&
         at - lastAt < coalesceMs;
 
       if (canCoalesce && lastEntryId) {
         const prevEntry = networkMonitor.getById(lastEntryId);
         if (prevEntry) {
+          const diff =
+            rowPrevState !== nextState && !flooding ? diffState(rowPrevState, nextState) : undefined;
           networkMonitor.update(lastEntryId, {
             state: toEntryState(isError),
             endTime: t0 + reducerMs,
@@ -200,6 +257,7 @@ export function createReduxMonitorMiddleware<S>(
             // Reused generically by the detail pane's "Action" tab (same
             // field HTTP entries use for their request body).
             requestPayload: payload,
+            ...(initiator ? { initiator } : {}),
             redux: {
               type,
               payload,
@@ -211,10 +269,12 @@ export function createReduxMonitorMiddleware<S>(
             },
           });
           lastAt = at;
+          lastNextState = nextState;
           return result;
         }
       }
 
+      const diff = changed && !flooding ? diffState(prevState, nextState) : undefined;
       const id = networkMonitor.nextId();
       networkMonitor.start({
         id,
@@ -227,6 +287,7 @@ export function createReduxMonitorMiddleware<S>(
         sizeBytes: estimateBytes(payload),
         requestPayload: payload,
         replayOf: replayOfId ?? undefined,
+        initiator,
         redux: { type, payload, isError, diff, reducerMs, replayable },
       });
       networkMonitor.update(id, { endTime: t0 + reducerMs });
@@ -234,6 +295,9 @@ export function createReduxMonitorMiddleware<S>(
       lastEntryId = id;
       lastType = type;
       lastAt = at;
+      lastPayloadKey = payloadKey;
+      rowPrevState = prevState;
+      lastNextState = nextState;
     } catch {
       /* capture must never affect the app */
     }
