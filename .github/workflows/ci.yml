@@ -34,8 +34,23 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # One module at a time, its logic and its edge cases — see test/.
+      - name: Unit tests
+        run: pnpm test
+
       - name: Build
         run: pnpm build
+
+      # The tarball npm would publish, installed into a fresh project: its
+      # contents, import and require of both entry points, a consumer's types,
+      # and the size budget — see scripts/check-package.mjs.
+      - name: Check the published package
+        run: pnpm check:package
+
+      # Every link from a query, mutation or error to a request points at the
+      # right one, or at none — see scripts/check-linking.mjs.
+      - name: Check request linking
+        run: pnpm check:linking
 
       # Bundles dist/ the way a consumer's production build does and evaluates
       # it with no `process` global — see scripts/check-prod-guard.mjs.
@@ -105,3 +120,35 @@ jobs:
             echo "::error file=dist/index.js::dist/index.js does not start with \"use client\""
             exit 1
           fi
+
+  # In a real browser: what Blix records against the browser's own record over
+  # the DevTools protocol, the hard cases built to break it, and the panel
+  # driven by mouse and keyboard. GitHub's Ubuntu image ships Google Chrome,
+  # which these drive through playwright-core — no browser download.
+  browser:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compare with the browser's own record
+        run: pnpm check:official
+
+      - name: Hard cases
+        run: pnpm check:adversarial
+
+      - name: The panel, end to end
+        run: pnpm check:e2e
