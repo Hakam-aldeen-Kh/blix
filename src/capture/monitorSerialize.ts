@@ -239,7 +239,8 @@ function knownByteLength(node: object): number | null {
  */
 export function estimateBytes(value: unknown): number {
   let total = 0;
-  const seen = new WeakSet<object>();
+  /** The objects on the path from the root to the node being counted. */
+  const ancestors = new WeakSet<object>();
 
   const walk = (node: unknown): void => {
     if (total >= ESTIMATE_CEILING) return;
@@ -272,13 +273,22 @@ export function estimateBytes(value: unknown): number {
       return;
     }
 
-    // Cycles are possible in axios configs; count a repeat as a small stub.
-    if (seen.has(node as object)) {
+    // Cycles are possible in axios configs; count one as a small stub. Only an
+    // object reached inside itself is a cycle — one shared side by side is
+    // serialized twice, so it is counted twice. The ceiling bounds the walk.
+    if (ancestors.has(node as object)) {
       total += 8;
       return;
     }
-    seen.add(node as object);
+    ancestors.add(node as object);
+    try {
+      count(node as object);
+    } finally {
+      ancestors.delete(node as object);
+    }
+  };
 
+  const count = (node: object): void => {
     if (Array.isArray(node)) {
       total += 2 + node.length; // brackets + commas
       for (const item of node) {
