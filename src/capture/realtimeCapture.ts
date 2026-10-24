@@ -78,6 +78,10 @@ export function tapRealtimeAdapter<T extends RealtimeAdapterLike>(
   };
 
   const openConnection = (url: string) => {
+    // A second `connect()` replaces the first connection. Left open, its row
+    // read `pending` for the rest of the session — and an open socket is never
+    // evicted, so it stayed in the log for good.
+    closeConnection("success", "replaced by a new connect()");
     try {
       const id = networkMonitor.nextId();
       connectionId = id;
@@ -170,17 +174,16 @@ export function tapRealtimeAdapter<T extends RealtimeAdapterLike>(
   }) as T;
 }
 
-/** Removes credentials from a socket URL before it is displayed or persisted. */
+/**
+ * Removes credentials from a socket URL before it is displayed or persisted.
+ *
+ * Only the credential values change, in place. Rebuilding the URL through
+ * `URLSearchParams` re-encoded all of it: the mask read `%E2%80%A2…`, and every
+ * other parameter came back in another spelling (`%20` as `+`) — no longer the
+ * URL that was opened.
+ */
 function redactUrl(url: string): string {
-  try {
-    const parsed = new URL(url, "http://local");
-    for (const key of ["token", "access_token", "accessToken", "auth"]) {
-      if (parsed.searchParams.has(key)) parsed.searchParams.set(key, "•••");
-    }
-    return url.startsWith("/") ? parsed.pathname + parsed.search : parsed.toString();
-  } catch {
-    return url.replace(/([?&](?:token|access_token|accessToken|auth)=)[^&]*/gi, "$1•••");
-  }
+  return url.replace(/([?&](?:token|access_token|accessToken|auth)=)[^&#]*/g, "$1•••");
 }
 
 /** Re-exported so the panel can label frames without importing the tap. */

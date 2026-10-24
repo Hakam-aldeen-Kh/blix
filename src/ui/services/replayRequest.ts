@@ -62,7 +62,12 @@ export function canReplay(
     };
   }
 
-  return { can: true, needsConfirm: verdict === "write" };
+  // The URL decides, as the policy says — except that a method which can only
+  // write is never taken for a read: `DELETE /orders/5/details` ends in a
+  // read-shaped segment and replayed on one click. It only ever adds a
+  // confirmation, never removes one.
+  const writesByMethod = /^(?:PUT|PATCH|DELETE)$/i.test(entry.method);
+  return { can: true, needsConfirm: verdict === "write" || writesByMethod };
 }
 
 /** Strips the fields the request interceptor re-derives, so a stale captured

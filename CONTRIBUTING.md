@@ -53,19 +53,29 @@ install the `.tgz` in that app.
 
 ## Checks
 
-Everything CI runs, you can run locally:
+Everything CI runs, you can run locally. Before a release, one command runs
+all of it:
 
 ```bash
-pnpm typecheck
-pnpm build
-pnpm check
+pnpm release:check
 ```
 
-`pnpm check` runs every `scripts/check-*.mjs`. Each one starts with a comment
-saying what it guards and why; run one on its own with `pnpm check:<name>`.
-`check:prod-guard` reads `dist/`, so build first.
+It is these layers, fastest first:
 
-If your change touches something a check covers (the production guard,
+| Layer | Command | What it covers |
+| --- | --- | --- |
+| Unit | `pnpm test` (`pnpm test:watch` while you work, `pnpm test:coverage` for a report) | One module at a time — its logic and its edge cases. In `test/`. |
+| Scenarios | `pnpm check` | Modules together, in Node: the production guard, redaction, isolation from the host, snippets, the keyboard, hydration, axios behind host interceptors, storage, the panel's footprint, request linking. |
+| Package | `pnpm check:package` | The tarball npm would publish, installed into a fresh project: contents, `import` and `require`, a consumer's types, the size budget. Reads `dist/`, so build first. |
+| Browser | `pnpm check:browser` | In Chrome (or `--browser msedge`): every request compared with the browser's own record (`check:official`), hard cases built to break the linking (`check:adversarial`), and the panel driven by mouse and keyboard (`check:e2e`). |
+
+Each `scripts/check-*.mjs` starts with a comment saying what it guards and
+why; run one on its own with `pnpm check:<name>`. `check:prod-guard` and
+`check:package` read `dist/`, so build first. The browser checks use the
+Chrome or Edge already installed — nothing is downloaded.
+
+If your change touches logic, add a unit test beside the module's others in
+`test/`. If it touches something a check covers (the production guard,
 redaction, what is stored, the host page), extend that check. If it adds
 behaviour no check covers and it can break silently, add an assertion to the
 closest one, or a new `scripts/check-<name>.mjs` with a `check:<name>` script
@@ -103,7 +113,7 @@ Two rules matter more than the rest:
    there.
 5. Update `docs/en.md` when behaviour, options or exports change. It is what
    [blixjs.dev/docs](https://blixjs.dev/docs) shows.
-6. Make sure `pnpm typecheck`, `pnpm build` and `pnpm check` pass.
+6. Make sure `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm check` pass.
 
 Releases are cut by the maintainer: a version bump, the changelog section,
 and a `v*` tag, which publishes to npm.

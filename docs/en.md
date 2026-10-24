@@ -1168,15 +1168,18 @@ nothing is selected, the menu opens on Shown instead.
 
 | | Format | For |
 | --- | --- | --- |
-| Tool | **HAR** | Chrome DevTools, Charles, Insomnia, Postman — with the decrypted bodies. HTTP entries only. |
+| Tool | **HAR** | Chrome DevTools, Charles, Insomnia, Postman — with the decrypted bodies. HTTP entries only. Where the browser measured a request, its phases, protocol and byte sizes are the browser's; body types come from the headers. |
 | | **JSON** | Everything captured: frames, Redux diffs, timings. |
 | | **NDJSON** | One entry per line — pipe it into `jq`. |
 | Person | **Markdown** | A table plus failure bodies, copied to the clipboard for an issue, a PR or Slack. |
-| | **CSV** | One row per entry, no bodies — sort and count in a spreadsheet. Opens as UTF-8 in Excel. |
+| | **CSV** | One row per entry, no bodies — sort and count in a spreadsheet. Opens as UTF-8 in Excel. A cell that would start with `=`, `+`, `-` or `@` gets a leading `'`, so a spreadsheet never runs it as a formula. |
 | Shell | **cURL script** | Every request in order, runnable against another environment. |
 
 Captured `Authorization` headers are masked, so cURL and fetch output carries a
 placeholder rather than a working token — use **Replay** for a real re-run.
+A form upload is copied as a form — `--form-string` per text field in cURL,
+`FormData` in fetch — with each file named for you to attach, since file
+contents are not captured.
 Every export and snippet stays masked even with Authorization shown in full in
 the panel (see [What is redacted](#what-is-redacted)).
 

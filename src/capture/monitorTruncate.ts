@@ -53,7 +53,8 @@ export function truncateForPersist(
 ): TruncateResult {
   let used = 0;
   let truncated = false;
-  const seen = new WeakSet<object>();
+  /** The objects on the path from the root to the node being copied. */
+  const ancestors = new WeakSet<object>();
 
   const walk = (node: unknown): unknown => {
     if (node === null || node === undefined) {
@@ -87,12 +88,23 @@ export function truncateForPersist(
       return String(node);
     }
 
-    if (seen.has(node as object)) {
+    // A cycle is an object reached again *inside itself*. One reached twice
+    // side by side — a selected item that is also in the list, which Redux's
+    // structural sharing produces all the time — is copied both times: cut as
+    // a cycle, its second place in the state read as truncated.
+    if (ancestors.has(node as object)) {
       truncated = true;
       return { __nmTruncated: "object", omitted: 0 } satisfies TruncationMarker;
     }
-    seen.add(node as object);
+    ancestors.add(node as object);
+    try {
+      return copyObject(node as object);
+    } finally {
+      ancestors.delete(node as object);
+    }
+  };
 
+  const copyObject = (node: object): unknown => {
     // An error is never copied structurally, at any depth. An AxiosError's
     // enumerable properties are its request config — headers and body
     // included — and its response; walking them is how a bearer token ended

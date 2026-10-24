@@ -99,7 +99,9 @@ export function pruneSearchIndex(liveIds: Set<string>): void {
  * the common case never touches payloads at all. */
 export function matchesMeta(entry: MonitorEntry, q: string): boolean {
   return (
-    entry.url.toLowerCase().includes(q) ||
+    // The whole URL, `baseURL` included: a search for the host found nothing
+    // of an axios client that sets one.
+    `${entry.baseURL ?? ""}${entry.url}`.toLowerCase().includes(q) ||
     entry.method.toLowerCase().includes(q) ||
     String(entry.status ?? "").includes(q)
   );

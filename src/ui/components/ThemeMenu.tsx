@@ -117,7 +117,10 @@ export function ThemeMenu({
 
       <button
         type="button"
-        role="menuitem"
+        // One of a set, and which one is current: a screen reader heard plain
+        // items, the check mark beside the current one being aria-hidden.
+        role="menuitemradio"
+        aria-checked={pref === "auto"}
         className="nm-theme-item nm-theme-sys"
         onClick={() => onPick("auto")}
         onPointerEnter={() => previewIfPointing("auto")}
@@ -146,7 +149,8 @@ export function ThemeMenu({
           {themes.map((t) => (
             <button
               type="button"
-              role="menuitem"
+              role="menuitemradio"
+              aria-checked={pref === t.id}
               key={t.id}
               className={`nm-theme-item${pref === t.id ? " active" : ""}`}
               onClick={() => onPick(t.id)}

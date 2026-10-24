@@ -40,6 +40,33 @@ jobs:
       - name: Run the checks
         run: pnpm check
 
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Check the published package
+        run: pnpm check:package
+
+      # The browser checks, as in CI: the official-tools comparison, the hard
+      # cases and the panel end to end. A release must pass them, not only a PR.
+      - name: Browser checks
+        run: pnpm check:browser
+
+      # blix-site reads CHANGELOG.md from the repository and takes every `## `
+      # heading for a release: a leftover `[Unreleased]` would show on the site
+      # as the newest version, and a version with no heading of its own would
+      # show nothing for it.
+      - name: Verify the CHANGELOG has this version and no Unreleased section
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if ! grep -qE "^## \[${TAG_VERSION//./\\.}\]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::No '## [$TAG_VERSION]' heading in CHANGELOG.md"
+            exit 1
+          fi
+          if grep -qE "^## \[Unreleased\]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md still has an [Unreleased] section"
+            exit 1
+          fi
+
       # Without this, pushing tag v0.2.0 while package.json still says 0.1.0
       # republishes 0.1.0 silently (or fails opaquely on a duplicate version).
       - name: Verify tag matches package.json version

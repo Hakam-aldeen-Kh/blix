@@ -44,8 +44,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nord, the grey is darker instead), still holding 4.5:1 as text.
 - **The filter docs list what `method:` matches in each source** — `ws`, a
   Redux slice, `query` or `mutate` — and the accepted alternative spellings.
+- **The package can be `require()`d.** `exports` offered only `import`, so a
+  CommonJS project — Jest without ESM, an older setup — could not load Blix at
+  all, even on a Node that requires ESM.
+- **Replaying a `PUT`, `PATCH` or `DELETE` always asks first**, whatever its
+  URL. `DELETE /orders/5/details` read as a read and replayed on one click.
 
 ### Fixed
+
+- **A value shared in two places is stored in both.** Persisting a state that
+  held one object twice — a selected item that is also in the list — stored
+  the second as truncated; it was taken for a cycle. Its size was undercounted
+  the same way.
+- **A HAR export says what the browser measured.** Every body was typed
+  `application/json`, every request `HTTP/1.1`, and DNS, connect and TLS were
+  always unknown. Types now come from the headers, the protocol and phases
+  from the browser's timing, and sizes are bytes.
+- **A CSV export cannot run a formula.** A cell starting with `=`, `+`, `-` or
+  `@` — a route segment can — ran as one in Excel or Sheets; it is prefixed
+  with `'`.
+- **Copy as cURL for a form upload sends a form.** The browser's multipart
+  boundary was copied as a header the body did not match, and a text field
+  starting with `@` would have made curl upload a local file; fields now go
+  through `--form-string`. Copy as fetch builds a `FormData`.
+- **YAML keeps a text's trailing newlines and leading indentation.**
+- **Sizes and times round before choosing a unit**: 1,048,575 bytes read
+  "1024.0 KB", 999.6 ms "1000 ms".
+- **Search and `url:` match the host of a client with a `baseURL`.**
+- **A socket connected twice ends its first connection.** The first row read
+  `pending` for good — and an open socket is never evicted. A token hidden in
+  the socket URL reads `•••`, and the rest of the URL is left as it was.
+- **Docking keeps keyboard focus in the panel.** The dock button pressed
+  disappears from the narrower toolbar, and focus fell to the page, where the
+  panel's keys do not answer.
+- **The theme menu says which theme is current** to a screen reader.
 
 - **Timing shows each request its own phases.** Requests to the same URL
   started within a few milliseconds of each other each got the previous one's

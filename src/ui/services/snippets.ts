@@ -77,6 +77,31 @@ const safeMethod = (m: string | undefined): string =>
   m && /^[A-Za-z]+$/.test(m) ? m.toUpperCase() : "GET";
 
 /**
+ * The headers a snippet sends. A multipart `Content-Type` is left out: its
+ * boundary is the browser's own, never shown to the page — Blix records it as
+ * "(chosen by the browser)" — and curl or fetch must pick their own to match
+ * the body they build. Sent as recorded, the server could not read the body.
+ */
+function snippetHeaders(entry: MonitorEntry): [string, string][] {
+  return Object.entries(entry.requestHeaders ?? {}).filter(
+    ([k, v]) => !(k.toLowerCase() === "content-type" && /^multipart\/form-data/i.test(v)),
+  );
+}
+
+/** A multipart body as its fields: `name → value`, where a file is the
+ * `«File: name — n bytes»` summary Blix keeps instead of its contents. */
+function formFields(entry: MonitorEntry): [string, string][] | null {
+  const payload = entry.requestPayload;
+  if (!entry.hadFormData || payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  return Object.entries(payload as Record<string, unknown>).map(([k, v]) => [k, String(v)]);
+}
+
+/** The file name in a `«File: name — n bytes»` summary. */
+const fileName = (value: string): string | null => /^«File: (.*) — \d+ bytes»$/.exec(value)?.[1] ?? null;
+
+/**
  * A `curl` command for a POSIX shell — bash, zsh, sh, Git Bash.
  *
  * Every captured piece is exactly one `q(…)` argument: the URL, the method,
@@ -88,12 +113,29 @@ const safeMethod = (m: string | undefined): string =>
 export function toCurl(entry: MonitorEntry): string {
   const parts = [`curl ${q(absoluteUrl(entry))}`, `  -X ${q(safeMethod(entry.method))}`];
 
-  for (const [k, v] of Object.entries(entry.requestHeaders ?? {})) {
+  for (const [k, v] of snippetHeaders(entry)) {
     parts.push(`  -H ${q(oneLine(`${k}: ${v}`))}`);
   }
 
-  const body = bodyText(entry);
-  if (body !== null) parts.push(`  --data-raw ${q(body)}`);
+  const fields = formFields(entry);
+  if (fields) {
+    // A text field goes through `--form-string`, which takes its value as it
+    // is: `-F` reads a value starting with `@` or `<` as a file to upload, so
+    // a captured field "@/etc/passwd" would have sent that file from the
+    // machine running the snippet. Only a real file uses `-F`, attached from
+    // disk by its quoted name, since its contents were never captured.
+    for (const [k, v] of fields) {
+      const file = fileName(v);
+      parts.push(
+        file === null
+          ? `  --form-string ${q(oneLine(`${k}=${v}`))}`
+          : `  -F ${q(oneLine(`${k}=@"${file.replace(/["\\]/g, "\\$&")}"`))}`,
+      );
+    }
+  } else {
+    const body = bodyText(entry);
+    if (body !== null) parts.push(`  --data-raw ${q(body)}`);
+  }
 
   return parts.join(" \\\n");
 }
@@ -111,8 +153,22 @@ export function toCurl(entry: MonitorEntry): string {
  * only ever be a string literal or a JSON literal — never code.
  */
 export function toFetch(entry: MonitorEntry): string {
-  const headers = Object.entries(entry.requestHeaders ?? {});
-  const lines: string[] = [`await fetch(${JSON.stringify(fullUrl(entry))}, {`];
+  const headers = snippetHeaders(entry);
+  const fields = formFields(entry);
+  const lines: string[] = [];
+  if (fields) {
+    lines.push("const body = new FormData();");
+    for (const [k, v] of fields) {
+      const file = fileName(v);
+      lines.push(
+        file === null
+          ? `body.append(${JSON.stringify(k)}, ${JSON.stringify(v)});`
+          : `// body.append(${JSON.stringify(k)}, file); — ${JSON.stringify(file)}: file contents are not captured`,
+      );
+    }
+    lines.push("");
+  }
+  lines.push(`await fetch(${JSON.stringify(fullUrl(entry))}, {`);
 
   lines.push(`  method: ${JSON.stringify(safeMethod(entry.method))},`);
 
@@ -124,7 +180,9 @@ export function toFetch(entry: MonitorEntry): string {
     lines.push("  },");
   }
 
-  if (entry.requestPayload !== undefined) {
+  if (fields) {
+    lines.push("  body,");
+  } else if (entry.requestPayload !== undefined) {
     if (typeof entry.requestPayload === "string") {
       lines.push(`  body: ${JSON.stringify(entry.requestPayload)},`);
     } else {

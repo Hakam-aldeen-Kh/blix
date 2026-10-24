@@ -4,3 +4,4 @@ dist/
 playground/.out/
 playground/.react18/
 .release-check/
+coverage/
