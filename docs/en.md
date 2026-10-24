@@ -552,7 +552,15 @@ Blix reads bodies from clones, so your code always receives an untouched
 | request body is a `ReadableStream` | request body not captured — reading it would consume the upload |
 
 A skipped body is recorded as `«body not captured: …»` with the reason, so an
-empty Response tab always means an empty response. The cap applies to request
+empty Response tab always means an empty response. Such a request's duration
+ends at its headers — Blix cannot time a download it is not reading.
+
+A request body your code passed without a `Content-Type` is shown with the one
+the browser sends for it: `text/plain;charset=UTF-8` for a string,
+`application/x-www-form-urlencoded;charset=UTF-8` for `URLSearchParams`, a
+`Blob`'s own type. For `FormData` the boundary is chosen by the browser when the
+request is sent and never shown to the page, so it reads
+`multipart/form-data; boundary=(chosen by the browser)`. The cap applies to request
 and response bodies alike, defaults to **5 MB**, and is set with
 `maxBodyBytes`:
 
@@ -679,7 +687,11 @@ said: Blix takes the body from the HTTP request it failed on, and
   error as `response` (`Object.assign(new Error("…"), { response: r })`). No
   status is needed, and two requests failing alike at the same moment cannot
   be confused. An error that carries such an object as its `cause`
-  (`new Error("…", { cause })`) is followed to it too.
+  (`new Error("…", { cause })`) is followed to it too. An object that came
+  out of more than one request — the one `AbortError` a shared
+  `controller.abort()` rejects every fetch with — leads to none of them. When
+  your interceptor retried the request (`api(error.config)`), what it rejects
+  with belongs to the retry.
 - **`"caused"`** — nothing on the error leads to a request, but the query or
   mutation made exactly one request with the error's status during this
   attempt — a request it started directly, as **Linked events** describes. Retries that ran one after
@@ -742,8 +754,10 @@ export const store = configureStore({
 });
 ```
 
-Options: `ignore` (exact types or `"prefix/*"` globs), `coalesceMs` (repeat
-dispatches of one type inside this window fold into a single row), and
+Options: `ignore` (exact types or `"prefix/*"` globs), `coalesceMs` (identical
+dispatches — same type and same payload — inside this window, with nothing else
+changing the state between them, fold into a single row counting them; its
+diff runs from before the first to after the last), and
 `maxActionsPerSecond` (above this rate, capture drops to type + timing and
 skips diffing). Outside development the factory returns a pure pass-through
 middleware, so calling it unguarded is *behaviourally* free — but see

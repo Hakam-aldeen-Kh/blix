@@ -34,7 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the tick, so unrelated code running in it, and the code after an `await`
   in another query, were linked to the wrong query. This holds for `fetch`,
   XHR and axios alike.
-
+- **Redux rows fold only identical actions.** Repeats of one type inside
+  `coalesceMs` used to share a row whatever their payloads, and the row kept the
+  last one's payload and diff. Now only the same type with the same payload
+  folds, and the row's diff covers all of them.
 - **"In progress" is a clear blue.** In Blix, Blix Light, Nord and Gruvbox the
   colour of 1xx, 3xx and pending requests was a grey-blue too close to the grey
   of a 304 or a cancelled request to tell apart. It is now a distinct blue (in
@@ -53,6 +56,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until the watchdog marked it a timeout.
 - **Query and mutation rows keep their linked requests.** Every status change
   dropped the requests a row was known to have caused.
+- **An axios request's URL includes its `params`.** axios builds the query
+  string after Blix's interceptor, so the row read `/orders` for a request sent
+  as `/orders?page=2` — and Replay sent it without them.
+- **A `fetch` or XHR body shows the `Content-Type` the browser sends** when the
+  app set none: a string body went out as `text/plain;charset=UTF-8` with no
+  `Content-Type` in the Headers tab.
+- **The Redux diff says what an array became.** A change of length was recorded
+  as `length 2 → length 1`, which could not say which item went; the array is
+  now kept whole, before and after. A diff whose values were cut short by the
+  size cap is marked partial, as it is.
+- **A shared abort no longer links a failure to the wrong request.**
+  `controller.abort()` rejects every fetch on its signal with one error; the
+  last request it came from was taken as the exact source. An object that came
+  out of several requests now leads to none of them.
+- **A `Response` thrown as it is (`throw r`) leads to its request.**
+- **A reused XHR keeps each request on its own row.** Reusing one object, or
+  calling `open()` again mid-flight, wrote the later answer onto the earlier
+  row; the dropped request now ends `aborted`.
+- **Mutations are not lost or merged.** One started while capture was paused,
+  or whose row was cleared, gets a row again; two query clients — or a new one
+  after HMR — no longer share rows for the same `mutationId` or query key.
+- **A request retried by the app is followed to the retry.** After a 401
+  refresh-retry that failed too, the mutation named the 401 instead of the
+  retry; the retry now keeps the original request's owner. And the 401's
+  hand-off to the XHR monitor is released, which silently dropped the next
+  plain XHR to the same path.
+- **An XHR reused from its own `onloadend` keeps each response.** The app's
+  handler runs before Blix's, and its `open()` ended the finished request as
+  aborted with its status lost.
+- **A dispatch from inside a subscriber no longer bleeds into the outer
+  action's diff.** It runs before the outer dispatch returns, so the outer
+  row's "after" included the inner action's change.
+- **Timing pairing holds under load.** With several requests to one URL ending
+  milliseconds apart while the main thread was busy, two could still swap
+  phases.
 - **A floating panel stays on screen when the window shrinks.** One that had
   fitted was left hanging off the bottom, and reopening it did not help.
 - **Every failed request has a square status dot.** A 404 is amber, for
