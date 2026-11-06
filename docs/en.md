@@ -1331,9 +1331,19 @@ permanently empty is the point.
 
 Practically: a `captureEncrypted` call that runs during SSR does nothing, and
 `<Blix />` renders nothing there. It also renders nothing during hydration, so
-its first client render matches the server's HTML; the panel mounts on the
-render right after. (Before 0.9.0 it branched on `typeof window` instead,
-which Next.js reported as a hydration mismatch on every load.)
+its first client render matches the server's HTML. (Before 0.9.0 it branched
+on `typeof window` instead, which Next.js reported as a hydration mismatch on
+every load.)
+
+**The panel waits for your app.** It loads its chunk after hydration and
+mounts once the page is idle; after that it re-reads the log only when the
+page is idle again. The panel shares your React root, and React drops a
+render in progress whenever anything in that root updates. If the panel
+updated while your page was rendering, the page started over, and a page
+whose render is itself captured (a `useQuery` with `gcTime: 0` builds its
+query during render) could start over indefinitely. So the panel may lag a
+busy page by a moment. Your page never waits for the panel. Where the browser
+has no `requestIdleCallback`, the panel waits for the next task instead.
 
 **If the panel disappears in development**, check the console for
 `[blix] the panel crashed`. Blix renders inside an error boundary of its own,

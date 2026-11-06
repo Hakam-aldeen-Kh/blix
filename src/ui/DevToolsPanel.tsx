@@ -166,6 +166,7 @@ import { hidingReasons, useMonitorList } from "./hooks/useMonitorList";
 import { useMonitorSelection } from "./hooks/useMonitorSelection";
 import { PANEL_CHROME_H, TINY_PANEL_BELOW, usePanelSize } from "./hooks/usePanelSize";
 import { useVirtualRows } from "./hooks/useVirtualRows";
+import { subscribeWhenIdle } from "./helpers/whenIdle";
 import { parseFilter } from "./services/filterQuery";
 import { isInside, isTypingEvent, shortcutKey } from "./services/keyboard";
 import { canReplay, requestReplay } from "./services/replayRequest";
@@ -186,10 +187,19 @@ const DOCK_CYCLE: DockMode[] = ["bottom", "right", "top", "left", "float"];
 const nextDock = (mode: DockMode): DockMode =>
   DOCK_CYCLE[(DOCK_CYCLE.indexOf(mode) + 1) % DOCK_CYCLE.length];
 
+/**
+ * The log, re-read only once the host has finished rendering. Much of what is
+ * captured happens *during* a host render — `useQuery` builds its query there
+ * — and re-rendering the panel straight away discarded that render, which
+ * then captured the same thing again: a loop that kept a Next.js page from
+ * ever hydrating. See `whenIdle`.
+ */
+const subscribeEntries = subscribeWhenIdle(networkMonitor.subscribe);
+
 export default function DevTools() {
   const { apiClient, store } = useContext(BlixContext);
   const entries = useSyncExternalStore(
-    networkMonitor.subscribe,
+    subscribeEntries,
     networkMonitor.getSnapshot,
     networkMonitor.getServerSnapshot,
   );
@@ -438,8 +448,11 @@ export default function DevTools() {
   const rowHeight = DENSITY_ROW_H[density];
   const virtual = useVirtualRows(list.rows.length, scrollerRef, rowHeight, open);
 
-  // One ticker for the whole panel, running only while something is pending.
-  const nowAbs = useMonitorClock(list.counts.pending > 0);
+  // One ticker for the whole panel, running only while something is pending
+  // and the panel is open — the bars it moves are not on screen otherwise,
+  // and a closed panel re-rendering four times a second interrupted the
+  // host's own rendering for nothing.
+  const nowAbs = useMonitorClock(open && list.counts.pending > 0);
 
   // Cross-source correlation, indexed once per buffer change rather than
   // re-derived per row — see `helpers/entryLinks.ts`.
