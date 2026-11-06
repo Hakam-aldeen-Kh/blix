@@ -12,7 +12,7 @@
  *
  * A source row is its icon, its name and its count — one number, which is
  * the one that changes — and, once something in it has failed, how many, in
- * red behind a square marker so it is never colour alone. The number key that selects it used to be printed
+ * red behind a square marker so it is never color alone. The number key that selects it used to be printed
  * beside the count, and two bare digits side by side read as one figure
  * ("72 1"); the key is in the row's tooltip and the shortcuts sheet instead.
  */

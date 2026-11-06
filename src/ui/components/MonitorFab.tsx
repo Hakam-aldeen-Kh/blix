@@ -26,7 +26,7 @@ import { SECTION_DEFS } from "./SourcesRail";
 
 /**
  * One segment per source that has captured anything, with the rail's icon and
- * the source's colour — the badge answers "what is in there" without opening
+ * the source's color — the badge answers "what is in there" without opening
  * the panel. Empty sources are left out rather than shown as a row of zeros.
  */
 function SourceCounts({

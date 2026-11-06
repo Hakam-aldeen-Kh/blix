@@ -74,7 +74,7 @@ writeFileSync(path.join(app, "package.json"), JSON.stringify({ name: "consumer",
 
 /* ── contents ───────────────────────────────────────────────────────── */
 
-check("the tarball holds dist, the readme and the licence — and no sources, tests or scripts", () => {
+check("the tarball holds dist, the readme and the license — and no sources, tests or scripts", () => {
   for (const must of ["package.json", "README.md", "LICENSE", "dist/index.js", "dist/index.d.ts", "dist/capture/index.js", "dist/capture/index.d.ts"]) {
     expect(files.includes(must), `missing ${must}`);
   }

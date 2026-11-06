@@ -48,14 +48,14 @@ export type IconName =
 
 /**
  * The four sources, as BRAND_BOOK §6E line icons: a 24 grid, 1.5 stroke,
- * round caps and joins, grey. Colour is the caller's — the rail leaves them
- * grey, the launcher paints each in its source's colour. They replaced the
- * Redux and TanStack logos, which painted their own colours and were the two
+ * round caps and joins, gray. Color is the caller's — the rail leaves them
+ * gray, the launcher paints each in its source's color. They replaced the
+ * Redux and TanStack logos, which painted their own colors and were the two
  * glyphs in the panel that could never go quiet.
  */
 /* Drawn on the same 16 grid as every other glyph, so a 1.5 stroke lands at a
    real pixel at 13-15px instead of the hairline a 24 grid gave. Each has a
-   stroke and a soft wash of its own colour behind its main shape, for weight:
+   stroke and a soft wash of its own color behind its main shape, for weight:
    [stroke, wash, solid]. */
 const SOURCE_GLYPHS: Partial<Record<IconName, [string, string?, string?]>> = {
   // Request out, response back.
@@ -88,8 +88,8 @@ const DOCK_BLADES = {
 /**
  * The dock switcher draws the mark: the edge a button docks to is the solid
  * blade, the other three sit back at 35%. Monochrome in the button's own
- * colour — these are controls, not the logo. Float has no edge, so every
- * blade sits back and the centre dot is what is left.
+ * color — these are controls, not the logo. Float has no edge, so every
+ * blade sits back and the center dot is what is left.
  */
 function DockMark({ target, size }: { target: string; size: number }) {
   return (

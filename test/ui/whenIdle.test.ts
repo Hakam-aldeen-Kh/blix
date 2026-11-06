@@ -100,9 +100,9 @@ describe("panel updates wait for an idle main thread", () => {
     vi.runAllTimers();
     expect(fn).toHaveBeenCalledTimes(1);
 
-    const cancelled = vi.fn();
-    whenIdle(cancelled)();
+    const canceled = vi.fn();
+    whenIdle(canceled)();
     vi.runAllTimers();
-    expect(cancelled).not.toHaveBeenCalled();
+    expect(canceled).not.toHaveBeenCalled();
   });
 });

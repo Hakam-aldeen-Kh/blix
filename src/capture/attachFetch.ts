@@ -190,7 +190,7 @@ type ReadResult =
  *
  * The counter runs on every read, and past `cap` the read is abandoned —
  * regardless of any `Content-Length`, which describes the encoded body while
- * this stream yields decoded bytes. Cancelling here cancels only Blix's branch
+ * this stream yields decoded bytes. Canceling here cancels only Blix's branch
  * of the tee `clone()` made; the caller's branch carries on untouched.
  */
 async function readCapped(
@@ -248,7 +248,7 @@ function isRequest(value: unknown): value is Request {
 }
 
 /**
- * Normalises every calling form — `fetch(string)`, `fetch(URL)`,
+ * Normalizes every calling form — `fetch(string)`, `fetch(URL)`,
  * `fetch(Request)`, each with or without `init` — without constructing a new
  * `Request` from the caller's arguments. Doing that would take ownership of a
  * `Request`'s body and lock an `init.body` stream, breaking the real call.

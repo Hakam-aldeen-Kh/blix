@@ -71,7 +71,7 @@ export const VALUE_COLUMN = "value";
  * long tail that only a few rows carry.
  *
  * First-seen order rather than sorted: an API's own field order is meaningful
- * (`id` first, timestamps last) and alphabetising it throws that away.
+ * (`id` first, timestamps last) and alphabetizing it throws that away.
  */
 function columnsOf(rows: Record<string, unknown>[]): {
   columns: string[];
@@ -179,7 +179,7 @@ export function cellText(value: unknown): string {
   return String(value);
 }
 
-/** The class that colours a cell, reusing the JSON viewer's syntax tokens so
+/** The class that colors a cell, reusing the JSON viewer's syntax tokens so
  * a number looks like a number in every view. */
 export function cellClass(value: unknown): string {
   if (value === undefined) return "nm-tree-undefined";

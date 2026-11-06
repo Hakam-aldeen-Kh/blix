@@ -360,7 +360,7 @@ function reasonOf(entry: MonitorEntry): string {
         if (entry.status == null && isCapturedError(entry.error)) return entry.error.message;
         return statusText(entry.status) || "Failed";
       }
-      if (entry.state === "aborted") return "Cancelled, or cut off by a page reload";
+      if (entry.state === "aborted") return "Canceled, or cut off by a page reload";
       return statusText(entry.status) || "OK";
   }
 }
@@ -548,7 +548,7 @@ export function DetailPane({
    *
    * Each section has exactly one, and it is the action a developer reaches for
    * often enough that hunting for it in a right-click menu is the wrong cost —
-   * so it gets the head's only primary button, labelled for what it does here
+   * so it gets the head's only primary button, labeled for what it does here
    * rather than with a generic "run".
    *
    * A realtime connection has no such action: you cannot re-open a socket

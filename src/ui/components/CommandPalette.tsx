@@ -33,8 +33,8 @@ export interface Command {
   count?: string;
   /**
    * The command destroys something. The palette used to carry a dot per row in
-   * a source colour; twelve of those read as a legend you have to have
-   * learned, and the one row worth colouring is the one that cannot be undone.
+   * a source color; twelve of those read as a legend you have to have
+   * learned, and the one row worth coloring is the one that cannot be undone.
    */
   danger?: boolean;
   disabled?: boolean;

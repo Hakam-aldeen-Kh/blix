@@ -7,19 +7,19 @@
  *
  * **Design system.** Four layers of elevation (`--nm-bg` → `--nm-surface` →
  * `--nm-surface-2` → `--nm-surface-3`), one generic UI accent, four
- * *section-identity* colours (`--nm-c-network/realtime/redux/query`) applied
+ * *section-identity* colors (`--nm-c-network/realtime/redux/query`) applied
  * at a handful of deliberate touch points — the section tab, the row's
  * selected-state edge, the method/kind badge — so which of the four worlds a
  * row belongs to reads at a glance without reading the label. Everything else
  * (JSON syntax, diff add/remove/change, status pills) stays strictly semantic
- * and universal — colour only carries meaning where it adds one, never as
+ * and universal — color only carries meaning where it adds one, never as
  * decoration.
  *
- * **Every colour here is a token.** The values live in `themes/themes.ts`;
+ * **Every color here is a token.** The values live in `themes/themes.ts`;
  * this file only ever names them. The default theme's tokens are baked in as
  * the floor, and the active theme's are written to the root element's `style`
  * attribute, so a new theme needs no edit here at all. A component that needs
- * a colour sets a *role* attribute (`data-state="error"`, `data-accent="post"`)
+ * a color sets a *role* attribute (`data-state="error"`, `data-accent="post"`)
  * rather than an inline hex, so the role blocks below are the single place
  * those roles resolve.
  *
@@ -83,7 +83,7 @@ const BASE = `
 `;
 
 /**
- * Role → colour. The only place a semantic role becomes a concrete pair of
+ * Role → color. The only place a semantic role becomes a concrete pair of
  * tokens; every consumer below reads `--nm-state-fg`/`--nm-accent-fg` and
  * their `-bg` counterparts, so a badge, a dot, a waterfall bar and a status
  * pill can't disagree about what "error" looks like.
@@ -102,7 +102,7 @@ const ROLES = `
 [data-accent="delete"]   { --nm-accent-fg: var(--nm-m-delete);   --nm-accent-bg: var(--nm-m-delete-soft); }
 [data-accent="other"]    { --nm-accent-fg: var(--nm-m-other);    --nm-accent-bg: var(--nm-m-other-soft); }
 /* The four source identities, addressable the same way — the rail, the tab
-   underline, the link ticks and the linked chips all need "the colour of the
+   underline, the link ticks and the linked chips all need "the color of the
    section this belongs to" without knowing which section that is. */
 [data-accent="network"]  { --nm-accent-fg: var(--nm-c-network);  --nm-accent-bg: var(--nm-c-network-soft); }
 [data-accent="realtime"] { --nm-accent-fg: var(--nm-c-realtime); --nm-accent-bg: var(--nm-c-realtime-soft); }
@@ -144,7 +144,7 @@ const FAB = `
 
 .nm-fab-sep { width: 1px; height: 20px; flex: none; background: var(--bx-line); }
 /* Numbers, not badges. A tinted capsule behind a count is decoration the
-   moment the number is already coloured by what it means. */
+   moment the number is already colored by what it means. */
 .nm-fab-stats {
   display: flex; align-items: center; gap: var(--bx-4); padding: 0 var(--bx-4);
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
@@ -291,7 +291,7 @@ const HEADER = `
   flex: none; display: flex; align-items: center; gap: 2px; color: var(--bx-fg-3);
 }
 
-/* The mark, in the brand's full-colour states and the theme's own colours:
+/* The mark, in the brand's full-color states and the theme's own colors:
    blades in the foreground, the lit blade - the dock edge - in ok, the REC
    dot in err. Errors never reach it; the failing counts carry those. */
 .nm-logo, .nm-wordmark { display: block; flex: none; overflow: visible; }
@@ -315,8 +315,8 @@ const HEADER = `
 
 /* Capture and preserve: the two controls that silently change what happens to
    the log, so both must read as *on* rather than as pressable. The state
-   colour carries on the dot, the icon and the label; the ground is one step of
-   elevation, because the slot set has no tint-of-a-state colour and inventing
+   color carries on the dot, the icon and the label; the ground is one step of
+   elevation, because the slot set has no tint-of-a-state color and inventing
    one per theme is worse than doing without. */
 .nm-chip {
   display: flex; align-items: center; gap: 6px; flex: none;
@@ -331,7 +331,7 @@ const HEADER = `
 .nm-chip-ico { display: flex; flex: none; }
 /* The REC language, so the chip and the mark beside it say the same thing:
    a red dot while recording, an amber square while paused. The word stays
-   grey - the dot is the signal. */
+   gray - the dot is the signal. */
 .nm-capture .nm-chip-dot { background: var(--bx-warn); border-radius: 1px; }
 .nm-capture[data-on] .nm-chip-dot { background: var(--bx-err); border-radius: 50%; }
 .nm-preserve[data-on] { color: var(--bx-warn); }
@@ -381,7 +381,7 @@ const HEADER = `
 .nm-ibtn.active, .nm-ibtn[aria-expanded="true"] { background: var(--bx-sel); color: var(--bx-fg); }
 .nm-ibtn:disabled { color: var(--bx-mark); cursor: default; background: transparent; }
 /* Destructive: the header's per-source clear. Red while it can do something;
-   the disabled rule above still greys it out when there is nothing to clear. */
+   the disabled rule above still grays it out when there is nothing to clear. */
 .nm-ibtn-danger:not(:disabled) { color: var(--bx-err); }
 .nm-hsep { width: 1px; height: 16px; flex: none; background: var(--bx-line); }
 `;
@@ -435,9 +435,9 @@ const RAIL = `
   transition: background-color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
 .nm-rail-item:hover { background: var(--bx-hover); }
-/* Each source wears its own colour - network blue, realtime teal, redux
+/* Each source wears its own color - network blue, realtime teal, redux
    violet, query orange - on its icon and, when it is the one on screen, on
-   its edge. The same colours as the launcher, so the two name a source alike. */
+   its edge. The same colors as the launcher, so the two name a source alike. */
 .nm-rail-item[data-src="network"]  { --bx-src: var(--bx-src-network); }
 .nm-rail-item[data-src="realtime"] { --bx-src: var(--bx-src-realtime); }
 .nm-rail-item[data-src="redux"]    { --bx-src: var(--bx-src-redux); }
@@ -447,7 +447,7 @@ const RAIL = `
   width: 32px; flex: none; display: flex; align-items: center; justify-content: center;
   color: var(--bx-src, var(--bx-fg-3));
 }
-/* A source with nothing in it yet keeps its shape and gives up its colour. */
+/* A source with nothing in it yet keeps its shape and gives up its color. */
 .nm-rail-empty:not(.active) .nm-rail-ico { color: var(--bx-fg-3); }
 .nm-rail-name {
   flex: 1 1 auto; min-width: 0; font-size: var(--bx-fs-md); color: var(--bx-fg-2);
@@ -583,7 +583,7 @@ const TABLE = `
   user-select: none;
 }
 /* Pills. The state is the word and the count; the error count is the one
-   number in the bar allowed a colour. */
+   number in the bar allowed a color. */
 .nm-fchip {
   display: flex; align-items: center; gap: var(--bx-3); flex: none;
   height: var(--bx-h-chip); padding: 0 9px;
@@ -616,7 +616,7 @@ const TABLE = `
   cursor: pointer; background: transparent;
   transition: background-color .12s var(--nm-ease);
 }
-/* A failure is a square dot and a tinted row - never colour alone. Declared
+/* A failure is a square dot and a tinted row - never color alone. Declared
    before hover and selection so both still read on top of it. */
 .nm-trow[data-tone="err"] { background: var(--bx-err-row); }
 .nm-trow:hover { background: var(--bx-hover); }
@@ -633,7 +633,7 @@ const TABLE = `
 /* The status dot (BRAND_BOOK §6C log rows) carries status and nothing else.
    Selection never touches it - a selected error must still read as an error.
    Round when it worked, square when it failed, hollow while in flight, so the
-   shape says it before the colour does. Not .nm-rail: the sidebar owns that. */
+   shape says it before the color does. Not .nm-rail: the sidebar owns that. */
 .nm-row-rail {
   flex: none; width: var(--bx-col-dot); display: flex; align-items: center;
   justify-content: flex-end;
@@ -650,7 +650,7 @@ const TABLE = `
    Nothing sets it yet - the feature it belongs to is not built. */
 .nm-row-rail-forced::before { background: none; box-shadow: inset 0 0 0 1px var(--bx-warn); }
 
-/* Every cell is the same box; only width, alignment and colour differ, so the
+/* Every cell is the same box; only width, alignment and color differ, so the
    shared half is declared once. */
 .nm-trow > span, .nm-cols > * {
   display: flex; align-items: center; flex: none;
@@ -730,7 +730,7 @@ const TABLE = `
 .nm-col-time[data-slow] { color: var(--bx-warn); }
 
 .nm-col-links { width: var(--bx-col-links); justify-content: center; gap: var(--bx-1); }
-/* One of exactly two places a source colour is allowed. Two pixels of it, and
+/* One of exactly two places a source color is allowed. Two pixels of it, and
    it is data - which source this entry is also recorded in. */
 .nm-link-tick { width: 2px; height: 8px; display: block; background: var(--bx-mark); }
 .nm-link-tick[data-src="network"]  { background: var(--bx-src-network); }
@@ -744,7 +744,7 @@ const TABLE = `
 .nm-tbar { display: flex; width: 100%; height: var(--bx-timing-h); background: var(--bx-line-soft); }
 .nm-tbar > span { flex: none; display: block; }
 .nm-tbar-wait { background: var(--bx-wait); }
-/* One neutral colour, so the bars compare as lengths. Green only for the
+/* One neutral color, so the bars compare as lengths. Green only for the
    selected row; red for failures, which stays red when selected. */
 .nm-tbar-xfer { background: var(--bx-mark); }
 .nm-trow.active .nm-tbar-xfer { background: var(--bx-ok); }
@@ -814,7 +814,7 @@ const TABLE = `
 
 const DETAIL = `
 /* -- The detail pane ------------------------------------------------------
-   A 2px left border in the request's status colour runs down the head, tying
+   A 2px left border in the request's status color runs down the head, tying
    the pane back to the row it came from in a list that may have scrolled. */
 .nm-detail {
   display: flex; flex-direction: column; flex: 1 1 auto;
@@ -830,7 +830,7 @@ const DETAIL = `
   display: flex; align-items: baseline; gap: 9px; min-width: 0; overflow: hidden;
   font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums;
 }
-/* "500 POST Internal Server Error": the status colour is on the code and
+/* "500 POST Internal Server Error": the status color is on the code and
    nowhere else on the line. */
 .nm-detail-status { flex: none; font-size: var(--bx-fs-lg); font-weight: 600; color: var(--bx-fg-3); }
 .nm-detail[data-tone="ok"]   .nm-detail-status { color: var(--bx-ok); }
@@ -946,7 +946,7 @@ const DETAIL = `
   font-size: var(--bx-fs-code); cursor: pointer; white-space: nowrap;
   transition: color .12s var(--nm-ease), border-color .12s var(--nm-ease);
 }
-/* The underline is ink, not a colour: the active tab is a position, not a
+/* The underline is ink, not a color: the active tab is a position, not a
    signal, and green and red are kept for signals. */
 .nm-tab.active { border-bottom-color: var(--bx-fg); color: var(--bx-fg); }
 .nm-tab-n { padding-left: var(--bx-2); color: var(--bx-fg-3); font-variant-numeric: tabular-nums; }
@@ -1016,7 +1016,7 @@ const DETAIL = `
 /* On is the same pressed ground the format switch uses - one way of saying
    "this is the current state" across the whole bar. */
 .nm-toggle.active { background: var(--bx-sel); color: var(--bx-fg); }
-/* Copy confirms in place, in the colour that means it worked. */
+/* Copy confirms in place, in the color that means it worked. */
 .nm-copy-flip { display: flex; transform: scaleY(-1); }
 .nm-copy.nm-copied { color: var(--bx-ok); border-color: var(--bx-ok); }
 /* The actions sit closer to each other than to the readout beside them. */
@@ -1067,7 +1067,7 @@ const DETAIL = `
 .nm-empty-copy { display: flex; flex-direction: column; gap: var(--bx-2); }
 /* A quiet tile on the panel's own grounds and hairline, at the panel's own
    radius. The glyph carries the meaning; where the empty state belongs to a
-   source it takes that source's colour, and is neutral otherwise. */
+   source it takes that source's color, and is neutral otherwise. */
 .nm-empty-ico {
   display: flex; align-items: center; justify-content: center; flex: none;
   width: 40px; height: 40px; background: var(--bx-float);
@@ -1142,7 +1142,7 @@ const VIEWERS = `
 }
 .nm-slice-root { color: var(--nm-faint); }
 .nm-slice-root.active { color: var(--nm-c-redux); }
-/* Changed by this action — a leading dot rather than a colour swap, so
+/* Changed by this action — a leading dot rather than a color swap, so
    "changed" and "selected" stay independently readable. */
 .nm-slice-hit { color: var(--nm-txt); }
 .nm-slice-hit::before {
@@ -1605,9 +1605,9 @@ const LAYOUT = `
 .nm-frame-size { color: var(--bx-fg-3); text-align: right; font-family: var(--bx-font-mono); font-variant-numeric: tabular-nums; font-size: var(--bx-fs-meta); }
 .nm-frame-body { flex: 1 1 45%; min-height: 0; border-top: 1px solid var(--nm-line); display: flex; flex-direction: column; overflow: hidden; }
 
-/* Timing breakdown. The three phases borrow existing identity colours rather
+/* Timing breakdown. The three phases borrow existing identity colors rather
    than inventing a fourth palette: network time takes the Network section's
-   colour, and the two crypto phases take the two colours furthest from it. */
+   color, and the two crypto phases take the two colors furthest from it. */
 .nm-timing-encrypt { --nm-phase: var(--nm-c-redux); }
 .nm-timing-network { --nm-phase: var(--nm-c-network); }
 .nm-timing-decrypt { --nm-phase: var(--nm-warning); }
@@ -1658,8 +1658,8 @@ const LAYOUT = `
 .nm-timing-ctx-v { text-align: right; font-family: var(--nm-mono); font-size: 10.5px; color: var(--nm-muted); font-variant-numeric: tabular-nums; }
 .nm-timing-this { --nm-phase: var(--nm-accent); }
 .nm-timing-this .nm-timing-ctx-v, .nm-timing-this .nm-timing-ctx-k { color: var(--nm-txt); }
-/* Deliberately colourless — the median is the baseline, not a result.
-   Faint rather than a hairline token: at 5px tall a border colour is
+/* Deliberately colorless — the median is the baseline, not a result.
+   Faint rather than a hairline token: at 5px tall a border color is
    indistinguishable from the empty track behind it. */
 .nm-timing-median { --nm-phase: var(--nm-faint); }
 .nm-timing-worst { --nm-phase: var(--nm-warning); }
@@ -1728,8 +1728,8 @@ const RESPONSIVE = `
 }
 
 @container nm (max-width: 760px) {
-  /* Filter chips collapse to a coloured dot plus its count; the label is
-     redundant once you know the colours, and the counts are the useful part. */
+  /* Filter chips collapse to a colored dot plus its count; the label is
+     redundant once you know the colors, and the counts are the useful part. */
   .nm-fchip-label { display: none; }
   .nm-fchip { padding: 0 5px; gap: 4px; }
   .nm-detail-head { padding: 8px 10px 7px 10px; }
@@ -1752,7 +1752,7 @@ const RESPONSIVE = `
 
 /* The filter is the one header control you type into, so it is the one that
    keeps its width. The two state chips fall back to their dot and icon - the
-   colour still says on or off, and the tooltip still says which - and the
+   color still says on or off, and the tooltip still says which - and the
    shortcut hint goes, since the palette has a button of its own. At 440px the
    chips were spelling out "capturing" and "preserve" beside a 45px filter. */
 @container nm (max-width: 620px) {
@@ -1800,7 +1800,7 @@ const RESPONSIVE = `
 /* Last, METHOD. What survives is route, status and duration - which is the
    irreducible answer to what ran, whether it worked, and how long it took.
    The verb is one click away in the pane, and the rail already carries the
-   outcome as colour. */
+   outcome as color. */
 @container nmlist (max-width: 340px) {
   .nm-col-method { width: 0; overflow: hidden; padding-left: 0; }
   .nm-col-pin { width: 0; overflow: hidden; }
@@ -1928,7 +1928,7 @@ const SURFACES = `
 }
 
 /* -- Command palette ------------------------------------------------------
-   No coloured dots: the group above an item already says what kind of thing
+   No colored dots: the group above an item already says what kind of thing
    it is, and twelve dots down the left edge read as a legend you have to have
    learned. The one command that destroys something says so in its own label
    instead. */
@@ -1972,7 +1972,7 @@ const SURFACES = `
 .nm-palette-item:disabled { cursor: not-allowed; opacity: 1; }
 .nm-palette-label { flex: none; font-size: var(--bx-fs-lg); color: var(--bx-fg); }
 .nm-palette-item:disabled .nm-palette-label { color: var(--bx-fg-3); }
-/* The only destructive command in the list, and the only coloured label. */
+/* The only destructive command in the list, and the only colored label. */
 .nm-palette-item[data-danger] .nm-palette-label { color: var(--bx-err); }
 .nm-palette-gap { flex: 1 1 auto; min-width: 0; }
 .nm-palette-note {
@@ -2108,7 +2108,7 @@ const SURFACES = `
 }
 .nm-db-btn:hover:not(:disabled) { background: var(--bx-hover); }
 .nm-db-btn:disabled { color: var(--bx-fg-3); cursor: not-allowed; }
-/* The one destructive control in the sheet, and the only coloured label -
+/* The one destructive control in the sheet, and the only colored label -
    same rule as Clear log in the palette. */
 .nm-db-del:not(:disabled) { color: var(--bx-err); }
 .nm-db-armed { border-color: var(--bx-err); }
@@ -2127,7 +2127,7 @@ const SURFACES = `
   font-variant-numeric: tabular-nums;
 }
 .nm-db-peek-row:hover { background: var(--bx-hover); }
-/* The second of the two places a source colour is allowed, for the same
+/* The second of the two places a source color is allowed, for the same
    reason as the row's link ticks: which source wrote this record is data. */
 .nm-db-peek-dot { width: 2px; height: 10px; flex: none; background: var(--bx-mark); }
 .nm-db-peek-dot[data-src="network"]  { background: var(--bx-src-network); }
@@ -2193,8 +2193,8 @@ const SURFACES = `
    gutters, a sign column, then the text — the shape everyone already knows
    how to read, which is most of why it is worth doing this way.
 
-   The slot set has a colour for added and removed *text* but none for a
-   tinted row ground, so a changed line takes a 2px mark in its own colour and
+   The slot set has a color for added and removed *text* but none for a
+   tinted row ground, so a changed line takes a 2px mark in its own color and
    one step of elevation. That is this panel's own idiom for "this row is
    different" (the status rail, the cURL export's mark) and it survives the
    themes that have no business rendering a green wash. */
@@ -2327,7 +2327,7 @@ const SURFACES = `
 
 /* -- Timing ----------------------------------------------------------------
    The three phases are a measurement, not four sources: they take the data
-   colours, not the source-identity ones the old palette lent them. Crypto is
+   colors, not the source-identity ones the old palette lent them. Crypto is
    the panel's own time and network is the wire, so one of them is warm and
    the other is the accent - and a phase that took no time is dimmed rather
    than dropped, because "0 ms in crypto" is an answer. */

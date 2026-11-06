@@ -72,7 +72,7 @@ function csvField(value: unknown): string {
   // A cell that starts with = + - @ (or a tab / CR before one) is a formula to
   // Excel and Sheets, and the name column is a URL's last path segment — a
   // route like `/search/=HYPERLINK(…)` ran as one when the export was opened.
-  // A leading apostrophe is the standard defence: shown as text, not run.
+  // A leading apostrophe is the standard defense: shown as text, not run.
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
 }
