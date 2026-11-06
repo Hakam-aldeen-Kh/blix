@@ -67,7 +67,7 @@ It is these layers, fastest first:
 | Unit | `pnpm test` (`pnpm test:watch` while you work, `pnpm test:coverage` for a report) | One module at a time — its logic and its edge cases. In `test/`. |
 | Scenarios | `pnpm check` | Modules together, in Node: the production guard, redaction, isolation from the host, snippets, the keyboard, hydration, axios behind host interceptors, storage, the panel's footprint, request linking. |
 | Package | `pnpm check:package` | The tarball npm would publish, installed into a fresh project: contents, `import` and `require`, a consumer's types, the size budget. Reads `dist/`, so build first. |
-| Browser | `pnpm check:browser` | In Chrome (or `--browser msedge`): every request compared with the browser's own record (`check:official`), hard cases built to break the linking (`check:adversarial`), and the panel driven by mouse and keyboard (`check:e2e`). |
+| Browser | `pnpm check:browser` | In Chrome (or `--browser msedge`): every request compared with the browser's own record (`check:official`), hard cases built to break the linking (`check:adversarial`), a host render that Blix must not hold back (`check:host`), and the panel driven by mouse and keyboard (`check:e2e`). |
 
 Each `scripts/check-*.mjs` starts with a comment saying what it guards and
 why; run one on its own with `pnpm check:<name>`. `check:prod-guard` and

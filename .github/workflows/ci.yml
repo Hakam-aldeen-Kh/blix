@@ -150,5 +150,8 @@ jobs:
       - name: Hard cases
         run: pnpm check:adversarial
 
+      - name: The host's rendering is never held back
+        run: pnpm check:host
+
       - name: The panel, end to end
         run: pnpm check:e2e
