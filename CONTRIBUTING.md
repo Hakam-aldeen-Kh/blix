@@ -77,7 +77,7 @@ Chrome or Edge already installed — nothing is downloaded.
 If your change touches logic, add a unit test beside the module's others in
 `test/`. If it touches something a check covers (the production guard,
 redaction, what is stored, the host page), extend that check. If it adds
-behaviour no check covers and it can break silently, add an assertion to the
+behavior no check covers and it can break silently, add an assertion to the
 closest one, or a new `scripts/check-<name>.mjs` with a `check:<name>` script
 and a step in `.github/workflows/ci.yml`.
 
@@ -111,9 +111,15 @@ Two rules matter more than the rest:
 4. Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for
    anything a user would notice. Create that heading at the top if it is not
    there.
-5. Update `docs/en.md` when behaviour, options or exports change. It is what
-   [blixjs.dev/docs](https://blixjs.dev/docs) shows.
-6. Make sure `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm check` pass.
+5. Update every Markdown file your change makes wrong or incomplete, in the
+   same PR. This is required. `docs/en.md` when behavior, options or exports
+   change (it is what [blixjs.dev/docs](https://blixjs.dev/docs) shows),
+   `ARCHITECTURE.md` when a module's job or the data flow changes, this file
+   and `AGENTS.md` when a command or check changes, `ROADMAP.md` when planned
+   work is done or dropped. The full table is in
+   [AGENTS.md](AGENTS.md#documentation-is-part-of-the-change).
+6. Write prose in American English (`behavior`, `color`).
+7. Make sure `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm check` pass.
 
 Releases are cut by the maintainer: a version bump, the changelog section,
 and a `v*` tag, which publishes to npm.
