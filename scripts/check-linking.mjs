@@ -237,7 +237,7 @@ function withRefreshRetry(api) {
       error.config._retried = true;
       return api(error.config);
     }
-    return Promise.reject(new ApiError("normalised"));
+    return Promise.reject(new ApiError("normalized"));
   });
   attachHttpMonitor(api);
   return api;

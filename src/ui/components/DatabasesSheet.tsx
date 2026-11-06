@@ -30,7 +30,7 @@ import { Icon } from "./Icon";
 
 type Status = "loading" | "ready";
 
-/** `MonitorKind` → the source identity that colours it, matching the rail.
+/** `MonitorKind` → the source identity that colors it, matching the rail.
  * Duplicated rather than imported from `sectionOf`: that works on a live
  * `MonitorEntry`, and a peek row is a projection of a persisted record from a
  * database this build did not necessarily write. */

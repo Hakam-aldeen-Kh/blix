@@ -156,7 +156,7 @@ const attached = new WeakSet<object>();
  * `undefined`.
  *
  * Host interceptors registered before Blix hand it whatever they returned, and
- * that is routinely not a response: `(r) => r.data`, a normalised domain error,
+ * that is routinely not a response: `(r) => r.data`, a normalized domain error,
  * `undefined`. Reading `.config` straight off that value used to throw inside
  * the response interceptor — which rejected every request on the instance.
  * Callers still wrap this in `try`: a getter on a host object can throw too.
@@ -282,11 +282,11 @@ const WATCHDOG_GRACE_MS = 3000;
  * 1. *Identity without a config.* A host interceptor may hand the next one
  *    `r.data`, or reject with an error of its own; neither carries the config
  *    Blix stamped. The objects the wire tap saw are remembered weakly, so the
- *    tail can still recognise the same response, body or error.
+ *    tail can still recognize the same response, body or error.
  * 2. *The watchdog.* A request with a timeout that is still pending well past
  *    it has ended somewhere Blix could not see. It is settled as a timeout
  *    that says so, and corrected if an answer does arrive after all.
- * 3. *The unclaimed failure.* An error with no config that nothing recognises
+ * 3. *The unclaimed failure.* An error with no config that nothing recognizes
  *    came from before dispatch — an interceptor threw. With exactly one
  *    request in the air it can only be that one.
  */
@@ -328,7 +328,7 @@ class Flight {
   }
 
   /** Remembers `value` as belonging to `id`. Objects only: a primitive body
-   * has no identity to recognise later. */
+   * has no identity to recognize later. */
   remember(id: string, ...values: unknown[]): void {
     for (const value of values) {
       if (value !== null && typeof value === "object") this.seen.set(value, id);
@@ -494,14 +494,14 @@ function handlerAt(manager: InterceptorManagerLike, id: number): StoredHandler |
  *
  * Blix registers last on purpose — that is where the decrypted body is. But
  * last is also downstream of everything the app does to a response, and an app
- * that normalises its errors (`Promise.reject(new ApiError(…))`), unwraps its
+ * that normalizes its errors (`Promise.reject(new ApiError(…))`), unwraps its
  * responses (`r => r.data`), or retries a 401 under the same config leaves the
  * tail nothing it can tie back to a request. Those entries read `pending` for
  * the rest of the session, after the request had long since failed.
  *
  * The first handler is wrapped in place rather than a new one inserted ahead
  * of it: `eject(id)` is an array index, and shifting the array would make
- * every id the app is holding eject its neighbour.
+ * every id the app is holding eject its neighbor.
  */
 function installWireTap(
   managers: HttpMonitorTarget["interceptors"],
@@ -596,7 +596,7 @@ function linkReplacement(run: () => unknown, id: string, flight: Flight): unknow
       // retry ended in: that failure is the retry's, not the one it replaced.
       const target = flight.latest(id);
       linkToRequest(replaced, target);
-      // So the tail recognises it too, and records it as `handledAs`.
+      // So the tail recognizes it too, and records it as `handledAs`.
       flight.remember(target, replaced);
     } catch {
       /* capture must never break a request */
@@ -964,7 +964,7 @@ export function attachHttpMonitor(
           // Only when this handler *is* the wire — nothing of the host's ahead
           // of it. With a tap installed, a failure that never reached the
           // adapter was already claimed there, as the error that was thrown;
-          // what arrives here unrecognised is then the host's replacement for
+          // what arrives here unrecognized is then the host's replacement for
           // a failure the tap has settled, and handing it to "the one request
           // still waiting" marked an unrelated in-flight request as failed.
           flight.unclaimed(error);

@@ -161,7 +161,7 @@ export function flattenHeaders(headers: unknown): Record<string, string> {
  * enumerable keys, so it came out as `{}`; a pair array was walked by index, so
  * the name masked on was `"0"` and `authorization, Bearer …` went through in
  * the clear. A `fetch` caller can legally pass either as `init.headers`.
- * `attachFetchMonitor` normalises at its own boundary too — handling them here
+ * `attachFetchMonitor` normalizes at its own boundary too — handling them here
  * as well is what stops the leak coming back through the next call site that
  * forgets to.
  */

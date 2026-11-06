@@ -11,7 +11,7 @@
  *
  * **Capture and preserve are state, not buttons.** Both silently change what
  * happens to the log, so both read as *on* — a dot or an icon, a word, and the
- * state's colour — rather than as something you might press by accident.
+ * state's color — rather than as something you might press by accident.
  *
  * **Export and Appearance lose their labels.** An icon either replaces a label
  * or is not there; a glyph beside a word is two things saying one thing. Both
@@ -161,7 +161,7 @@ export function MonitorToolbar(props: ToolbarProps) {
         </button>
       )}
 
-      {/* The full-colour mark: green blade on the edge the panel is docked to,
+      {/* The full-color mark: green blade on the edge the panel is docked to,
           the REC dot while capture runs. The chip beside it still says which
           in words. The blades open once when the panel mounts — a dock change
           re-renders without remounting, so it cuts, as a state change should. */}

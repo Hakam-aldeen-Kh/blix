@@ -194,12 +194,12 @@ function candidate(
  * By address, and by **both ends** of the request. The start alone is not
  * enough: requests to the same URL started within a millisecond are equally
  * close to every timing entry, and the first entry to arrive (the fastest
- * request's) took the first candidate — every one of them got its neighbour's
+ * request's) took the first candidate — every one of them got its neighbor's
  * phases. Their ends tell them apart: Blix hears of an end — `responseEnd`
  * when it read the body, `responseStart` when it stopped at the headers —
  * only after the browser has it, so the earliest end not before the browser's
  * is the one. Closest-either-side was not: with ends ~10 ms apart and a busy
- * main thread, a neighbour that ended just before won.
+ * main thread, a neighbor that ended just before won.
  *
  * Which is why a timing entry is matched only once every request it could
  * belong to has ended: matched earlier, it would pick among the ones that

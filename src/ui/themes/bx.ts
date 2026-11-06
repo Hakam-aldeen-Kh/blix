@@ -1,5 +1,5 @@
 /**
- * Dev Tools — the redesign's colour contract.
+ * Dev Tools — the redesign's color contract.
  *
  * **One fixed set of slots, filled by every theme.** Not derived, not
  * optional: a theme that cannot name all of them is not a theme, and
@@ -10,24 +10,24 @@
  *
  * **Why authored rather than derived.** The two tokens the old system would
  * have computed, `hover` and `wait`, are exactly the two it got wrong: an
- * alpha over an unknown ground is a different colour on every surface it lands
+ * alpha over an unknown ground is a different color on every surface it lands
  * on, and `color-mix()` would put that computation in the paint path of a
  * virtualized list on browsers that do not have it. Both are opaque and
  * written down.
  *
  * **What a theme may not restate.** Sizes, radii, spacing, type — those live
- * in `styles/tokens.ts` and are identical in all twelve. A theme owns colour
+ * in `styles/tokens.ts` and are identical in all twelve. A theme owns color
  * and nothing else.
  */
 
 import type { ThemeBase } from "./themes";
 
 /**
- * The slots. Every field is a literal colour; nothing here is computed.
+ * The slots. Every field is a literal color; nothing here is computed.
  *
  * `shadow` is the one exception and it is not in this interface — the two
  * surviving shadows (the panel's outer edge and the FAB) are geometry as much
- * as colour, so they are built from `shadowRgb` by `bxTokens` below.
+ * as color, so they are built from `shadowRgb` by `bxTokens` below.
  */
 export interface BxPalette {
   /** `"r,g,b"` — the only alpha left in the set, for the two shadows. */
@@ -46,7 +46,7 @@ export interface BxPalette {
   /** Selected row, pressed segment. */
   sel: string;
   /** Row hover, on `bg`. Opaque, because a tint over an unknown ground is a
-   * different colour on each of the five above. */
+   * different color on each of the five above. */
   hover: string;
   /** Menu-item hover, on `float`. A second slot rather than a second use of
    * `hover`: in a dark theme `hover` is a step *up* from the list's ground and
@@ -75,7 +75,7 @@ export interface BxPalette {
    * readable is allowed to use it. */
   mark: string;
 
-  /* ── Data. Colour means status, state or source — never decoration. ─── */
+  /* ── Data. Color means status, state or source — never decoration. ─── */
   ok: string;
   warn: string;
   err: string;
@@ -84,7 +84,7 @@ export interface BxPalette {
   /** Focus ring, active tab underline, the Replay outline. UI, not data. */
   accent: string;
   /** The wait segment of a row's timing bar, before the transfer segment
-   * takes over in the status colour. */
+   * takes over in the status color. */
   wait: string;
 
   /* ── Syntax ─────────────────────────────────────────────────────────── */
@@ -114,24 +114,24 @@ export interface BxPalette {
 /**
  * Midnight and Daylight are transcribed from the approved mockups; every
  * value in them is fixed. The other ten port their published palettes onto
- * the same slots — the semantic, syntax and identity colours are the ones the
+ * the same slots — the semantic, syntax and identity colors are the ones the
  * theme already shipped, and only the ground ramp and `fg3` are re-cut, the
  * ramp because elevation is now a background step and `fg3` because it now
  * carries text that has to clear 4.5:1.
  *
  * The four `src*` slots are the exception in the other direction: every theme
- * keeps the identity colours it already shipped. Midnight's are desaturated to
+ * keeps the identity colors it already shipped. Midnight's are desaturated to
  * sit inside its palette, but on the same hues as the other eleven — Redux
- * violet and Query orange, the colours those tools' own devtools taught — so
- * a source does not change colour family when the theme does.
+ * violet and Query orange, the colors those tools' own devtools taught — so
+ * a source does not change color family when the theme does.
  */
 /**
- * The brand's own pair, from BRAND_BOOK §4. Grey carries, green and red
+ * The brand's own pair, from BRAND_BOOK §4. Gray carries, green and red
  * signal: the graphite ramp is the book's 950/900/850/800/700, the text levels
- * its 100/200/400 and `mark` its 500. Source and syntax colours are
+ * its 100/200/400 and `mark` its 500. Source and syntax colors are
  * desaturated so nothing but ok, err and warn reads as a signal. `info` is
- * the exception: as a grey-blue it was too close to `mark` to tell a redirect
- * or a request in flight from a 304 or a cancelled one, so it is a clear blue. Hairlines are
+ * the exception: as a gray-blue it was too close to `mark` to tell a redirect
+ * or a request in flight from a 304 or a canceled one, so it is a clear blue. Hairlines are
  * opaque here — the book draws them as steps of the ramp, not as alphas.
  */
 const BLIX: BxPalette = {
@@ -204,7 +204,7 @@ const DAYLIGHT: BxPalette = {
   srcQuery: "#dd6a10",
 };
 
-/** True black and neutral greys — the OLED theme. Its own palette, so its
+/** True black and neutral grays — the OLED theme. Its own palette, so its
  * accents are its canonical values. */
 const CARBON: BxPalette = {
   shadowRgb: "0,0,0",
@@ -468,7 +468,7 @@ export function bxTokens(p: BxPalette, base: ThemeBase): Record<string, string> 
     out[token] = p[slot as keyof typeof SLOT_TOKEN];
   }
   // A failing row's ground: err over the list's own bg, so it can be an alpha.
-  // Derived rather than authored, because it is one wash of a colour every
+  // Derived rather than authored, because it is one wash of a color every
   // theme already names.
   out["--bx-err-row"] = tint(p.err, base === "dark" ? 0.08 : 0.06);
   // The same wash, stronger, for a failing row that is also selected.
@@ -483,15 +483,15 @@ function tint(hex: string, a: number): string {
 }
 
 /**
- * The old `--nm-*` colour names, answered from this palette.
+ * The old `--nm-*` color names, answered from this palette.
  *
  * Some surfaces — the payload viewers, the frame list, the table view — are
  * still written in the old vocabulary, and that vocabulary used to be filled
  * from a second, separately authored palette. Two palettes meant two blues,
- * two greys and two sets of hairlines on screen at once: a tab strip from one
+ * two grays and two sets of hairlines on screen at once: a tab strip from one
  * and the JSON under it from the other. Until those rules are rewritten, the
  * old names resolve to these slots, so everything the panel paints comes from
- * one set of colours. Spread *after* `themeTokens` so these win.
+ * one set of colors. Spread *after* `themeTokens` so these win.
  */
 export function legacyAliases(p: BxPalette, base: ThemeBase): Record<string, string> {
   const dark = base === "dark";

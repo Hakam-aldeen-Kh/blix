@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The package can be `require()`d.** `exports` offered only `import`, so a
   CommonJS project — Jest without ESM, an older setup — could not load Blix at
   all, even on a Node that requires ESM.
+- **The panel and the docs use American spelling.** "Canceled" instead of
+  "Cancelled" for an aborted request, "syntax-colored" for the JSON view.
 - **Replaying a `PUT`, `PATCH` or `DELETE` always asks first**, whatever its
   URL. `DELETE /orders/5/details` read as a read and replayed on one click.
 
@@ -212,7 +214,7 @@ that now live at [blixjs.dev](https://blixjs.dev).
 
 ## [0.12.0] - 2026-10-16
 
-The panel on the new Blix identity: graphite grounds, grey that carries, and
+The panel on the new Blix identity: graphite grounds, gray that carries, and
 green and red only where something is happening.
 
 ### Changed
@@ -228,16 +230,16 @@ green and red only where something is happening.
   amber square.
 - Request rows lead with a status dot: round when the request worked, square
   when it failed, hollow while in flight. Failing rows are tinted; a selected
-  failure stays red. 2xx status codes are grey.
-- Waterfall bars are one neutral colour — green on the selected row, red on
+  failure stays red. 2xx status codes are gray.
+- Waterfall bars are one neutral color — green on the selected row, red on
   failures — so they compare as lengths.
-- The state filters are pills, and only the error count is coloured.
+- The state filters are pills, and only the error count is colored.
 - The sidebar has new line icons for the four sources, in each source's
-  colour, and shows how many entries failed beside each source's count.
-- The detail pane colours the status code only; Replay, Pin and cURL are
-  plain outline buttons; the active tab is underlined in the text colour.
+  color, and shows how many entries failed beside each source's count.
+- The detail pane colors the status code only; Replay, Pin and cURL are
+  plain outline buttons; the active tab is underlined in the text color.
 - Menus and the command palette mark the selected item with a background
-  step instead of the accent colour, and group labels are mono capitals.
+  step instead of the accent color, and group labels are mono capitals.
 - Empty sources show the idle mark and "Nothing captured on Network yet."
   The setup snippets stay.
 - While dragging the launcher, each corner shows the slot it would land in,
@@ -313,7 +315,7 @@ every edge — and three credential leaks closed.
   side, `0px` on the others. For `position: fixed`/`sticky` elements, which
   the reserved space does not move by itself. Set only while a panel is
   docked, so read them with a fallback: `var(--blix-dock-right, 0px)`.
-- Each source has its own icon and colour, in the sidebar, the launcher and
+- Each source has its own icon and color, in the sidebar, the launcher and
   the detail pane's active tab.
 
 ### Changed
@@ -390,7 +392,7 @@ A launcher that says what it holds, and exporting one entry on its own.
   back to Shown rather than opening with every format disabled.
 - **Per-source counts on the launcher badge.** The single total is replaced by
   one segment per source that has captured anything — Network, Realtime,
-  Redux, Query — each with the rail's icon and colour, and its failing count
+  Redux, Query — each with the rail's icon and color, and its failing count
   in red beside it. Empty sources are left out.
 - **Icons in the overflow menu**, one per option. Purge has its own glyph, so
   it no longer reads as the same action as Clear.
@@ -438,13 +440,13 @@ hydration warning in Next.js.
 ## [0.8.0] - 2026-09-21
 
 The panel, redesigned. One token layer, a row you can tell apart from its
-neighbours, and columns you choose. Nothing about capture, storage or masking
+neighbors, and columns you choose. Nothing about capture, storage or masking
 changes.
 
 ### Added
 
 - **A single token layer.** Sizes, type, spacing and radii live in
-  `ui/styles/tokens.ts`; colour is 33 slots per theme in `ui/themes/bx.ts`,
+  `ui/styles/tokens.ts`; color is 33 slots per theme in `ui/themes/bx.ts`,
   authored rather than derived. A dev-time check reports any theme missing a
   slot, and any theme whose `--bx-fg-2` or `--bx-fg-3` falls under 4.5:1
   against a ground it actually lands on. It reports; it never corrects — half
@@ -473,13 +475,13 @@ changes.
   or not they have anything to show.
 - **The list is an ARIA grid** with a roving tabindex, not a stack of divs
   carrying click handlers. Enter activates a row; Space stays with capture.
-- Status codes and methods are monospace text. The coloured pills and badges
+- Status codes and methods are monospace text. The colored pills and badges
   are gone — here, and in the export menu, the appearance menu and the
   databases sheet.
 - **Default density is the 26px step.** All three steps remain in the menu.
 - The status bar degrades a segment at a time, each carrying its own
   separator, so a narrow panel no longer leaves a row of orphan slashes.
-- Timing phases take the data colours rather than the four source-identity
+- Timing phases take the data colors rather than the four source-identity
   ones, and a phase that cost nothing recedes instead of competing.
 - The collapsed sidebar shows sources and counts only. The session stats are
   hidden rather than shrunk: four numbers with their labels stripped off are
@@ -561,7 +563,7 @@ made **every request on the instance fail**.
 - **`attachHttpMonitor` made every request on the instance fail** when a
   response interceptor registered before it returned something other than a
   response — `(response) => response.data`, the usual unwrapping interceptor,
-  or a rejection handler returning a normalised domain error. Blix read
+  or a rejection handler returning a normalized domain error. Blix read
   `.config` straight off that value, which threw inside its own interceptor and
   rejected the request. Present since 0.2.0. Such a response now passes through
   untouched; the entry stays `pending`, because Blix does not settle a request
@@ -680,7 +682,7 @@ Upgrading.
   approximate size, **Peek** shows a read-only snapshot of a database's 50
   newest entries, and it deletes any database except the active one. In Firefox,
   which lacks `indexedDB.databases()`, the list comes from the names Blix has
-  recorded and is labelled as possibly incomplete.
+  recorded and is labeled as possibly incomplete.
 - The status bar names the active database, turning amber with a `shared` tag
   on `blix:default`.
 - `attachHttpMonitor` returns a disposer that ejects both interceptors.
@@ -699,7 +701,7 @@ Upgrading.
   database and a later Purge deleted the new, unused name.
 - `attachHttpMonitor` is idempotent per instance, and treats an instance and
   its `withInitiatorCapture` wrapper as one.
-- An axios request cancelled through `AbortController` or `CancelToken` settles
+- An axios request canceled through `AbortController` or `CancelToken` settles
   as **aborted** rather than as an error. Timeouts are still errors.
 - The published type declarations no longer import axios.
   `attachHttpMonitor` and `withInitiatorCapture` accept structurally typed
@@ -728,7 +730,7 @@ Upgrading.
   The first serialized as `{}`, and the second was walked by index, so
   `authorization` in either form would have gone through unmasked. Neither form
   reached the masker in earlier releases, because axios was the only capture
-  path and it normalises headers before its interceptors run. `fetch` accepts
+  path and it normalizes headers before its interceptors run. `fetch` accepts
   both, so the fix ships with `attachFetchMonitor`.
 - `attachFetchMonitor` captures every `fetch` on the page, including those made
   by third-party scripts. See the README's Security section.
@@ -736,14 +738,14 @@ Upgrading.
 ## [0.5.0] - 2026-08-26
 
 The panel is redesigned. **The runtime API is unchanged** — `<Blix />` and
-every capture function keep their signatures and behaviour, so upgrading is a
+every capture function keep their signatures and behavior, so upgrading is a
 version bump. The one breaking change is to an exported *type*: see Removed.
 
 ### Changed
 
 - **Redesigned the panel.** The four sources moved from tabs in the toolbar to
   a rail down the left, which also carries the session totals; the header now
-  holds only session-level controls, with a labelled capture pill and a filter
+  holds only session-level controls, with a labeled capture pill and a filter
   field whose parsed tokens are removable chips inside the box. The detail
   pane's tabs and the payload format switch share one row, and the entry list
   is a fixed five-track row rather than a resizable column set.
@@ -756,14 +758,14 @@ version bump. The one breaking change is to an exported *type*: see Removed.
   is stated where a developer discovers the problem.
 - The Timing tab compares a request against the session's median and its
   slowest entry.
-- Masked headers are labelled `MASKED` in the Headers tab rather than leaving
+- Masked headers are labeled `MASKED` in the Headers tab rather than leaving
   the reader to infer it from an ellipsis. The stored value keeps its
   `(masked)` suffix, so every export path still carries the fact.
 - Row density defaults are a few pixels taller (26 / 30 / 36) — the duration
   column now holds a number and its bar.
 - The docked badge separates its identity from its counts and carries a grip,
   so what is draggable is visible before you drag it. The failing count is
-  titled rather than only coloured.
+  titled rather than only colored.
 
 ### Added
 
@@ -844,7 +846,7 @@ Documentation and packaging only — no code change.
 
 Identical in code to 0.3.3. It exists only to correct the version number: 0.3.3
 was a feature release with a type-level break and should never have been a patch
-bump. 0.3.3 is deprecated on npm in favour of this release. Everything below is
+bump. 0.3.3 is deprecated on npm in favor of this release. Everything below is
 new relative to 0.3.2, not to 0.3.3.
 
 ### Added
@@ -899,11 +901,11 @@ new relative to 0.3.2, not to 0.3.3.
 - The status bar and the detail pane's empty states name what a row is in the
   active section — requests, connections, actions or queries — instead of calling
   every row a "request".
-- Every colour the panel paints now comes from the active theme's tokens: status
-  colours, method and section accents, waterfall bars, timing segments and JSON
+- Every color the panel paints now comes from the active theme's tokens: status
+  colors, method and section accents, waterfall bars, timing segments and JSON
   syntax highlighting. The previous split, with a light palette in CSS and a
   duplicate dark one in JS, is gone.
-- WebSocket, Redux and Query rows take their section's accent colour rather than
+- WebSocket, Redux and Query rows take their section's accent color rather than
   the shared fallback that HTTP verbs fell through to.
 - The docked badge reads "Blix" rather than "Dev", and the toolbar shows a BLIX
   wordmark beside the status dot.
