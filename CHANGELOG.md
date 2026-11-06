@@ -52,6 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Blix no longer holds the page's first request back.** In a Next.js app
+  with `gcTime: 0` queries, a page could stay un-hydrated after a refresh, its
+  `useQuery` never starting and nothing in the Network tab, until you clicked
+  somewhere. The panel renders inside your app's React root, and it
+  re-rendered on every cache event your page's render caused. Each re-render
+  threw that render away, and the restart caused the event again. The panel
+  now catches up only once the page is idle. It also no longer suspends while
+  its chunk loads: that cost every page with a `loading.tsx` up to 300 ms
+  before its effects ran.
 - **A value shared in two places is stored in both.** Persisting a state that
   held one object twice — a selected item that is also in the list — stored
   the second as truncated; it was taken for a cycle. Its size was undercounted

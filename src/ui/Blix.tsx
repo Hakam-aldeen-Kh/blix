@@ -1,10 +1,11 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { BlixBoundary } from "./BlixBoundary";
 import { BlixContext } from "./BlixContext";
 import type { StoreLike, HttpClientLike } from "./BlixContext";
 import { configureDbName } from "../capture/monitorConfig";
+import { whenIdle } from "./helpers/whenIdle";
 
 export interface BlixProps {
   store?: StoreLike<unknown>;
@@ -15,28 +16,78 @@ export interface BlixProps {
   dbName?: string;
 }
 
-const noopSubscribe = () => () => {};
-
 export default function Blix({ store, apiClient, dbName }: BlixProps) {
-  // Must be called before any conditional return (Rules of Hooks).
-  const panelRef = useRef<ReturnType<typeof lazy> | null>(null);
+  // The panel module, once its chunk has loaded. Held in state and loaded
+  // from an effect — deliberately not `lazy()` under a `<Suspense>`.
+  //
+  // `<Blix />` renders inside the host's React root, and anything that
+  // suspends there takes part in the host's scheduling. A `lazy()` panel
+  // committed a Suspense fallback and then revealed the panel a moment later,
+  // and React throttles every Suspense reveal that follows a fallback by
+  // 300 ms (`FALLBACK_THROTTLE_MS`) — root-wide, not per boundary. The host's
+  // own Suspense content landing in that window (a streamed Next.js route
+  // segment under `loading.tsx`, a route's lazy chunk) was held back with it:
+  // its effects, and so its first `useQuery` fetch, waited. A state update
+  // from a resolved `import()` suspends nothing and is throttled by nothing.
+  // It is applied once the host is idle, for the reason in `whenIdle`.
+  //
+  // `null` on the server and through hydration too, so the server markup and
+  // the client's first render agree and there is no mismatch to report.
+  const [Panel, setPanel] = useState<ComponentType | null>(null);
 
   // One object for as long as the two handles are the same. A literal in the
   // JSX below would be a new value on every render of the host component that
   // mounts Blix, and every consumer of the context would re-render with it.
   const ctx = useMemo(() => ({ store, apiClient }), [store, apiClient]);
 
-  // `false` on the server *and* during hydration, `true` on every client
-  // render after it. Branching on `typeof window` instead rendered `null` on
-  // the server and a `<Suspense>` on the client's first pass, which is a
-  // hydration mismatch in any SSR host (Next.js reports it on every load).
-  // React swaps to the client snapshot right after hydrating, so the panel
-  // mounts one render later with no warning.
-  const mounted = useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
+  useEffect(() => {
+    // Only Next.js inlines NEXT_PUBLIC_*; elsewhere `process` may not exist in
+    // the browser, so the opt-in read is guarded. `NODE_ENV` is not: every
+    // bundler inlines it. Written inline, here and in the effect below, and
+    // not hoisted into a const — a minifier folds the guarded expression in
+    // place but does not carry a const into this `if`, and the panel's chunk
+    // would then survive a build made with `NEXT_PUBLIC_BLIX=false`.
+    // The import() is inside literal env checks so webpack/Turbopack
+    // constant-fold the condition to false in production and eliminate the
+    // chunk reference entirely. `NEXT_PUBLIC_BLIX` is the explicit opt-in for
+    // a production build (a staging server) — see `MONITOR_ENABLED`.
+    // Do NOT replace this check with an imported boolean (e.g. MONITOR_ENABLED)
+    // — cross-file constant propagation is not guaranteed by every bundler.
+    // Nor turn it into an early `return`: esbuild folds `if (false) { … }`
+    // away, but keeps an `import()` that follows a folded `return`.
+    let live = true;
+    let cancelMount: (() => void) | null = null;
+    if (
+      process.env.NODE_ENV === "development" ||
+      (typeof process !== "undefined" &&
+        !!process.env &&
+        process.env.NEXT_PUBLIC_BLIX === "true")
+    ) {
+      import("./DevToolsPanel").then(
+        (module) => {
+          if (!live) return;
+          // Mounted once the host is idle, not the moment the chunk arrives:
+          // that moment is usually mid-hydration, and rendering the panel then
+          // would cost the host's render a restart. See `whenIdle`.
+          cancelMount = whenIdle(() => {
+            // The updater form: a component is a function, and handed to the
+            // setter directly it would be called as one.
+            if (live) setPanel(() => module.default);
+          });
+        },
+        // A chunk that failed to download used to surface as a throw from the
+        // lazy component, caught by `BlixBoundary`. It is caught here now, with
+        // the boundary's message, and the panel stays away until a reload.
+        (error: unknown) => {
+          console.error("[blix] the panel crashed and is disabled until reload:", error);
+        },
+      );
+    }
+    return () => {
+      live = false;
+      cancelMount?.();
+    };
+  }, []);
 
   // Without a name, every app on this origin shares `blix:default` — which is
   // a confusing thing to discover from the log rather than from a warning.
@@ -48,7 +99,7 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
   // NODE_ENV check keeps it out of production builds the same way the panel
   // itself is kept out.
   useEffect(() => {
-    // Same guarded read as the render check below — see the note there.
+    // Same guarded read as the effect above — see the note there.
     if (
       process.env.NODE_ENV !== "development" &&
       !(
@@ -73,42 +124,27 @@ export default function Blix({ store, apiClient, dbName }: BlixProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // `Panel` is only ever set by the guarded effect above, but the check is
+  // repeated here, inline, so a production build folds this branch away and
+  // drops the boundary, the context and `configureDbName` with it.
   if (
-    mounted &&
+    Panel &&
     (process.env.NODE_ENV === "development" ||
       (typeof process !== "undefined" &&
         !!process.env &&
         process.env.NEXT_PUBLIC_BLIX === "true"))
   ) {
-    // Only Next.js inlines NEXT_PUBLIC_*; elsewhere `process` may not exist in
-    // the browser, so the opt-in read is guarded. `NODE_ENV` is not: every
-    // bundler inlines it. Written inline, here and in the effect above, and
-    // not hoisted into a const — a minifier folds the guarded expression in
-    // place but does not carry a const into this `if`, and the panel's chunk
-    // would then survive a build made with `NEXT_PUBLIC_BLIX=false`.
-    // The import() is inside literal env checks so webpack/Turbopack
-    // constant-fold the condition to false in production and eliminate the
-    // chunk reference entirely. `NEXT_PUBLIC_BLIX` is the explicit opt-in for
-    // a production build (a staging server) — see `MONITOR_ENABLED`.
-    // Do NOT replace this check with an imported boolean (e.g. MONITOR_ENABLED)
-    // — cross-file constant propagation is not guaranteed by every bundler.
-    if (!panelRef.current) {
-      panelRef.current = lazy(() => import("./DevToolsPanel"));
-    }
-    const Panel = panelRef.current;
-
+    // Before the panel renders: its own mount effect opens the database, and
+    // child effects run before this component's.
     if (dbName) configureDbName(dbName);
 
     // The boundary is outermost: everything Blix renders — the provider, the
-    // panel, the launcher inside it, and the lazy chunk's own load, whose
-    // failure surfaces as a throw from `<Panel />` — is on the inside of it,
-    // and the host app is on the outside. See `BlixBoundary`.
+    // panel and the launcher inside it — is on the inside of it, and the host
+    // app is on the outside. See `BlixBoundary`.
     return (
       <BlixBoundary>
         <BlixContext.Provider value={ctx}>
-          <Suspense fallback={null}>
-            <Panel />
-          </Suspense>
+          <Panel />
         </BlixContext.Provider>
       </BlixBoundary>
     );
