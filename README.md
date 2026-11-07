@@ -11,6 +11,10 @@ An in-app dev-tools panel for React developers: every HTTP request, Redux action
 
 [![npm](https://img.shields.io/npm/v/@hakam-aldeen-kh/blix)](https://www.npmjs.com/package/@hakam-aldeen-kh/blix) [![CI](https://github.com/Hakam-aldeen-Kh/blix/actions/workflows/ci.yml/badge.svg)](https://github.com/Hakam-aldeen-Kh/blix/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/@hakam-aldeen-kh/blix)](https://github.com/Hakam-aldeen-Kh/blix/blob/main/LICENSE)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Hakam-aldeen-Kh/blix/main/docs/media/blix-readme.gif" width="830" alt="Blix running in a demo React shop: adding a coffee to the cart and clicking the Blix launcher opens the panel, which shows the app's HTTP requests, Redux actions, TanStack Query cache entries and WebSocket frames. The checkout mutation is linked to the POST /api/orders request it caused, a click on the link jumps to that request, and its Authorization header is shown masked. It ends on the install command, npm i -D @hakam-aldeen-kh/blix.">
+</p>
+
 ## Why Blix
 
 - **Four sources, one panel.** HTTP through `fetch` and axios, Redux actions with their state diffs, TanStack Query cache events, and realtime frames. The panel floats or docks to any edge of the page.
