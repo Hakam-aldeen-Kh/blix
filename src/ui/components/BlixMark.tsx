@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * Dev Tools — the mark ("Aperture"), in the full-colour brand states.
+ * Dev Tools — the mark ("Aperture"), in the full-color brand states.
  *
- * Four blades around an open centre. The blades are the four edges the panel
+ * Four blades around an open center. The blades are the four edges the panel
  * docks to, and the green one is the edge it is docked to now — a floating
- * panel has no edge, so it shows the default, bottom. The centre dot is the
+ * panel has no edge, so it shows the default, bottom. The center dot is the
  * REC light: there while capture runs, gone while it is paused.
  *
  * **Errors never reach the mark.** There is no red blade and no "failing"
  * state in the product; the failing counts already say where something
  * failed, beside the mark rather than on it.
  *
- * Colours come from `--bx-*` classes in the stylesheet, not attributes: an
+ * Colors come from `--bx-*` classes in the stylesheet, not attributes: an
  * SVG presentation attribute cannot read a custom property.
  */
 
@@ -53,11 +53,11 @@ export function BlixMark({
   size: number;
   /** The edge that is lit. `float` lights the default edge, bottom. */
   dock: DockMode;
-  /** `on` shows the REC dot; `paused` and `none` leave the centre open. */
+  /** `on` shows the REC dot; `paused` and `none` leave the center open. */
   capture: "on" | "paused" | "none";
   /** Requests in flight — the dot pulses. */
   live?: boolean;
-  /** The brand's idle state: every blade grey, none lit. For empty states. */
+  /** The brand's idle state: every blade gray, none lit. For empty states. */
   idle?: boolean;
   title?: string;
 }) {

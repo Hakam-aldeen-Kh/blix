@@ -191,7 +191,7 @@ export function StatusBar({
       <span className="nm-statusbar-spacer" />
 
       {/* Right: where the session is being kept. This group is the one that
-          shrinks — the database name ellipsises rather than the bar clipping
+          shrinks — the database name ellipsizes rather than the bar clipping
           it, because a name cut off mid-word answers nothing. */}
       <div className="nm-statusbar-group nm-statusbar-right">
         <Seg first className="nm-status-commands">

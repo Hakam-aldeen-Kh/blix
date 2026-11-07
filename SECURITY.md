@@ -53,7 +53,7 @@ header names are also masked as object keys, at any depth, in the data Blix
 copies (Redux payloads and diffs, query data, and everything saved to
 IndexedDB); a live HTTP body in the panel is not rewritten.
 
-Capturing all of this is intended behaviour, not a defect — a debugger that
+Capturing all of this is intended behavior, not a defect — a debugger that
 hid the payload would be useless — but it has a practical consequence:
 
 **Treat a captured log, and any exported HAR, as a credential-bearing
@@ -84,7 +84,7 @@ advisory** on this repository:
 That keeps the report private while it is being worked on. Please include the
 affected version, what you observed, and the steps to reproduce it.
 
-For non-sensitive reports — a documentation error about security behaviour, a
+For non-sensitive reports — a documentation error about security behavior, a
 hardening suggestion, anything that does not need to stay private — the
 [issue tracker](https://github.com/Hakam-aldeen-Kh/blix/issues) is fine and is
 easier to discuss in the open.

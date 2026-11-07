@@ -49,7 +49,7 @@ function luminance(hex: string): number | null {
   );
 }
 
-/** WCAG contrast ratio, or `null` if either colour is not a plain hex. */
+/** WCAG contrast ratio, or `null` if either color is not a plain hex. */
 export function contrast(fg: string, bg: string): number | null {
   const a = luminance(fg);
   const b = luminance(bg);
@@ -141,7 +141,7 @@ export function assertThemes(): void {
   const missing = missingSlots();
   for (const m of missing) {
     console.warn(
-      `[blix] theme "${m.theme}" is missing ${m.tokens.length} of the ${BX_TOKENS.length} colour slots: ${m.tokens.join(", ")}`,
+      `[blix] theme "${m.theme}" is missing ${m.tokens.length} of the ${BX_TOKENS.length} color slots: ${m.tokens.join(", ")}`,
     );
   }
 

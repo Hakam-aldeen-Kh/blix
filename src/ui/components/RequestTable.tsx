@@ -64,8 +64,8 @@ const COLUMNS: Record<Section, [string, string]> = {
 
 /**
  * The method column: the HTTP verb on Network, the kind of thing on the other
- * three. Plain monospace text — the coloured badge it replaces spent the
- * palette's loudest colours on the one field that is already a word.
+ * three. Plain monospace text — the colored badge it replaces spent the
+ * palette's loudest colors on the one field that is already a word.
  */
 function methodLabel(entry: MonitorEntry): string {
   switch (entry.kind ?? "http") {
@@ -166,7 +166,7 @@ const RequestRow = memo(function RequestRow({
       aria-selected={selected}
       data-nm-id={entry.id}
       data-tone={tone}
-      // Shape says the outcome, colour the severity: a failed 404 is amber
+      // Shape says the outcome, color the severity: a failed 404 is amber
       // but still square, so it never reads as a success by shape alone.
       data-failed={entry.state === "error" ? "" : undefined}
       tabIndex={tabbable ? 0 : -1}
@@ -234,7 +234,7 @@ const RequestRow = memo(function RequestRow({
         {timeLabel(entry)}
       </span>
 
-      {/* Two pixels of colour answers "did this request come from a query?"
+      {/* Two pixels of color answers "did this request come from a query?"
           while scanning; the detail pane's chips say which one. */}
       <span className="nm-col-links" data-col="links" role="gridcell">
         {linkTags
@@ -346,7 +346,7 @@ export function RequestTable({
     ["error", "Errors", counts.error],
     ["pending", pendingLabel, counts.pending],
   ];
-  // "Aborted" earns a chip only once there is something in it — a cancelled
+  // "Aborted" earns a chip only once there is something in it — a canceled
   // request, or one a page reload cut off mid-flight.
   if (counts.aborted > 0) segments.push(["aborted", "Aborted", counts.aborted]);
 

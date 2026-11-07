@@ -61,7 +61,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function api(url, req, res) {
   const i = Number(url.searchParams.get("i")) || 0;
   const [, , mod = "misc", action = "getAll"] = url.pathname.split("/");
-  // `?delay=` and `?status=` override the derived behaviour — the failure
+  // `?delay=` and `?status=` override the derived behavior — the failure
   // buttons in the playground use them to produce a timeout or a 500 on demand.
   // `x-delay` and `x-tag` do the same without changing the URL: the stress
   // tests send identical URLs, each with its own delay, and read the tag back

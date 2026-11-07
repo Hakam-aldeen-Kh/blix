@@ -15,7 +15,7 @@
  *   payloads because collapsed subtrees cost one row.
  * - **Table** — "how do these records compare?" Only offered when the payload
  *   is genuinely tabular; disabled with a reason when it is not.
- * - **JSON** — "what exactly came back?" The literal bytes, syntax-coloured.
+ * - **JSON** — "what exactly came back?" The literal bytes, syntax-colored.
  * - **YAML** — "what shape is this?" Indentation instead of punctuation, and
  *   multi-line strings rendered as text rather than escapes.
  * - **Text** — "it isn't JSON." An HTML error page, a CSV body, a stack trace
@@ -23,7 +23,7 @@
  *
  * The toolbar is shared across all five, so size, wrapping and Copy sit in the
  * same place whichever one is showing. **Copy copies what you are looking at**
- * — Table copies CSV, YAML copies YAML — which is the behaviour that makes the
+ * — Table copies CSV, YAML copies YAML — which is the behavior that makes the
  * formats worth having at the payload level rather than only at export time.
  */
 
@@ -43,7 +43,7 @@ import { TableView } from "./TableView";
 const FORMATS: { id: DataFormat; label: string; title: string }[] = [
   { id: "tree", label: "Tree", title: "Collapsible tree — best for exploring" },
   { id: "table", label: "Table", title: "Grid — best for comparing records" },
-  { id: "json", label: "JSON", title: "Raw JSON, syntax-coloured" },
+  { id: "json", label: "JSON", title: "Raw JSON, syntax-colored" },
   { id: "yaml", label: "YAML", title: "Indented — best for nested shapes" },
   { id: "text", label: "Text", title: "The body as plain text" },
 ];

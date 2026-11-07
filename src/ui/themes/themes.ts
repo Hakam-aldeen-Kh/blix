@@ -1,7 +1,7 @@
 /**
  * Dev Tools — the theme system.
  *
- * **One source of truth for colour.** Every colour the panel paints is derived
+ * **One source of truth for color.** Every color the panel paints is derived
  * from a `Palette` here and emitted as a CSS custom property. Nothing else in
  * the codebase hard-codes a hex value: components name a *role*
  * (`data-state="error"`, `data-accent="post"`) and the stylesheet resolves it
@@ -9,11 +9,11 @@
  * before this, the light palette lived in CSS while `kindAccent`/`STATE_COLORS`
  * kept a duplicate copy in JS, and the two could (and did) drift.
  *
- * **A palette is small on purpose.** Roughly twenty deliberate colours; the
+ * **A palette is small on purpose.** Roughly twenty deliberate colors; the
  * ~80 tokens the stylesheet actually consumes are *derived* from them by
  * `tokensFor` — the hairline overlays, the soft tints behind badges, the
- * shadows, the per-method and per-state colours. Adding a theme therefore
- * means choosing twenty colours, not maintaining eighty in lockstep.
+ * shadows, the per-method and per-state colors. Adding a theme therefore
+ * means choosing twenty colors, not maintaining eighty in lockstep.
  *
  * **Themes are independent of the host app.** The panel ships its own palette
  * precisely so a host's stylesheet can never distort it; the `auto` preference
@@ -80,7 +80,7 @@ export interface Palette {
   /** "No signal" — an aborted request, the All filter's dot. */
   neutral: string;
 
-  /** JSON viewer. `text` is the punctuation/body colour the others sit in. */
+  /** JSON viewer. `text` is the punctuation/body color the others sit in. */
   syntax: {
     text: string;
     key: string;
@@ -92,7 +92,7 @@ export interface Palette {
     blob: string;
   };
 
-  /** `"r,g,b"` — hairlines and elevation washes, i.e. the colour that "lifts"
+  /** `"r,g,b"` — hairlines and elevation washes, i.e. the color that "lifts"
    * a surface. Light on a dark theme, ink on a light one. */
   overlay: string;
   /** `"r,g,b"` — drop shadows, and the sunken wells inputs sit in. */
@@ -145,7 +145,7 @@ const MIDNIGHT: Palette = {
   scrim: "3,5,12",
 };
 
-/** True black, neutral greys, high contrast — for OLED displays and for
+/** True black, neutral grays, high contrast — for OLED displays and for
  * anyone who finds Midnight's blue cast tiring over a long session. */
 const CARBON: Palette = {
   base: "dark",
@@ -179,7 +179,7 @@ const CARBON: Palette = {
   scrim: "0,0,0",
 };
 
-/** Nord — the arctic blue-grey palette, muted enough for long sessions. */
+/** Nord — the arctic blue-gray palette, muted enough for long sessions. */
 const NORD: Palette = {
   base: "dark",
   bg: "#2e3440",
@@ -190,7 +190,7 @@ const NORD: Palette = {
   muted: "#b3bccd",
   // Lifted off Nord's own nord3 (#4c566a): the panel uses `faint` for column
   // heads and timestamps against surface-2, where the canonical value lands
-  // at 2.7:1. Nord's identity colours are kept exactly.
+  // at 2.7:1. Nord's identity colors are kept exactly.
   faint: "#8792a6",
   accent: "#88c0d0",
   network: "#81a1c1",
@@ -226,7 +226,7 @@ const DRACULA: Palette = {
   surface3: "#3c3f52",
   txt: "#f8f8f2",
   muted: "#aab0cc",
-  // Dracula's comment colour (#6272a4) is deliberately recessive; here the
+  // Dracula's comment color (#6272a4) is deliberately recessive; here the
   // same slot carries column heads and timestamps, so it is lifted to clear
   // 3:1 against surface-2.
   faint: "#7280b3",
@@ -255,7 +255,7 @@ const DRACULA: Palette = {
 
 /**
  * The light default. Tuned against white rather than being an inversion of
- * Midnight — the syntax and identity colours in particular need darker, more
+ * Midnight — the syntax and identity colors in particular need darker, more
  * saturated values to hold their contrast on a pale surface.
  */
 const DAYLIGHT: Palette = {
@@ -272,7 +272,7 @@ const DAYLIGHT: Palette = {
   realtime: "#0891a8",
   redux: "#7c3aed",
   // Both a step darker than the values this palette shipped with: the orange
-  // sat at 2.8:1 against the table ground and the null grey at 2.4:1.
+  // sat at 2.8:1 against the table ground and the null gray at 2.4:1.
   query: "#dd6a10",
   success: "#059669",
   error: "#dc2626",
@@ -299,7 +299,7 @@ const SOLAR: Palette = {
   surface: "#fdf6e3",
   surface2: "#f0e8d4",
   surface3: "#e6dcc3",
-  // Solarized's own greys and yellows are famously dim on its cream ground —
+  // Solarized's own grays and yellows are famously dim on its cream ground —
   // fine for prose, not for a table of timestamps and a JSON viewer. This is a
   // Solarized-*flavoured* palette rather than a strict port: the hues are
   // Solarized's, the lightness is pulled down until each role clears its
@@ -490,7 +490,7 @@ const LATTE: Palette = {
   neutral: "#7c7f93",
   // Latte's own accents are tuned for prose on its lightest surface; read as
   // dense monospace on the table ground they land around 3.5–4:1, so the
-  // syntax set is a shade deeper than the identity colours above it.
+  // syntax set is a shade deeper than the identity colors above it.
   syntax: {
     text: "#4c4f69",
     key: "#0b59f3",
@@ -668,7 +668,7 @@ export function normalizeThemePref(value: unknown): ThemePref {
 
 /* ── Token derivation ──────────────────────────────────────────────────── */
 
-/** `#rgb` / `#rrggbb` → `"r, g, b"`. Falls back to mid-grey rather than
+/** `#rgb` / `#rrggbb` → `"r, g, b"`. Falls back to mid-gray rather than
  * throwing: a malformed palette should look wrong, not crash the panel. */
 function channels(hex: string): string {
   const h = hex.replace("#", "");
@@ -702,7 +702,7 @@ export function themeTokens(p: Palette): Record<string, string> {
   const ov = (a: number) => `rgba(${p.overlay}, ${a})`;
   /** Shadows and sunken wells. */
   const sh = (a: number) => `rgba(${p.shadow}, ${a})`;
-  /** The tint behind a coloured badge, pill or selected row. */
+  /** The tint behind a colored badge, pill or selected row. */
   const soft = (hex: string) => alpha(hex, dark ? 0.14 : 0.12);
   /** The border of that same badge — one step more present than its fill. */
   const line = (hex: string) => alpha(hex, dark ? 0.34 : 0.28);
@@ -712,10 +712,10 @@ export function themeTokens(p: Palette): Record<string, string> {
    * a light theme has nothing to catch the light, so it is simply absent. */
   const inset = ov(dark ? 0.025 : 0);
 
-  /** HTTP methods reuse the semantic and identity colours rather than
+  /** HTTP methods reuse the semantic and identity colors rather than
    * introducing five more: GET reads as "the neutral one" (network), POST as
    * "creates" (success), PUT/PATCH as "mutates" (warning), DELETE as
-   * "destroys" (error). Only the fallback needs a colour of its own. */
+   * "destroys" (error). Only the fallback needs a color of its own. */
   const methods: Record<string, string> = {
     get: p.network,
     post: p.success,
@@ -724,7 +724,7 @@ export function themeTokens(p: Palette): Record<string, string> {
     other: p.redux,
   };
 
-  /** Request state. `aborted` is deliberately colourless — it can never
+  /** Request state. `aborted` is deliberately colorless — it can never
    * complete, so it must not read as "still working". */
   const states: Record<string, string> = {
     pending: p.warning,
@@ -782,7 +782,7 @@ export function themeTokens(p: Palette): Record<string, string> {
     "--nm-warning-soft": soft(p.warning),
     "--nm-warning-line": line(p.warning),
     /* `neutral` has no token of its own: it reaches the stylesheet only as the
-       `aborted` and `all` state colours, which is the only meaning it carries. */
+       `aborted` and `all` state colors, which is the only meaning it carries. */
 
     "--nm-syn-txt": p.syntax.text,
     "--nm-syn-key": p.syntax.key,
@@ -791,20 +791,20 @@ export function themeTokens(p: Palette): Record<string, string> {
     "--nm-syn-bool": p.syntax.bool,
     "--nm-syn-null": p.syntax.nul,
     "--nm-syn-blob": p.syntax.blob,
-    /* The blob colour also marks ciphertext outside the viewer — the Encrypted
-       tab's badge — so it needs the same soft companion every badge colour has. */
+    /* The blob color also marks ciphertext outside the viewer — the Encrypted
+       tab's badge — so it needs the same soft companion every badge color has. */
     "--nm-syn-blob-soft": soft(p.syntax.blob),
     "--nm-mark": alpha(p.warning, dark ? 0.32 : 0.28),
 
     "--nm-wf-track": ov(dark ? 0.05 : 0.07),
     /* The barber-pole stripe over an in-flight waterfall bar. It sits *on* a
-       saturated state colour, so it takes the overlay direction — light
+       saturated state color, so it takes the overlay direction — light
        stripes on a dark theme, ink on a light one. */
     "--nm-stripe": ov(dark ? 0.28 : 0.22),
     "--nm-scroll-thumb": ov(dark ? 0.13 : 0.18),
     "--nm-scroll-thumb-hover": ov(dark ? 0.22 : 0.3),
 
-    /* Shadows carry both geometry and colour so a theme can restate the whole
+    /* Shadows carry both geometry and color so a theme can restate the whole
        elevation model — a light theme needs a tighter, weaker shadow than a
        dark one to read as the same height. */
     "--nm-shadow-panel": dark
@@ -839,7 +839,7 @@ export function themeTokens(p: Palette): Record<string, string> {
     t[`--nm-state-${key}`] = color;
     t[`--nm-state-${key}-soft`] = alpha(color, dark ? 0.18 : 0.14);
     // The glow under the badge dot and the header logo — the one place a
-    // colour is allowed to bloom rather than sit inside a border.
+    // color is allowed to bloom rather than sit inside a border.
     t[`--nm-state-${key}-glow`] = alpha(color, 0.55);
   }
 

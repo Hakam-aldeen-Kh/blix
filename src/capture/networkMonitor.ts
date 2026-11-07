@@ -97,7 +97,7 @@ const EMPTY: MonitorEntry[] = [];
 /** What a capture source supplies; the store fills in the rest.
  *
  * `state` is optional: HTTP/realtime callers omit it and get `"pending"`
- * (the original behaviour), while Redux/Query capture — which already knows
+ * (the original behavior), while Redux/Query capture — which already knows
  * the outcome by the time it calls `start()` — can pass a terminal state
  * directly instead of a spurious pending phase. */
 export type MonitorStartInput = Omit<

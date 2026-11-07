@@ -16,9 +16,9 @@
  * **Four bands, not two.** Ground, bar, text, accent, at 34/26/22/18% — because
  * a two-tone chip cannot tell you whether a theme's text has contrast against
  * its own ground, which is the only thing you need to know before trying one
- * on. The bands are painted from the palette's literal colours: the one place
- * in the panel where an inline colour is correct rather than a token, because
- * the subject *is* the colour.
+ * on. The bands are painted from the palette's literal colors: the one place
+ * in the panel where an inline color is correct rather than a token, because
+ * the subject *is* the color.
  */
 
 import { Fragment, useRef } from "react";

@@ -178,7 +178,7 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
 `attachHttpMonitor` is idempotent per instance — a second call on the same
 instance, or on its `withInitiatorCapture` wrapper, does nothing — and it
 returns a disposer that ejects both interceptors, for HMR and tests. A request
-cancelled through an `AbortController` or a `CancelToken` settles as
+canceled through an `AbortController` or a `CancelToken` settles as
 **aborted**, not as an error; a timeout is still an error.
 
 #### Factory and lazy-singleton clients
@@ -209,7 +209,7 @@ ordering is actually correct.
 
 Blix records how a request ended **at the wire**: before the first of your
 response interceptors runs, while the value is still the `AxiosError` — or the
-response — that axios produced. So a response interceptor that normalises
+response — that axios produced. So a response interceptor that normalizes
 errors into your own domain type no longer costs you the entry:
 
 ```ts
@@ -243,7 +243,7 @@ Three limits:
   `pending`: nothing times it out.
 - The wire is observed by wrapping the first response interceptor already on
   the instance. On an axios whose internals do not have the shape Blix expects
-  it is skipped, and the behaviour above falls back to correlating by
+  it is skipped, and the behavior above falls back to correlating by
   `error.config` alone.
 
 #### Response interceptors that unwrap
@@ -258,7 +258,7 @@ included, before the interceptor unwraps it:
   returned. (Before 0.7.0 Blix threw at this point, and every request on the
   instance failed.)
 - the Response tab shows the body your code received — the unwrapped,
-  decrypted one — when Blix can recognise it as the same object, and the body
+  decrypted one — when Blix can recognize it as the same object, and the body
   as it came off the wire otherwise.
 
 #### Which request headers the panel shows
@@ -353,7 +353,7 @@ private static async decryptResponse(response) {
 
 Note the placement on the response side: call it **before** you decrypt, so the
 value you hand over is the wire form. Calling it after decryption puts your
-plaintext response — secrets included — under a tab labelled Encrypted, which
+plaintext response — secrets included — under a tab labeled Encrypted, which
 is both wrong and a disclosure. See the redaction note below.
 
 ##### Call it only where encryption actually happened
@@ -662,7 +662,7 @@ and not just the response body:
 | `http` | The server answered with a status the client treats as an error. |
 | `timeout` | No answer inside the configured time. |
 | `network` | No answer at all: offline, DNS, refused, or blocked by CORS — the browser does not tell scripts which. |
-| `aborted` | Cancelled by the page: `AbortController`, a cancel token, navigation. |
+| `aborted` | Canceled by the page: `AbortController`, a cancel token, navigation. |
 | `setup` | Thrown before the request left — by an interceptor, or while building it. |
 | `unknown` | None of the above could be established. |
 
@@ -760,7 +760,7 @@ changing the state between them, fold into a single row counting them; its
 diff runs from before the first to after the last), and
 `maxActionsPerSecond` (above this rate, capture drops to type + timing and
 skips diffing). Outside development the factory returns a pure pass-through
-middleware, so calling it unguarded is *behaviourally* free — but see
+middleware, so calling it unguarded is *behaviorally* free — but see
 [Guard your call sites](#guard-your-call-sites) for why the guard above is
 still worth the extra three lines.
 
@@ -948,7 +948,7 @@ Query. They are not filters over one table: each has its own columns and its
 own notion of a row, so switching source switches the whole view. `1`–`4` jump
 between them, and each keeps its own selection, so stepping to Redux and back
 returns you to the request you were reading. Each source has its own icon and
-colour — Network blue, Realtime teal, Redux violet, Query orange — and, once
+color — Network blue, Realtime teal, Redux violet, Query orange — and, once
 something in it has failed, a red count behind a square marker beside its
 total; the number key that selects it is in its tooltip. Below the sources it
 carries the session totals; collapsed, it keeps the sources and their counts
@@ -959,7 +959,7 @@ unattributed numbers.
 is being filtered out, and where the panel lives. It starts with the Blix
 mark, which says two of those at a glance: the green blade is the edge the
 panel is docked to (bottom for a floating panel), and the red dot in the
-centre is there while capture is running. Beside it, the capture chip says the
+center is there while capture is running. Beside it, the capture chip says the
 same in words — **RECORDING** with a red dot, or **PAUSED** with an amber
 square — and pauses or resumes capture when clicked. While a filter is on, the
 field carries its own count — `8 of 56` — and a clear button, so you never
@@ -968,11 +968,11 @@ request and response bodies.
 
 **Each row starts with a status dot** — round when the request worked, square
 when it failed, hollow while it is still in flight — so the outcome reads by
-shape as well as colour. The colour is severity: a 5xx, a 401 and a request
+shape as well as color. The color is severity: a 5xx, a 401 and a request
 with no answer are red, while any other 4xx is amber — a 404 on an avatar is
 not the same news as a 500 on checkout. Both are failures, and both are square. Failing rows are tinted red, and stay red
 when selected; any other selected row gets a green edge. The bars on the right
-are drawn in one neutral colour so they compare as lengths: green for the
+are drawn in one neutral color so they compare as lengths: green for the
 selected row, red for failures.
 
 **The red bin beside Export clears the source you are reading**, and only
@@ -1062,7 +1062,7 @@ route keeps the width it needs.
 
 **Linked events tie the sources together.** When Blix can see that a query
 caused a request, that a request came from a query, or that one entry is a
-replay of another, the row grows a coloured tick and the foot of the detail
+replay of another, the row grows a colored tick and the foot of the detail
 pane grows a chip you can click to step straight to the other side. The
 relation is observed, never inferred: no tick means *not known*, not
 *unrelated*. A request belongs to a query or mutation when its `queryFn` or
@@ -1132,7 +1132,7 @@ it once rather than per request.
 | --- | --- |
 | **Tree** | *What's in here?* Collapsible and searchable; a collapsed subtree costs one row, so it stays fast on multi-megabyte responses. |
 | **Table** | *How do these records compare?* A grid, offered when the payload is a list of records or a keyed map. Sparse and surplus columns are hidden with a count. |
-| **JSON** | *What exactly came back?* Raw and syntax-coloured, with a fold caret on every object and array — plus **Collapse all**, which leaves the top-level keys readable and their contents folded. |
+| **JSON** | *What exactly came back?* Raw and syntax-colored, with a fold caret on every object and array — plus **Collapse all**, which leaves the top-level keys readable and their contents folded. |
 | **YAML** | *What shape is this?* Indentation instead of punctuation, and multi-line strings — stack traces, SQL — shown as text rather than escapes. |
 | **Text** | *It isn't JSON.* An HTML error page, a CSV body, a proxy's plain-text response. |
 
@@ -1147,7 +1147,7 @@ frames, the encrypted envelope, Redux actions, and both Redux state views:
 - **Diff** keeps its `+ / − / ±` rows as the default view and adds the other
   five alongside. **Table** is the natural one — a diff *is* `path | op |
   before | after` — and Tree lets you open up a `before` that was an object,
-  which the one-line rows could only ever summarise. Copying the rows view
+  which the one-line rows could only ever summarize. Copying the rows view
   gives you a plain-text diff for a ticket, not JSON.
 
 Right-click any request for **Copy as cURL** or **Copy as fetch** — the latter
@@ -1217,7 +1217,7 @@ panel's other preferences and survives a reload.
 
 The panel never inherits your app's styling — it portals outside every stacking
 context and ships its own palettes, so nothing you do to your own theme can
-distort it. Themes are complete rather than partial: every colour the panel
+distort it. Themes are complete rather than partial: every color the panel
 paints, down to the JSON syntax highlighting and the timing bars, comes from
 the active theme. The two tones that carry text are held to 4.5:1 against every
 ground they land on, which is why a few of the ported palettes differ by a
@@ -1225,7 +1225,7 @@ shade from the originals in the slots used for dense monospace. One tone is
 deliberately below it and may never hold text: it is for separators, payload
 punctuation and disabled glyphs.
 
-There is no API for adding your own; a theme is 33 colour slots in
+There is no API for adding your own; a theme is 33 color slots in
 `src/ui/themes/bx.ts` if you are working from source. Every theme fills the
 same set. A development-time check reports any theme that cannot, along with
 any whose text tones fall under 4.5:1 on a ground they actually land on. Since
@@ -1395,7 +1395,7 @@ The variable is read under its `NEXT_PUBLIC_` name, which is a Next.js
 convention. The opt-in has been verified with Next.js 16 (Turbopack) only;
 other bundlers do not inline that name by default.
 
-So `NEXT_PUBLIC_BLIX` is honoured only where the bundler inlines it. On Vite,
+So `NEXT_PUBLIC_BLIX` is honored only where the bundler inlines it. On Vite,
 esbuild, Rollup and the like it is ignored, safely: the read is guarded, so it
 does not depend on a `process` global existing in the browser, and Blix stays
 off in production.
@@ -1497,7 +1497,7 @@ Switching it on writes every entry already sitting in the live buffer — the
 session you have *already* captured — to disk immediately, along with
 everything that follows. If you have just reproduced a login flow and then
 reach for the toggle, you have written that login flow to disk. Read that
-again before you assume otherwise; it is the one behaviour here that
+again before you assume otherwise; it is the one behavior here that
 reasonably surprises people.
 
 With preserve-log on, this is what is kept:

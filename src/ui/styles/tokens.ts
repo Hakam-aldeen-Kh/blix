@@ -3,7 +3,7 @@
  *
  * **This file is the only place a size, a radius, a font or a spacing step is
  * allowed to be written down.** Everything else in the stylesheet names a
- * token. Colour lives in `themes/bx.ts`, because colour is the one axis a
+ * token. Color lives in `themes/bx.ts`, because color is the one axis a
  * theme may restate; every value here is identical in all twelve themes.
  *
  * **Why not a `.css` file.** The package ships as ESM with `sideEffects:
@@ -30,7 +30,7 @@
  * `--bx-row` is deliberately absent: row height is a *setting*, not a
  * constant, and `constants/ui.ts` owns the three density steps. The panel
  * writes the active one onto the root element's style attribute, down the same
- * path the theme's colours take, so the virtualizer and CSS read one number.
+ * path the theme's colors take, so the virtualizer and CSS read one number.
  */
 const SIZES = `
 .nm-root {

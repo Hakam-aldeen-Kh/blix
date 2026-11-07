@@ -49,7 +49,7 @@ api.interceptors.response.use(undefined, (error) => {
     config._tries = (config._tries ?? 0) + 1;
     return api(config);
   }
-  return Promise.reject(new ApiError("normalised"));
+  return Promise.reject(new ApiError("normalized"));
 });
 attachHttpMonitor(api);
 
@@ -233,7 +233,7 @@ const scenarios: Record<string, Scenario> = {
       ];
     },
   },
-  "Q6 query cancelled mid-flight": {
+  "Q6 query canceled mid-flight": {
     run: async () => {
       const p = swallow(qc.fetchQuery({ queryKey: ["q6"], queryFn: ({ signal }) => fetch("/x/json?delay=600&t=q6", { signal }).then((r) => r.json()) }));
       await sleep(60);
