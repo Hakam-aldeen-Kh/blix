@@ -1,0 +1,32 @@
+name: Change file
+
+# A PR that changes src/ adds a file to .changes/, or is labeled
+# "no changelog" — see .changes/README.md. Its own workflow, not a CI step:
+# it has to run again when a label is added or removed, and that should not
+# rerun the whole browser suite. It needs no install: the check is plain Node
+# and git.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  change-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The merge base with the PR's base branch has to be in the clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Check the PR's change file
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: node scripts/check-changes.mjs --base "origin/${{ github.base_ref }}"
