@@ -9,6 +9,16 @@ updates:
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 breaks the build: the tools that emit `.d.ts` still call
+      # the compiler API it no longer has ("reading 'useCaseSensitiveFileNames'"
+      # in #16). Lift this once tsup and vitest support it.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # CI and contributors run Node 22. Types for a newer Node would accept
+      # APIs that fail at runtime on 22 (#15), so these follow the Node we run.
+      - dependency-name: "@types/node"
+        versions: [">=23"]
     commit-message:
       prefix: chore(deps)
 
