@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Parallel requests to one path keep their own browser timing.** Requests
+  that differ only in the query string (`/items?id=1`, `/items?id=2`, …) and
+  end within a millisecond of each other could each show a neighbour's phases
+  — its connect time, its wait for the first byte. A request with the timing
+  entry's exact URL now always wins; matching by path alone is left for the
+  case it exists for, axios `params`, when no request has the exact URL.
 - **Blix no longer holds the page's first request back.** In a Next.js app
   with `gcTime: 0` queries, a page could stay un-hydrated after a refresh, its
   `useQuery` never starting and nothing in the Network tab, until you clicked
