@@ -205,8 +205,15 @@ function candidate(
  * belong to has ended: matched earlier, it would pick among the ones that
  * happened to finish first.
  *
- * An exact URL match is preferred; a path match covers axios, whose final
- * query string (`params`) is built after the interceptor that recorded the URL.
+ * A path match covers axios, whose final query string (`params`) is built
+ * after the interceptor that recorded the URL — and only that: when any
+ * candidate has the timing entry's exact URL, path-only candidates are out.
+ * Weighting them a little worse was not enough. Parallel requests to one path
+ * that differ only in the query (`?k=0`, `?k=1`, … — `fetch-parallel-same-url`
+ * in check:official) end within a millisecond of each other under the
+ * per-host connection limit, and a neighbour that ended closer to the
+ * browser's end outscored the exact one: every request got its neighbour's
+ * phases.
  */
 function findEntry(
   t: PerformanceResourceTiming,
@@ -224,11 +231,20 @@ function findEntry(
   const loadId = entries[0]?.loadId;
   let best: MonitorEntry | undefined;
   let bestScore = Infinity;
+  // Once a candidate has the exact URL, only exact ones compete.
+  let exactOnly = false;
 
   for (let i = 0; i < entries.length && i < SCAN_LIMIT; i += 1) {
     const entry = entries[i];
     const match = candidate(t, timingPath, entry, loadId);
     if (!match) continue;
+    if (match.exact && !exactOnly) {
+      exactOnly = true;
+      best = undefined;
+      bestScore = Infinity;
+    } else if (!match.exact && exactOnly) {
+      continue;
+    }
     if (entry.endTime === undefined) {
       if (!deferred) return "wait";
       continue;
@@ -241,9 +257,9 @@ function findEntry(
     const anchor = stoppedAtHeaders(entry) ? t.responseStart : t.responseEnd;
     const lag = entry.endTime - anchor;
     if (lag < -END_SLACK_MS) continue;
-    // The start only breaks a tie; an exact URL beats a path match.
+    // The start only breaks a tie.
     const lead = Math.abs(t.startTime - entry.startTime);
-    const score = Math.max(lag, 0) + lead / 1000 + (match.exact ? 0 : 0.5);
+    const score = Math.max(lag, 0) + lead / 1000;
     if (score < bestScore) {
       best = entry;
       bestScore = score;
