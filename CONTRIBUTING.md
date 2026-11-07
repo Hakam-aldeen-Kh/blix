@@ -66,7 +66,7 @@ It is these layers, fastest first:
 | Layer | Command | What it covers |
 | --- | --- | --- |
 | Unit | `pnpm test` (`pnpm test:watch` while you work, `pnpm test:coverage` for a report) | One module at a time — its logic and its edge cases. In `test/`. |
-| Scenarios | `pnpm check` | Modules together, in Node: the production guard, redaction, isolation from the host, snippets, the keyboard, hydration, axios behind host interceptors, storage, the panel's footprint, request linking. |
+| Scenarios | `pnpm check` | Modules together, in Node: the production guard, redaction, isolation from the host, snippets, the keyboard, hydration, axios behind host interceptors, storage, the panel's footprint, request linking, and that every change file parses. |
 | Package | `pnpm check:package` | The tarball npm would publish, installed into a fresh project: contents, `import` and `require`, a consumer's types, the size budget. Reads `dist/`, so build first. |
 | Browser | `pnpm check:browser` | In Chrome (or `--browser msedge`): every request compared with the browser's own record (`check:official`), hard cases built to break the linking (`check:adversarial`), a host render that Blix must not hold back (`check:host`), and the panel driven by mouse and keyboard (`check:e2e`). |
 
@@ -118,9 +118,11 @@ Two rules matter more than the rest:
 3. Write commits in the [Conventional Commits](https://www.conventionalcommits.org/)
    style the history already uses: `feat(ui): …`, `fix(capture): …`,
    `docs: …`, `chore: …`.
-4. Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for
-   anything a user would notice. Create that heading at the top if it is not
-   there.
+4. Add a change file to [`.changes/`](.changes/README.md) for anything a
+   user would notice: a few lines with its type (`Added`, `Changed`, `Fixed`…)
+   and the text of its CHANGELOG line. Don't edit `CHANGELOG.md`; the release
+   writes it. A PR that changes `src/` without one fails the `Change file`
+   check, unless it is labeled `no changelog`.
 5. Update every Markdown file your change makes wrong or incomplete, in the
    same PR. This is required. `docs/en.md` when behavior, options or exports
    change (it is what [blixjs.dev/docs](https://blixjs.dev/docs) shows),
@@ -130,8 +132,11 @@ Two rules matter more than the rest:
 6. Write prose in American English (`behavior`, `color`).
 7. Make sure `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm check` pass.
 
-Releases are cut by the maintainer: a version bump, the changelog section,
-and a `v*` tag, which publishes to npm.
+Releases are cut by the maintainer. `pnpm release:prepare <patch|minor|major>`
+turns the change files into the version's CHANGELOG section, bumps the
+version and deletes them (`--dry-run` shows the section first). That goes in
+a release PR; the `v*` tag on its merge commit publishes to npm, and
+blixjs.dev follows the latest release.
 
 ## Translations
 

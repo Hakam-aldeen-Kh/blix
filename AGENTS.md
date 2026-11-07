@@ -26,6 +26,8 @@ pnpm check                # every scenario check in scripts/ (needs no build, ex
 pnpm check:package        # the packed tarball in a fresh project (build first)
 pnpm check:browser        # official comparison, hard cases, host render, panel E2E — in the installed Chrome
 pnpm release:check        # all of the above, in order
+pnpm check:changes        # every .changes/ file parses (part of pnpm check)
+pnpm release:prepare patch --dry-run  # the next CHANGELOG section from .changes/ (maintainer)
 node playground/serve.mjs # the dev page at http://localhost:5179
 ```
 
@@ -79,7 +81,7 @@ Run a single check with `pnpm check:<name>`, a single test file with
 | Capture or linking | Extend the closest `scripts/check-*.mjs`; run `pnpm check:linking` and `pnpm check:adversarial`. |
 | The panel | Run `pnpm check:e2e`; extend it if you added a control. Find elements by role and accessible name. |
 | An export, copy or snippet | Assert the output still masks credentials (`check:redaction`, `check:snippets`, `test/ui/exports.test.ts`). |
-| Anything a user notices | A line under `## [Unreleased]` in `CHANGELOG.md`, and `docs/en.md` (it is what blixjs.dev/docs shows). |
+| Anything a user notices | A change file in `.changes/` (see its README; never edit `CHANGELOG.md` directly), and `docs/en.md` (it is what blixjs.dev/docs shows). |
 | Public API or exports | `docs/en.md`, the types, and `pnpm check:package`. |
 
 ## Documentation is part of the change
@@ -91,7 +93,7 @@ option, command or behavior) and fix every place that no longer holds.
 
 | You changed | Update |
 | --- | --- |
-| Anything a user notices | `CHANGELOG.md` under `## [Unreleased]`, and `docs/en.md`. |
+| Anything a user notices | A change file in `.changes/`, and `docs/en.md`. |
 | Public API, props, options or exports | `docs/en.md`, and `README.md` where it shows them. |
 | A module's job, the data flow, how a link is made, or a rule | `ARCHITECTURE.md`. |
 | A command, script, check or CI step | `AGENTS.md` (Commands), `CONTRIBUTING.md` (Checks), `ARCHITECTURE.md` (Testing). |
