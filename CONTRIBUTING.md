@@ -21,8 +21,9 @@ By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Setup
 
-You need Node.js 18 or later (CI runs 22) and pnpm. The pnpm version is pinned
-in `package.json` under `packageManager`; `corepack enable` picks it up.
+You need Node.js 22.18 or later (CI runs 22) and pnpm: the build tool, tsup,
+needs it. Apps that use Blix still need only Node.js 18. The pnpm version is
+pinned in `package.json` under `packageManager`; `corepack enable` picks it up.
 
 ```bash
 git clone https://github.com/Hakam-aldeen-Kh/blix.git
