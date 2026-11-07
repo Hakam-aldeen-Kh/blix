@@ -24,12 +24,20 @@ import { startTransition, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import Blix from "../../src/ui/Blix";
 import { tapQueryClient } from "../../src/capture/queryCapture";
+import { prefsStore } from "../../src/capture/monitorPersistence";
 
 interface HostReport {
   askedAt?: number;
   effectAt?: number;
   queryFnAt?: number;
   panel: boolean;
+  /** Row renders since the page was asked for: 400 for one pass, more when
+   * React threw a render away and started it again. */
+  rows: number;
+  /** `rows` when `queryFn` was first called. */
+  rowsAtQueryFn?: number;
+  /** When the saved log finished loading, if after the page was asked for. */
+  restoredAt?: number;
 }
 declare global {
   interface Window {
@@ -37,7 +45,7 @@ declare global {
     __showPage: () => void;
   }
 }
-window.__host = { panel: false };
+window.__host = { panel: false, rows: 0 };
 
 const withBlix = new URLSearchParams(location.search).get("blix") !== "0";
 
@@ -49,6 +57,7 @@ const client = new QueryClient({
 /** A component that takes `ms` of main thread to render, so the page render
  * is long enough that React has to slice it. */
 function Slow({ ms, i }: { ms: number; i: number }) {
+  window.__host.rows += 1;
   const until = performance.now() + ms;
   while (performance.now() < until) {
     /* render cost */
@@ -61,6 +70,7 @@ function List() {
     queryKey: ["items"],
     queryFn: async () => {
       window.__host.queryFnAt ??= performance.now();
+      window.__host.rowsAtQueryFn ??= window.__host.rows;
       return [1, 2, 3];
     },
   });
@@ -99,6 +109,23 @@ function App() {
     </QueryClientProvider>
   );
 }
+
+// Blix restores its saved log from IndexedDB as the panel mounts — in an app,
+// that is while the app itself is hydrating. Asking for the page as the
+// restore starts makes its end land inside the page's render every time,
+// rather than when the timing happens to line up. `?onRestore=1` asks for it;
+// it is read here, at load, so it is set before the panel can mount.
+let showOnRestore = new URLSearchParams(location.search).get("onRestore") === "1";
+prefsStore.subscribe(() => {
+  const { hydration } = prefsStore.getSnapshot();
+  if (hydration === "loading" && showOnRestore) {
+    showOnRestore = false;
+    window.__showPage();
+  }
+  if (hydration === "ready" && window.__host.askedAt !== undefined) {
+    window.__host.restoredAt ??= performance.now();
+  }
+});
 
 createRoot(document.getElementById("root")!).render(<App />);
 

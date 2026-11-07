@@ -1336,8 +1336,10 @@ on `typeof window` instead, which Next.js reported as a hydration mismatch on
 every load.)
 
 **The panel waits for your app.** It loads its chunk after hydration and
-mounts once the page is idle; after that it re-reads the log only when the
-page is idle again. The panel shares your React root, and React drops a
+mounts once the page is idle; after that it re-reads the log, and the status
+of the saved log it restores as it mounts, only when the page is idle again.
+Your own clicks and drags on the panel show at once. The panel shares your
+React root, and React drops a
 render in progress whenever anything in that root updates. If the panel
 updated while your page was rendering, the page started over, and a page
 whose render is itself captured (a `useQuery` with `gcTime: 0` builds its

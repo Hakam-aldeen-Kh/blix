@@ -196,6 +196,15 @@ const nextDock = (mode: DockMode): DockMode =>
  */
 const subscribeEntries = subscribeWhenIdle(networkMonitor.subscribe);
 
+/**
+ * Prefs and the saved log's status, the same way — except the developer's own
+ * changes, which show at once. Restoring the saved log starts as the panel
+ * mounts, usually while the host is still hydrating, and its "loading" and
+ * "ready" each re-rendered the panel there and then: the host's render was
+ * thrown away and redone, up to a whole pass of it (check:host, scenario 4).
+ */
+const subscribePrefs = subscribeWhenIdle(prefsStore.subscribe, (change) => change === "user");
+
 export default function DevTools() {
   const { apiClient, store } = useContext(BlixContext);
   const entries = useSyncExternalStore(
@@ -204,7 +213,7 @@ export default function DevTools() {
     networkMonitor.getServerSnapshot,
   );
   const { prefs, hydration, storage } = useSyncExternalStore(
-    prefsStore.subscribe,
+    subscribePrefs,
     prefsStore.getSnapshot,
     prefsStore.getServerSnapshot,
   );
