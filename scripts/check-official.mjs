@@ -536,7 +536,26 @@ for (const { tag, cdp: c, blix: b } of pairs) {
     }
     if (c.end !== undefined && c.start !== undefined) {
       const total = (c.end - c.start) * 1000;
-      note(s, tag, "total", near(total, w.totalMs, 3) ? "match" : "mismatch", `browser ${total.toFixed(1)} ms, Blix ${w.totalMs}`);
+      // CDP's clock starts at `requestWillBeSent`, before the network stack
+      // takes the request (`timing.requestTime`); ResourceTiming, all a page
+      // can read, starts just before `requestTime`. On GitHub's runners the
+      // page's first POST with a body spent ~5 ms in between — the upload
+      // being set up — so CDP's total ran ~5 ms over Blix's while every phase
+      // matched. That gap is explained only when it accounts for the whole
+      // difference: Blix's total lies between the browser's network span
+      // (`requestTime` to the end) and its full total. Any other gap is still
+      // a mismatch. Only for a same-origin request that was not redirected:
+      // a redirect hop or a CORS preflight also sits before the final
+      // `requestTime`, and would widen the window past what this explains.
+      const plain = !c.hops.length && new URL(c.url).origin === ORIGIN_A;
+      const network = plain && tm.requestTime >= c.start ? (c.end - tm.requestTime) * 1000 : undefined;
+      const beforeNetwork = network !== undefined && w.totalMs >= network - 1 && w.totalMs <= total;
+      const verdict = near(total, w.totalMs, 3) ? "match" : beforeNetwork ? "explained" : "mismatch";
+      const detail =
+        verdict === "explained"
+          ? `before the network stack: ${(total - network).toFixed(1)} ms from the call to the browser starting the request, which ResourceTiming does not include`
+          : `browser ${total.toFixed(1)} ms, Blix ${w.totalMs}`;
+      note(s, tag, "total", verdict, detail);
     }
   }
 
