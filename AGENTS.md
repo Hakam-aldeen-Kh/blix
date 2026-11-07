@@ -27,6 +27,7 @@ pnpm check:package        # the packed tarball in a fresh project (build first)
 pnpm check:browser        # official comparison, hard cases, host render, panel E2E — in the installed Chrome
 pnpm release:check        # all of the above, in order
 pnpm check:changes        # every .changes/ file parses (part of pnpm check)
+pnpm audit --audit-level high  # known vulnerabilities in dependencies (CI runs it, with CodeQL)
 pnpm release:prepare patch --dry-run  # the next CHANGELOG section from .changes/ (maintainer)
 node playground/serve.mjs # the dev page at http://localhost:5179
 ```

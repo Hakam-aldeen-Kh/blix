@@ -170,6 +170,7 @@ Each layer is described in [CONTRIBUTING.md](CONTRIBUTING.md#checks); in short:
 | Scenarios | `scripts/check-*.mjs` | Modules together, in Node: redaction, isolation, hydration, linking, axios behind host interceptors… `check-changes` checks the change files in `.changes/`, and in CI that a PR changing `src/` adds one. |
 | Package | `scripts/check-package.mjs` | The tarball as npm ships it, in a fresh project. |
 | Browser | `check-official`, `check-adversarial`, `check-host`, `check-e2e` | Against Chrome's own record, hard cases, a host render Blix must not hold back or make React redo, and the panel driven by mouse and keyboard. In CI, `check-official`'s dump and report are kept as the `official-comparison` artifact. |
+| Security | `.github/workflows/security.yml` | `pnpm audit --audit-level high` and CodeQL, on every PR, on `main` and weekly. Alerts on `main` go to the Security tab (write access); a finding a PR introduces is annotated on that PR. |
 
 `pnpm release:check` runs all of them.
 

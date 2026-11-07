@@ -74,6 +74,17 @@ in the browser profile until you remove it from **Databases on this origin**.
 The [Security](https://blixjs.dev/docs/security) page of the docs says exactly what is
 captured, what reaches disk, what is redacted, and how to purge.
 
+## Automated checks
+
+Every pull request, every push to `main` and a weekly run go through
+`pnpm audit` (known vulnerabilities in the dependency tree; Blix itself ships
+no runtime dependencies) and GitHub's CodeQL analysis of the JavaScript and
+TypeScript. Alerts on `main` are listed in the repository's Security tab, which
+needs write access to see. A finding that a pull request introduces is also
+annotated on that pull request, which is as public as the repository: report
+anything sensitive privately, as below, rather than as a PR. These checks
+complement a report; they do not replace one.
+
 ## Reporting a vulnerability
 
 For anything security-sensitive, please use a **GitHub private security

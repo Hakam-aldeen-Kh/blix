@@ -1,0 +1,14 @@
+# What CodeQL analyzes. The published code is src/; scripts/ and playground/
+# run only on a developer's machine or in CI, but they serve pages and run
+# shells, so they are analyzed too. Built output and dependencies are not.
+name: Blix CodeQL config
+
+queries:
+  # The default suite plus the security-extended queries: more findings,
+  # still security ones, not style.
+  - uses: security-extended
+
+paths-ignore:
+  - dist
+  - node_modules
+  - coverage
