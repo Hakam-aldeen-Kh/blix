@@ -30,6 +30,7 @@ import { configureDbName, MONITOR_ENABLED, now } from "./monitorConfig";
 import { getOwner, type CaptureOwner } from "./monitorContext";
 import { flattenCapturedHeaders } from "./monitorSerialize";
 import { stampAxiosFetchOptions, stampMonitorId } from "./monitorStamp";
+import { setOwn } from "./ownProperty";
 import { expectAxiosTransport, releaseAxiosTransport } from "./monitorTransport";
 import type { InitiatorFrame, MonitorEntry } from "./monitorTypes";
 import {
@@ -227,13 +228,13 @@ function settledRequestSide(id: string, config: MonitoredConfig): Partial<Monito
   if (config.auth) {
     const others: Record<string, string> = {};
     for (const [name, value] of Object.entries(headers)) {
-      if (!isAuthorizationHeader(name)) others[name] = value;
+      if (!isAuthorizationHeader(name)) setOwn(others, name, value);
     }
     const requestHeaders = serializeHeaders(others);
     // Already masked — it is the stored request-time value.
     const early = networkMonitor.getById(id)?.requestHeaders ?? {};
     for (const [name, value] of Object.entries(early)) {
-      if (isAuthorizationHeader(name)) requestHeaders[name] = value;
+      if (isAuthorizationHeader(name)) setOwn(requestHeaders, name, value);
     }
     return { requestHeaders };
   }

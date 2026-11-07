@@ -9,6 +9,8 @@
  * fetch wrapper, and monitoring must never be able to break a request.
  */
 
+import { setOwn } from "./ownProperty";
+
 /**
  * Normalizes an Axios request/response body into something JSON-renderable.
  * - FormData -> plain object (files summarized, never read into memory)
@@ -22,9 +24,9 @@ export function serializeBody(data: unknown): unknown {
     const obj: Record<string, unknown> = {};
     data.forEach((value, key) => {
       if (typeof File !== "undefined" && value instanceof File) {
-        obj[key] = `«File: ${value.name} — ${value.size} bytes»`;
+        setOwn(obj, key, `«File: ${value.name} — ${value.size} bytes»`);
       } else {
-        obj[key] = value;
+        setOwn(obj, key, value);
       }
     });
     return obj;
@@ -118,9 +120,9 @@ export function flattenHeaders(headers: unknown): Record<string, string> {
     const existing = spelling.get(lower);
     if (existing === undefined) {
       spelling.set(lower, name);
-      out[name] = value;
+      setOwn(out, name, value);
     } else {
-      out[existing] = `${out[existing]}${separator}${value}`;
+      setOwn(out, existing, `${out[existing]}${separator}${value}`);
     }
   };
 
@@ -168,7 +170,7 @@ export function flattenHeaders(headers: unknown): Record<string, string> {
 export function serializeHeaders(headers: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(flattenCapturedHeaders(headers))) {
-    out[key] = maskHeaderValue(key, value);
+    setOwn(out, key, maskHeaderValue(key, value));
   }
   return out;
 }

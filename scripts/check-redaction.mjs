@@ -603,6 +603,21 @@ const scenarios = [
       expect(Array.isArray(entry.initiator) && entry.initiator.length > 0, "no call stack was captured");
     },
   },
+  {
+    // `__proto__` is an ordinary key in JSON. Copied with `out[key] = …` it
+    // became the copy's prototype: the key vanished from the stored body, and
+    // whatever was under it — a credential included — rode along unseen.
+    name: "25. a body key named __proto__ is stored as a key, and a credential under it is masked",
+    run: () => {
+      const body = JSON.parse('{"__proto__":{"Authorization":"Bearer SECRET_TOKEN_123"},"ok":1}');
+      const out = truncateForPersist(body, MAX).value;
+      noSecrets(out);
+      expect(Object.keys(out).includes("__proto__"), "the __proto__ key was dropped from the stored body");
+      expect(Object.getPrototypeOf(out) === Object.prototype, "the stored body's prototype was replaced");
+      const inner = Object.getOwnPropertyDescriptor(out, "__proto__")?.value;
+      expect(typeof inner?.Authorization === "string", "the credential under __proto__ was dropped, not masked");
+    },
+  },
 ];
 
 let failed = 0;

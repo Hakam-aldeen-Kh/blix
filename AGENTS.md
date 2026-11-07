@@ -68,6 +68,11 @@ Run a single check with `pnpm check:<name>`, a single test file with
   necessary. Match that: a new branch that handles an edge case gets a comment
   naming the case. Do not narrate what the code plainly does.
 - Small, named helpers over clever one-liners. Structural types over imports.
+- A key that came from outside (a body, a header, a form field, an error's
+  fields) is copied with `setOwn` from `src/capture/ownProperty.ts`, never
+  `out[key] = value`: `__proto__` assigned that way replaces the copy's
+  prototype instead of becoming a key. Test for an own key with `hasOwn`, not
+  `in`, which also sees `constructor`.
 - American spelling in prose: `behavior`, `color`, `canceled`, `initialize`.
   Older text may still use British spelling; when you edit a sentence, write
   it in American English, but do not respell whole files you are not

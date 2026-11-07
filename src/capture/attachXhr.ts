@@ -30,6 +30,7 @@ import { getOwner } from "./monitorContext";
 import { captureError, captureHttpFailure, type FailureKind } from "./monitorError";
 import { impliedContentType } from "./monitorSerialize";
 import { claimAxiosTransport } from "./monitorTransport";
+import { hasOwn, setOwn } from "./ownProperty";
 import type { MonitorEntry } from "./monitorTypes";
 import { estimateBytes, networkMonitor, serializeBody, serializeHeaders } from "./networkMonitor";
 import { startResourceTiming } from "./resourceTiming";
@@ -108,8 +109,9 @@ function resolve(url: string): URL | null {
   }
 }
 
-/** `getAllResponseHeaders()` — CRLF-separated `name: value` lines — as a map. */
-function parseResponseHeaders(raw: string): Record<string, string> {
+/** `getAllResponseHeaders()` — CRLF-separated `name: value` lines — as a map.
+ * Exported for its tests. */
+export function parseResponseHeaders(raw: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of raw.split(/\r?\n/)) {
     const at = line.indexOf(":");
@@ -117,7 +119,7 @@ function parseResponseHeaders(raw: string): Record<string, string> {
     const name = line.slice(0, at).trim().toLowerCase();
     const value = line.slice(at + 1).trim();
     // A repeated header arrives as repeated lines; joined the way fetch does.
-    out[name] = name in out ? `${out[name]}, ${value}` : value;
+    setOwn(out, name, hasOwn(out, name) ? `${out[name]}, ${value}` : value);
   }
   return out;
 }
@@ -205,7 +207,7 @@ export function attachXhrMonitor(options: XhrMonitorOptions = {}): () => void {
       const pending = meta.get(this);
       if (pending) {
         // The browser combines repeated calls for one name; so does this.
-        pending.headers[name] = name in pending.headers ? `${pending.headers[name]}, ${value}` : value;
+        setOwn(pending.headers, name, hasOwn(pending.headers, name) ? `${pending.headers[name]}, ${value}` : value);
       }
     } catch {
       /* capture must never break a request */
