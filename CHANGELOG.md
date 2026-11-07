@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] - 2026-11-07
 
 ### Added
 
@@ -39,9 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   last one's payload and diff. Now only the same type with the same payload
   folds, and the row's diff covers all of them.
 - **"In progress" is a clear blue.** In Blix, Blix Light, Nord and Gruvbox the
-  colour of 1xx, 3xx and pending requests was a grey-blue too close to the grey
-  of a 304 or a cancelled request to tell apart. It is now a distinct blue (in
-  Nord, the grey is darker instead), still holding 4.5:1 as text.
+  color of 1xx, 3xx and pending requests was a gray-blue too close to the gray
+  of a 304 or a canceled request to tell apart. It is now a distinct blue (in
+  Nord, the gray is darker instead), still holding 4.5:1 as text.
 - **The filter docs list what `method:` matches in each source** — `ws`, a
   Redux slice, `query` or `mutate` — and the accepted alternative spellings.
 - **The package can be `require()`d.** `exports` offered only `import`, so a
@@ -52,12 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Parallel requests to one path keep their own browser timing.** Requests
-  that differ only in the query string (`/items?id=1`, `/items?id=2`, …) and
-  end within a millisecond of each other could each show a neighbour's phases
-  — its connect time, its wait for the first byte. A request with the timing
-  entry's exact URL now always wins; matching by path alone is left for the
-  case it exists for, axios `params`, when no request has the exact URL.
+- **Every request shows its own browser timing.** Requests to one URL, or to
+  one path that differ only in the query string (`/items?id=1`,
+  `/items?id=2`, …), that started or ended within milliseconds of each other
+  could each show a neighbor's phases — its connect time, its wait for the
+  first byte — most often while the main thread was busy. A timing entry now
+  goes to the request with its exact URL, and among those to the one whose end
+  follows the browser's; matching by path alone is left for axios `params`,
+  when no request has the exact URL.
 - **Blix no longer holds the page's first request back.** In a Next.js app
   with `gcTime: 0` queries, a page could stay un-hydrated after a refresh, its
   `useQuery` never starting and nothing in the Network tab, until you clicked
@@ -93,11 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disappears from the narrower toolbar, and focus fell to the page, where the
   panel's keys do not answer.
 - **The theme menu says which theme is current** to a screen reader.
-
-- **Timing shows each request its own phases.** Requests to the same URL
-  started within a few milliseconds of each other each got the previous one's
-  browser timing. They are now told apart by when they ended as well as when
-  they started.
 - **A request interceptor that throws settles its request as `setup` at
   once.** With another request in the air, the failed one stayed `pending`
   until the watchdog marked it a timeout.
@@ -135,9 +132,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A dispatch from inside a subscriber no longer bleeds into the outer
   action's diff.** It runs before the outer dispatch returns, so the outer
   row's "after" included the inner action's change.
-- **Timing pairing holds under load.** With several requests to one URL ending
-  milliseconds apart while the main thread was busy, two could still swap
-  phases.
 - **A floating panel stays on screen when the window shrinks.** One that had
   fitted was left hanging off the bottom, and reopening it did not help.
 - **Every failed request has a square status dot.** A 404 is amber, for
