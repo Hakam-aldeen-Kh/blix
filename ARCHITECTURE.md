@@ -78,6 +78,7 @@ Shared modules:
 | `monitorTypes.ts` | `MonitorEntry` and everything on it. Read this first. |
 | `monitorSerialize.ts` | Headers flattened and **masked** (`authorization`, `cookie`, `set-cookie`, `x-api-key`), bodies serialized, sizes estimated. |
 | `monitorTruncate.ts` | The bounded copy written to IndexedDB: byte budget, string and array caps, credential keys masked at any depth, errors reduced to name/message/code. |
+| `ownProperty.ts` | `setOwn` and `hasOwn`: every copy of a key that came from outside goes through them, so a `__proto__` key stays a key and `constructor` is not mistaken for one. |
 | `monitorError.ts` | Anything thrown, as a `CapturedError` with a `kind` (`http`, `timeout`, `network`, `aborted`, `setup`, `unknown`). Reads named fields only — never copies an axios error's config. |
 | `stateDiff.ts` | The Redux diff: reference-equality pruning (Immer's structural sharing makes it cheap), bounded on every axis, marked `truncated` whenever it is partial. |
 | `resourceTiming.ts` | Pairs the browser's `PerformanceResourceTiming` entries with captured requests, for the Timing tab. |

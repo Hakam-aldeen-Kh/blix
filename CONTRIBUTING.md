@@ -118,6 +118,11 @@ Two rules matter more than the rest:
 - **The panel must never break the host app.** Blocked storage, bad saved
   state and render errors inside the panel are caught and contained.
 
+And one way of writing code that is easy to get wrong: a key that came from
+outside (a body, a header, a form field) is copied with `setOwn` from
+`src/capture/ownProperty.ts`, never `out[key] = value`, because a key named
+`__proto__` assigned that way replaces the copy's prototype and disappears.
+
 ## Pull requests
 
 1. Branch from `main`.

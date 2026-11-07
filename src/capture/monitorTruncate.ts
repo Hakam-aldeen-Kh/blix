@@ -14,6 +14,7 @@
 import { isErrorLike } from "./errorLike";
 import { ARRAY_CAP, STRING_CAP } from "./monitorConfig";
 import { SENSITIVE_HEADERS, serializeHeaders } from "./monitorSerialize";
+import { setOwn } from "./ownProperty";
 
 /**
  * What a credential string under a credential-named key is stored as: the
@@ -186,18 +187,20 @@ export function truncateForPersist(
           return masked;
         };
         if (typeof val === "string" && val !== "") {
-          out[key] = mask(val);
+          setOwn(out, key, mask(val));
           continue;
         }
         if (Array.isArray(val) && val.some((item) => typeof item === "string" && item !== "")) {
-          out[key] = val
-            .slice(0, ARRAY_CAP)
-            .map((item) => (typeof item === "string" && item !== "" ? mask(item) : walk(item)));
+          setOwn(
+            out,
+            key,
+            val.slice(0, ARRAY_CAP).map((item) => (typeof item === "string" && item !== "" ? mask(item) : walk(item))),
+          );
           if (val.length > ARRAY_CAP) truncated = true;
           continue;
         }
       }
-      out[key] = walk(val);
+      setOwn(out, key, walk(val));
     }
     return out;
   };

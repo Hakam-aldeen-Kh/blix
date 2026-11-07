@@ -16,6 +16,7 @@
 import { isErrorLike } from "./errorLike";
 import { serializeBody } from "./monitorSerialize";
 import { truncateForPersist } from "./monitorTruncate";
+import { setOwn } from "./ownProperty";
 
 /** How a request failed — the first thing to know, and what the list shows
  * in place of a status code when there is none. */
@@ -159,7 +160,7 @@ function detailsOf(error: unknown): Record<string, unknown> | undefined {
     if (key === "code" && typeof read(error, key) === "string") continue;
     const value = read(error, key);
     if (value === undefined || typeof value === "function") continue;
-    own[key] = value;
+    setOwn(own, key, value);
     any = true;
   }
   if (!any) return undefined;
