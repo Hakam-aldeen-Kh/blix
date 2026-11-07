@@ -40,13 +40,26 @@ export function whenIdle(fn: () => void): Cancel {
  * once the main thread is idle — once per burst, however many changes the
  * burst held. `getSnapshot` is untouched: a render that happens for any other
  * reason still reads the store as it is.
+ *
+ * `now`, when given, picks the changes that must not wait: the developer's own
+ * clicks and drags on the panel. Those happen with the host at rest, and a
+ * resize drag that waited for idle would lag behind the pointer. One of them
+ * delivers at once and takes any change still waiting with it — the snapshot
+ * already holds both.
  */
-export function subscribeWhenIdle(
-  subscribe: (listener: () => void) => () => void,
+export function subscribeWhenIdle<C = void>(
+  subscribe: (listener: (change: C) => void) => () => void,
+  now?: (change: C) => boolean,
 ): (listener: () => void) => () => void {
   return (listener) => {
     let pending: Cancel | null = null;
-    const unsubscribe = subscribe(() => {
+    const unsubscribe = subscribe((change) => {
+      if (now?.(change)) {
+        pending?.();
+        pending = null;
+        listener();
+        return;
+      }
       if (pending) return;
       pending = whenIdle(() => {
         pending = null;

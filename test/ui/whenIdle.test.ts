@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { prefsStore, savePrefs, type PrefsChange } from "../../src/capture/monitorPersistence";
 import { subscribeWhenIdle, whenIdle } from "../../src/ui/helpers/whenIdle";
+
+/** A store whose changes say what caused them, like `prefsStore`. */
+function changeStore() {
+  const listeners = new Set<(change: PrefsChange) => void>();
+  return {
+    subscribe: (listener: (change: PrefsChange) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    emit: (change: PrefsChange) => listeners.forEach((listener) => listener(change)),
+  };
+}
 
 /** A tiny store: `emit()` calls every listener synchronously. */
 function store() {
@@ -88,6 +101,48 @@ describe("panel updates wait for an idle main thread", () => {
     expect(s.size).toBe(0);
     idle.runIdle();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  // Restoring the saved log reported "loading" and "ready" straight to the
+  // panel, mid-hydration, and each restarted the host's render. Background
+  // changes wait; the developer's own clicks and drags must not.
+  test("the developer's own change shows at once, and takes a waiting one with it", () => {
+    const idle = fakeIdle();
+    const s = changeStore();
+    const listener = vi.fn();
+    subscribeWhenIdle(s.subscribe, (change) => change === "user")(listener);
+
+    s.emit("background");
+    expect(listener).not.toHaveBeenCalled();
+    expect(idle.pending).toBe(1);
+
+    s.emit("user");
+    expect(listener).toHaveBeenCalledTimes(1);
+    // The snapshot it rendered already held the background change.
+    expect(idle.pending).toBe(0);
+    idle.runIdle();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  test("a background change still waits for idle when `now` is given", () => {
+    const idle = fakeIdle();
+    const s = changeStore();
+    const listener = vi.fn();
+    subscribeWhenIdle(s.subscribe, (change) => change === "user")(listener);
+
+    s.emit("background");
+    s.emit("background");
+    expect(listener).not.toHaveBeenCalled();
+    idle.runIdle();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  test("a prefs change the developer made is reported as theirs", () => {
+    const seen: PrefsChange[] = [];
+    const unsubscribe = prefsStore.subscribe((change) => seen.push(change));
+    savePrefs({ density: "compact" });
+    unsubscribe();
+    expect(seen).toEqual(["user"]);
   });
 
   test("without requestIdleCallback it falls back to a macrotask, still outside the emit", async () => {

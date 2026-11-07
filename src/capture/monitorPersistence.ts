@@ -257,16 +257,27 @@ const SERVER_SNAPSHOT: PrefsSnapshot = {
   hydration: "idle",
   storage: "idle",
 };
-const prefsListeners = new Set<() => void>();
+/**
+ * What changed the snapshot. `"user"` is the developer acting on the panel — a
+ * toggle, a resize drag — and has to show at once. `"background"` is
+ * everything else: the saved log being restored, prefs read back from
+ * IndexedDB, the database becoming unwritable. Those arrive while the host is
+ * still loading — restoring starts as the panel mounts, usually mid-hydration
+ * — and a panel render then restarts the host's render (see `whenIdle`), so
+ * the panel takes them once the host is idle.
+ */
+export type PrefsChange = "user" | "background";
 
-function emitPrefs() {
+const prefsListeners = new Set<(change: PrefsChange) => void>();
+
+function emitPrefs(change: PrefsChange = "background") {
   snapshot = { prefs, hydration, storage: getStorageStatus() };
-  prefsListeners.forEach((l) => l());
+  prefsListeners.forEach((l) => l(change));
 }
 
 // The panel has to be able to say that nothing is being saved — see
 // `StorageStatus`. Registering is all this does at module load.
-onStorageStatus(emitPrefs);
+onStorageStatus(() => emitPrefs("background"));
 
 function setHydration(next: HydrationState) {
   hydration = next;
@@ -288,7 +299,7 @@ function ensurePrefs(): PrefsSnapshot {
 }
 
 export const prefsStore = {
-  subscribe(listener: () => void) {
+  subscribe(listener: (change: PrefsChange) => void) {
     prefsListeners.add(listener);
     return () => {
       prefsListeners.delete(listener);
@@ -339,7 +350,7 @@ let prefsWriteTimer: ReturnType<typeof setTimeout> | null = null;
  * the IndexedDB write — a resize drag must not produce a transaction per frame. */
 export function savePrefs(patch: Partial<MonitorPrefs>): void {
   prefs = { ...prefs, ...patch, rev: prefs.rev + 1 };
-  emitPrefs();
+  emitPrefs("user");
 
   if (typeof window === "undefined") return;
   safeSet(prefsKey(), JSON.stringify(prefs));

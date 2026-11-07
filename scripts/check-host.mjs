@@ -15,12 +15,21 @@
  * expires a starved transition after 5 s and finishes it synchronously. The
  * Next.js page was starved at `OffscreenLane`, which never expires.
  *
+ * Time alone could not tell a slow runner from a render thrown away: one
+ * CI run read 806 ms against 441 ms and nothing said why. So the page also
+ * counts its rows. One pass renders 400; React restarts a render it was
+ * interrupted in, so anything more is work Blix made it redo. That count found
+ * the saved log's restore — its "loading" and "ready" reached the panel at
+ * once, mid-render, and every restore redid 40 to 400 rows. Scenario 4 starts
+ * the page as the restore starts, so the restore always ends inside it.
+ *
  * Needs a browser, not jsdom: what lets the panel wait is
  * `requestIdleCallback`, which jsdom does not have.
  *
- * `node scripts/check-host.mjs [srcDir] [--browser chrome|msedge]` — the
- * directory defaults to `./src`, so the check can be pointed at a scratch copy
- * (an older one, to see it fail).
+ * `node scripts/check-host.mjs [srcDir] [--browser chrome|msedge] [--runs n]
+ * [--throttle n]` — the directory defaults to `./src`, so the check can be
+ * pointed at a scratch copy (an older one, to see it fail). `--throttle 4`
+ * slows the CPU four times over, as a busy CI runner does.
  */
 
 import { build } from "esbuild";
@@ -39,6 +48,7 @@ const positional = process.argv.slice(2).find((a, i, all) => !a.startsWith("--")
 const src = path.resolve(positional ?? path.join(root, "src"));
 const posix = (p) => p.split(path.sep).join("/");
 const BROWSER = arg("--browser", "chrome");
+const THROTTLE = Number(arg("--throttle", "1"));
 
 /** The page imports `../../src/…`; this sends those imports to `src`. */
 const srcDir = {
@@ -87,15 +97,24 @@ const browser = await chromium.launch({ channel: BROWSER });
  * page's effect and its query took to start. */
 async function measure(query) {
   const page = await browser.newPage();
+  if (THROTTLE > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE });
+  }
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
     await page.goto(base + query);
-    if (!query.includes("blix=0")) {
-      await page.waitForFunction(() => window.__host.panel, null, { timeout: 10_000 });
+    if (query.includes("onRestore=1")) {
+      // The page asks for itself the moment Blix starts restoring its log.
+      await page.waitForFunction(() => window.__host.askedAt !== undefined, null, { timeout: 10_000 });
+    } else {
+      if (!query.includes("blix=0")) {
+        await page.waitForFunction(() => window.__host.panel, null, { timeout: 10_000 });
+      }
+      await page.waitForFunction(() => typeof window.__showPage === "function");
+      await page.evaluate(() => window.__showPage());
     }
-    await page.waitForFunction(() => typeof window.__showPage === "function");
-    await page.evaluate(() => window.__showPage());
     // No input of any kind from here on: a click would force the render
     // through, which is the very thing that hid the bug.
     await page
@@ -106,6 +125,8 @@ async function measure(query) {
     return {
       effect: host.effectAt ? host.effectAt - host.askedAt : null,
       queryFn: host.queryFnAt ? host.queryFnAt - host.askedAt : null,
+      rows: host.rowsAtQueryFn ?? host.rows,
+      restored: host.restoredAt === undefined ? null : host.restoredAt - host.askedAt,
     };
   } finally {
     await page.close();
@@ -113,12 +134,15 @@ async function measure(query) {
 }
 
 const ms = (value) => (value == null ? "never" : `${Math.round(value)} ms`);
-const runs = 3;
-const results = { without: [], with: [] };
+const runs = Number(arg("--runs", "3"));
+const results = { without: [], with: [], restoring: [] };
 for (let i = 0; i < runs; i += 1) {
   results.without.push(await measure("?blix=0"));
   results.with.push(await measure(""));
+  results.restoring.push(await measure("?onRestore=1"));
 }
+/** One uninterrupted pass over the page: `Slow` renders 400 rows. */
+const ONE_PASS = 400;
 const worst = (list, key) => Math.max(...list.map((r) => r[key] ?? Infinity));
 
 const scenarios = [
@@ -143,11 +167,38 @@ const scenarios = [
       );
     },
   },
+  {
+    name: "3. the host's page renders once with Blix mounted — no render thrown away and redone",
+    run: () => {
+      // Exact, where 2 is a margin: React restarts a render it was
+      // interrupted in, so every row it had already rendered is rendered
+      // again. Without Blix the count is the page's own, every time.
+      for (const r of results.without) expect(r.rows === ONE_PASS, `${r.rows} rows rendered without Blix — the page itself changed`);
+      for (const r of results.with) expect(r.rows === ONE_PASS, `${r.rows} rows rendered for a page of ${ONE_PASS}: Blix interrupted it`);
+    },
+  },
+  {
+    name: "4. …and once while Blix restores its saved log in the middle of it",
+    run: () => {
+      // The restore's status reached the panel synchronously and restarted the
+      // host's render — the 806 ms CI run. Its end has to land inside the
+      // render for this to prove anything, so that is checked first.
+      for (const r of results.restoring) {
+        expect(
+          r.restored != null && r.queryFn != null && r.restored < r.queryFn,
+          `the restore ended at ${ms(r.restored)}, not inside the page's render (queryFn at ${ms(r.queryFn)})`,
+        );
+        expect(r.rows === ONE_PASS, `${r.rows} rows rendered for a page of ${ONE_PASS}: the restore interrupted it`);
+      }
+    },
+  },
 ];
 
 console.log(
   `without Blix: queryFn after ${results.without.map((r) => ms(r.queryFn)).join(", ")}\n` +
-    `with Blix:    queryFn after ${results.with.map((r) => ms(r.queryFn)).join(", ")}\n`,
+    `with Blix:    queryFn after ${results.with.map((r) => ms(r.queryFn)).join(", ")}\n` +
+    `restoring:    queryFn after ${results.restoring.map((r) => ms(r.queryFn)).join(", ")} (restore ended at ${results.restoring.map((r) => ms(r.restored)).join(", ")})\n` +
+    `rows rendered — without: ${results.without.map((r) => r.rows).join(", ")}; with: ${results.with.map((r) => r.rows).join(", ")}; restoring: ${results.restoring.map((r) => r.rows).join(", ")}\n`,
 );
 
 let failed = 0;
