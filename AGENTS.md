@@ -96,7 +96,6 @@ option, command or behavior) and fix every place that no longer holds.
 | A module's job, the data flow, how a link is made, or a rule | `ARCHITECTURE.md`. |
 | A command, script, check or CI step | `AGENTS.md` (Commands), `CONTRIBUTING.md` (Checks), `ARCHITECTURE.md` (Testing). |
 | How people or agents are expected to work | `AGENTS.md` and `CONTRIBUTING.md`, together, so they never disagree. |
-| Planned work: finished, started or dropped | `ROADMAP.md`. |
 | Masking, storage, or what reaches disk | The Security section of `docs/en.md`, and `SECURITY.md` if reporting changes. |
 
 A PR that changes code and leaves a document describing the old behavior is
@@ -153,4 +152,3 @@ and what it printed. Do not claim a check passed that you did not run.
 | Query/mutation rows and failure linking | `src/capture/queryCapture.ts`, `errorOrigin.ts`, `monitorContext.ts` |
 | The panel shell | `src/ui/DevToolsPanel.tsx` |
 | Filter language | `src/ui/services/filterQuery.ts` |
-| Open work | [ROADMAP.md](ROADMAP.md) |

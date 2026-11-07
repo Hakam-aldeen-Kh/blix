@@ -125,8 +125,7 @@ Two rules matter more than the rest:
    same PR. This is required. `docs/en.md` when behavior, options or exports
    change (it is what [blixjs.dev/docs](https://blixjs.dev/docs) shows),
    `ARCHITECTURE.md` when a module's job or the data flow changes, this file
-   and `AGENTS.md` when a command or check changes, `ROADMAP.md` when planned
-   work is done or dropped. The full table is in
+   and `AGENTS.md` when a command or check changes. The full table is in
    [AGENTS.md](AGENTS.md#documentation-is-part-of-the-change).
 6. Write prose in American English (`behavior`, `color`).
 7. Make sure `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm check` pass.
