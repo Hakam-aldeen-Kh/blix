@@ -47,8 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The package can be `require()`d.** `exports` offered only `import`, so a
   CommonJS project — Jest without ESM, an older setup — could not load Blix at
   all, even on a Node that requires ESM.
-- **The panel and the docs use American spelling.** "Canceled" instead of
-  "Cancelled" for an aborted request, "syntax-colored" for the JSON view.
 - **Replaying a `PUT`, `PATCH` or `DELETE` always asks first**, whatever its
   URL. `DELETE /orders/5/details` read as a read and replayed on one click.
 

@@ -79,6 +79,11 @@ In CI, `check:official` also writes its report and a per-request dump of
 the browser's and Blix's timings (`--report`, `--dump`); both are kept as the
 run's `official-comparison` artifact, even when the step fails.
 
+`check:host` counts the rows its page renders as well as timing them: one pass
+is exactly 400, and anything more is a render Blix made React redo. To push it
+the way a busy CI runner does, run `node scripts/check-host.mjs --runs 6
+--throttle 4`; the count stays exact when the timings swing.
+
 If your change touches logic, add a unit test beside the module's others in
 `test/`. If it touches something a check covers (the production guard,
 redaction, what is stored, the host page), extend that check. If it adds

@@ -18,7 +18,8 @@ Where Blix is going, and the work anyone can pick up to get it there.
 
 | | |
 | --- | --- |
-| **0.14.0** | Exact linking across sources, verified against Chrome's own record; the full test suite (unit, package, browser, release check); the fixes it found. |
+| **0.14.0** · released 2026-11-07 | Exact linking across sources, verified against Chrome's own record; the full test suite (unit, package, browser, release check); the fixes it found. |
+| **Next release** | Restoring the saved log no longer makes React redo the host's render, checked by an exact render count; `require()` documented; American spelling in the panel. |
 | **A security pass** | Handled privately, per [SECURITY.md](SECURITY.md). Found something? Report it there, not in an issue. |
 
 ## Next — open for contributors

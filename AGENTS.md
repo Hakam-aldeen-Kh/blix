@@ -131,6 +131,13 @@ and what it printed. Do not claim a check passed that you did not run.
 - `check:official` uses ports 5191–5192 and `check:adversarial` 5193; the E2E
   picks a free port. A server left over from a killed run can hold a fixed
   port.
+- `check:official --dump file.json --report file.md` writes every request's
+  browser record beside Blix's; CI keeps both as the `official-comparison`
+  artifact, even when the step fails. Read it before touching a comparison.
+- `check:host --runs 6 --throttle 4` repeats the check and slows the CPU four
+  times over, the way a busy CI runner does. Its row count is exact (400 per
+  pass); trust it over the timings.
+- Building needs Node.js 22.18 or later (tsup 9); apps using Blix need 18.
 - On Windows, Git may warn about LF/CRLF conversion; that is expected.
 - `playground/` is the quickest way to see a change: it bundles straight from
   `src/` and rebuilds on save.

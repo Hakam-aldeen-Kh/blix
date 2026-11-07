@@ -96,7 +96,7 @@ is worse than one that says "unknown". Nothing is matched by status and time.
 | request → query/mutation that made it (`ownerId`, `causedIds`) | `monitorContext.ts` hooks the query's or mutation's `options` and holds the owner for the **synchronous** call of `queryFn` / `mutationFn` only. fetch and XHR read it at call time; axios reads it in `runWhen`, which axios calls synchronously inside `request()`. A request after an `await` gets no owner. |
 | failed query/mutation → its request (`responseFrom`, `responseMatch`) | `errorOrigin.ts` remembers objects that came out of a request: the app's replacement for an axios error, a `fetch` `Response`. `"exact"` when the thrown error is, or carries (`response`, `cause`), one of those. `"caused"` when the attempt made exactly one request with the error's status. An object that came out of two requests (one shared `AbortError`) leads to neither. |
 | an axios retry → the request it retries | A config that already carries Blix's stamp is being sent again: the retry is recorded as the successor, keeps the owner, and the app's final error is the retry's. |
-| a timing entry → its request | By URL, then by the end: Blix hears of an end only after the browser has it, so the earliest end not before the browser's is the one. A timing waits until every request it could belong to has ended. |
+| a timing entry → its request | By URL: when any request has the timing entry's exact URL, only those compete; a path-only match is for axios `params`, whose query string is built after Blix records the URL. Then by the end: Blix hears of an end only after the browser has it, so the earliest end not before the browser's is the one. A timing waits until every request it could belong to has ended. |
 | axios's own XHR / fetch → the axios entry | `monitorTransport.ts` and `monitorStamp.ts`: the axios entry claims the transport request, so it is not logged twice. |
 
 `scripts/check-linking.mjs` and `scripts/check-adversarial.mjs` exist to break
@@ -128,9 +128,16 @@ For the same reason:
 - the panel never suspends (a Suspense fallback triggers React's 300 ms
   reveal throttle for the whole root), and
 - the waterfall clock ticks only while the panel is open, and each tick also
-  waits for idle.
+  waits for idle, and
+- prefs and the saved log's status (`prefsStore`) wait for idle too, except
+  the developer's own changes: `savePrefs` reports a change as `"user"`, and
+  those show at once so a click or a resize drag never lags. Restoring the
+  saved log starts as the panel mounts, mid-hydration in an app, and its
+  status used to restart the host's render.
 
-`check:host` asserts that the host renders as fast with Blix as without it.
+`check:host` asserts that the host renders as fast with Blix as without it,
+and exactly once: its page counts the rows it renders, and one pass is 400,
+whether or not the saved log is being restored in the middle of it.
 
 ## Rules that hold everywhere
 
@@ -162,7 +169,7 @@ Each layer is described in [CONTRIBUTING.md](CONTRIBUTING.md#checks); in short:
 | Unit | `test/` (Vitest) | A module's logic and edge cases. |
 | Scenarios | `scripts/check-*.mjs` | Modules together, in Node: redaction, isolation, hydration, linking, axios behind host interceptors… |
 | Package | `scripts/check-package.mjs` | The tarball as npm ships it, in a fresh project. |
-| Browser | `check-official`, `check-adversarial`, `check-host`, `check-e2e` | Against Chrome's own record, hard cases, a host render Blix must not hold back, and the panel driven by mouse and keyboard. |
+| Browser | `check-official`, `check-adversarial`, `check-host`, `check-e2e` | Against Chrome's own record, hard cases, a host render Blix must not hold back or make React redo, and the panel driven by mouse and keyboard. In CI, `check-official`'s dump and report are kept as the `official-comparison` artifact. |
 
 `pnpm release:check` runs all of them.
 
