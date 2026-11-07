@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { addsChangeFile, CHANGES_DIR, isChangeFile, needsChangeFile, parseChange } from "./changes.mjs";
@@ -32,7 +32,8 @@ const fail = (message) => {
 };
 
 const dir = path.join(root, CHANGES_DIR);
-const names = readdirSync(dir).filter(isChangeFile).sort();
+// No folder is no change files, not an error: a branch cut before it existed.
+const names = existsSync(dir) ? readdirSync(dir).filter(isChangeFile).sort() : [];
 for (const name of names) {
   try {
     parseChange(readFileSync(path.join(dir, name), "utf8"), name);

@@ -10,7 +10,7 @@
  * See `scripts/changes.mjs` for the format and why it exists.
  */
 
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGES_DIR, insertRelease, isChangeFile, nextVersion, parseChange, renderRelease } from "./changes.mjs";
@@ -33,7 +33,7 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
 
 const at = (...p) => path.join(root, ...p);
 const changesDir = at(CHANGES_DIR);
-const names = readdirSync(changesDir).filter(isChangeFile).sort();
+const names = existsSync(changesDir) ? readdirSync(changesDir).filter(isChangeFile).sort() : [];
 const changes = names.map((name) => parseChange(readFileSync(path.join(changesDir, name), "utf8"), name));
 
 const pkgText = readFileSync(at("package.json"), "utf8");
