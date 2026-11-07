@@ -25,7 +25,8 @@ An in-app dev-tools panel for React developers: every HTTP request, Redux action
 npm install -D @hakam-aldeen-kh/blix
 ```
 
-Requires React 18 or 19. The package is ESM only.
+Requires React 18 or 19. The package is built as ESM; `require()` works on
+Node.js 20.19 and 22.12 or later ([details](https://blixjs.dev/docs/install)).
 
 ```tsx
 // app/BlixMount.tsx

@@ -34,12 +34,13 @@ while resolving that import. devDependencies have to be present at build time.
 Dropping them from the final runtime image is fine: nothing from Blix reaches
 the production output anyway.
 
-The package ships **ESM only**. Both entry points declare `"types"` and
-`"import"` in `exports`, with no `"require"` and no `"default"` fallback, so
-`require("@hakam-aldeen-kh/blix")` and CJS-only tooling — an older Jest config
-is the usual one — fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`. That is by
-design, not a packaging bug: a dev tool that is eliminated from production has
-no reason to carry a second build output.
+The package is built as ESM, and there is no separate CommonJS build: a dev
+tool that is eliminated from production has no reason to carry a second one.
+Both entry points declare `"types"`, `"import"` and `"default"` in `exports`,
+so `require("@hakam-aldeen-kh/blix")` works on Node.js 20.19 and 22.12 or
+later, which can load ESM through `require()`. On an older Node it fails with
+`ERR_REQUIRE_ESM`; use `import` there. A test runner that compiles your code to
+CommonJS, like Jest, may also need to be told to transform this package.
 
 ### Peer dependencies
 
