@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Dev Tools — the flat-text pane, with optional JSON syntax colouring and
+ * Dev Tools — the flat-text pane, with optional JSON syntax coloring and
  * code folding.
  *
  * A near-pure renderer: it takes text some other format already produced (raw
@@ -87,7 +87,7 @@ export function JsonText({
   text,
   wrap = true,
   /** Off for YAML and for plain-text bodies: the tokenizer's rules are JSON's,
-   * and running them over YAML mis-colours keys and unquoted scalars. */
+   * and running them over YAML mis-colors keys and unquoted scalars. */
   highlight = true,
   /** Block map from `analyzeFolds`. Absent means no folding at all. */
   folds,

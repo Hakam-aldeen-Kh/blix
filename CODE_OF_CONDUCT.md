@@ -33,7 +33,7 @@ commits) and when someone represents the project in public.
 
 ## Reporting
 
-Report unacceptable behaviour privately to the maintainer,
+Report unacceptable behavior privately to the maintainer,
 [@Hakam-aldeen-Kh](https://github.com/Hakam-aldeen-Kh), through the contact
 details on their GitHub profile. Every report is reviewed, and the reporter's
 privacy is respected.

@@ -5,7 +5,7 @@
  *
  * Never set in a font: the face is Cascadia Mono Bold, which the panel does
  * not load and must not, and the brand book forbids retyping it. Takes the
- * colour of whatever it sits in.
+ * color of whatever it sits in.
  */
 
 /** Width over height of the outlined path's box. */

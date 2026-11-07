@@ -1,9 +1,9 @@
-/** Dev Tools — layout constants and the semantic colour *roles*.
+/** Dev Tools — layout constants and the semantic color *roles*.
  *
- * No colour values live here any more. A component names the role a piece of
+ * No color values live here any more. A component names the role a piece of
  * UI plays — `data-state="error"`, `data-accent="post"` — and the stylesheet
  * resolves it through the active theme's tokens (`themes/themes.ts`). That is
- * what lets a theme restate every colour in the panel instead of only the ones
+ * what lets a theme restate every color in the panel instead of only the ones
  * CSS happened to own: the previous split, with a light palette in CSS and a
  * duplicate dark one in JS, could not be themed and drifted between the two.
  */
@@ -69,9 +69,9 @@ export const DOCK_EDGE_GAP = 80;
 /**
  * The accent a method/kind badge paints in, as a `data-accent` value.
  *
- * HTTP rows are coloured by verb; everything else takes its section's identity
- * colour instead. That second half matters: colouring purely by verb gave WS,
- * Redux and Query rows one indistinguishable fallback, when the section colour
+ * HTTP rows are colored by verb; everything else takes its section's identity
+ * color instead. That second half matters: coloring purely by verb gave WS,
+ * Redux and Query rows one indistinguishable fallback, when the section color
  * is exactly the signal the reader wants — Redux and Query lean toward their
  * own standalone devtools' brands (violet, orange), which a React developer
  * already has an association for.

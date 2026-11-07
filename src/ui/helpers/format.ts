@@ -206,7 +206,7 @@ export function splitRoute(entry: MonitorEntry): { head: string; tail: string } 
 }
 
 /**
- * Which of the four data colours a row paints in.
+ * Which of the four data colors a row paints in.
  *
  * Severity, not success: a 404 on an avatar and a 500 on checkout are both
  * "not 2xx" and are not the same news. `mark` is the deliberate absence — a

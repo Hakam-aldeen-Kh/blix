@@ -160,7 +160,7 @@ const scenarios = [
       const api = instanceWith({ "/fail-config": { status: 500, data: { error: "boom" } } });
       api.interceptors.response.use(undefined, (error) =>
         Promise.reject(
-          Object.assign(new ApiError("normalised"), {
+          Object.assign(new ApiError("normalized"), {
             config: { retry: false },
             cause: error,
           }),
@@ -186,7 +186,7 @@ const scenarios = [
       });
       api.interceptors.response.use(
         (r) => r,
-        () => Promise.reject(new ApiError("normalised: 500")),
+        () => Promise.reject(new ApiError("normalized: 500")),
       );
       attachHttpMonitor(api);
       const a = api.get("/slow-a");

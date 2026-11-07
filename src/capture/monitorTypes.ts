@@ -12,9 +12,9 @@ export type MonitorState = "pending" | "success" | "error" | "aborted";
  * HTTP requests, realtime connections, Redux actions and TanStack Query
  * activity all share one table.
  *
- * A WebSocket connection is modelled as a single long-lived entry that
+ * A WebSocket connection is modeled as a single long-lived entry that
  * accumulates frames — the same shape Chrome uses, where the connection is a
- * row and its traffic lives in a Messages tab. Modelling each frame as its own
+ * row and its traffic lives in a Messages tab. Modeling each frame as its own
  * row would drown the HTTP requests. A Query cache entry reuses that exact
  * model: one row per `queryHash`/`mutationId`, accumulating lifecycle frames
  * (fetch → success/error → invalidate → removed) — because under an aggressive
@@ -110,7 +110,7 @@ export interface ReduxActionMeta {
 
 /** Query/mutation only: the cache row's current lifecycle state. Deliberately
  * not folded into `MonitorState` — `MonitorState` drives the shared state
- * filter and row colour, and pending/success/error covers this fine;
+ * filter and row color, and pending/success/error covers this fine;
  * the richer status (fresh/stale/fetching/removed) lives here instead. */
 export interface QueryMeta {
   sub: "query" | "mutation";
@@ -321,7 +321,7 @@ export type JwtClaimsSource = "fetch" | "axios-settle" | "axios-request";
  */
 export interface JwtClaims {
   /**
-   * From the JOSE header, verbatim — never mapped or normalised here. Absent
+   * From the JOSE header, verbatim — never mapped or normalized here. Absent
    * when the header had no `alg` or an empty one. Display-only: no value of it
    * withholds the other claims.
    */

@@ -159,7 +159,7 @@ export function isSharedDefaultDb(): boolean {
  * than HTTP requests. A single shared budget would let a chat session's
  * action churn evict every HTTP row within seconds — so eviction is budgeted
  * per pool instead: HTTP+realtime share `net` (unchanged from the original
- * single-budget behaviour), Redux and Query get their own.
+ * single-budget behavior), Redux and Query get their own.
  */
 export type MonitorPool = "net" | "redux" | "query";
 

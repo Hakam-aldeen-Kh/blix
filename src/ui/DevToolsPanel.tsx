@@ -656,7 +656,7 @@ export default function DevTools() {
     if (e.defaultPrevented) return;
 
     // Before the typing check: Escape leaves the filter field too. An Escape
-    // that is cancelling an IME composition is the input method's, not ours.
+    // that is canceling an IME composition is the input method's, not ours.
     if (shortcutKey(e) === "Escape") {
       if (e.isComposing) return;
       // Consumed here, so the same keypress does not also close a dialog of
@@ -1279,7 +1279,7 @@ export default function DevTools() {
           colorScheme: theme.base,
           // Row height is a setting, not a constant, so it cannot live in
           // `tokens.ts` — `constants/ui.ts` owns the three steps and the
-          // number reaches CSS down the same path the theme's colours take.
+          // number reaches CSS down the same path the theme's colors take.
           // One value, read by both the stylesheet and the virtualizer.
           "--nm-row-h": `${rowHeight}px`,
           "--bx-row": `${rowHeight}px`,

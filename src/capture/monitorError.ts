@@ -27,7 +27,7 @@ export type FailureKind =
   /** No answer at all: offline, DNS, refused, or blocked by CORS — the
    * browser does not tell scripts which. */
   | "network"
-  /** Cancelled by the page: `AbortController`, a cancel token, navigation. */
+  /** Canceled by the page: `AbortController`, a cancel token, navigation. */
   | "aborted"
   /** Thrown before the request left — by an interceptor, or while building it. */
   | "setup"

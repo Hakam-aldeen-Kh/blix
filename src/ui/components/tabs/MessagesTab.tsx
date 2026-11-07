@@ -4,7 +4,7 @@
  * Dev Tools — frames exchanged on a realtime connection.
  *
  * Mirrors Chrome's Messages tab: a compact list of frames on top, the selected
- * frame's payload below. Direction is colour-coded because on ActionCable the
+ * frame's payload below. Direction is color-coded because on ActionCable the
  * useful signal is usually "what did the server just push at me".
  */
 
