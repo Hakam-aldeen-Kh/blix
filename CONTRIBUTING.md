@@ -74,6 +74,10 @@ why; run one on its own with `pnpm check:<name>`. `check:prod-guard` and
 `check:package` read `dist/`, so build first. The browser checks use the
 Chrome or Edge already installed — nothing is downloaded.
 
+In CI, `check:official` also writes its report and a per-request dump of
+the browser's and Blix's timings (`--report`, `--dump`); both are kept as the
+run's `official-comparison` artifact, even when the step fails.
+
 If your change touches logic, add a unit test beside the module's others in
 `test/`. If it touches something a check covers (the production guard,
 redaction, what is stored, the host page), extend that check. If it adds

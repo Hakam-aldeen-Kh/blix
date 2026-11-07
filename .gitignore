@@ -5,3 +5,5 @@ playground/.out/
 playground/.react18/
 .release-check/
 coverage/
+official-dump.json
+official-report.md
