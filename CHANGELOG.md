@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-11-07
+
+### Changed
+
+- **The panel and the docs use American spelling.** "Canceled" instead of
+  "Cancelled" for an aborted request, "syntax-colored" for the JSON view.
+
+### Fixed
+
+- **A key named `__proto__` shows as the key it is.** It is an ordinary key in
+  JSON, a header or a form field, but Blix copied captured data with plain
+  assignment, which turned it into the copy's prototype instead: the key
+  disappeared from the body, the headers or an error's details, and the copy
+  inherited its value. An API tested against prototype pollution sends exactly
+  that. It is now kept as an own key everywhere Blix copies, stores and exports
+  data, and an XHR response header named `constructor` is no longer joined with
+  a value the object only inherits.
+- **Opening the saved log no longer restarts your app's render.** Blix restores
+  (or, with "Preserve log" off, clears) its saved log as the panel mounts,
+  usually while the app is still hydrating, and its "loading" and "ready" each
+  re-rendered the panel at once. The panel shares your React root, so React
+  threw your page's render in progress away and started it again: from a few
+  dozen components' work to nearly a whole pass, depending on when the restore
+  ended. That status now reaches the panel once the page is idle; your own
+  clicks and drags on the panel still show at once.
+
 ## [0.14.0] - 2026-11-07
 
 ### Added
