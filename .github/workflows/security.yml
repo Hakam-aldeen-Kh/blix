@@ -7,9 +7,11 @@ name: Security
 #   CI runs. Only `high` and `critical` fail it; lower ones are listed in the
 #   log, where a dependabot PR usually follows.
 # - CodeQL: GitHub's static analysis for JavaScript and TypeScript (XSS, code
-#   injection, prototype pollution, unsafe regular expressions…). Findings go
-#   to the repository's Security tab, which only maintainers see, never to a
-#   public issue (see SECURITY.md).
+#   injection, prototype pollution, unsafe regular expressions…). Alerts on
+#   main go to the Security tab, which needs write access to see. A finding a
+#   PR introduces is also annotated on that PR, and anyone who can read the
+#   repository can read the PR — so a fix for something sensitive is not
+#   developed in a public PR first (see SECURITY.md).
 #
 # Weekly as well as on every change: an advisory published on Tuesday is news
 # to code that has not changed since Monday.

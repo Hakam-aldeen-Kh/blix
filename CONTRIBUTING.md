@@ -73,8 +73,9 @@ It is these layers, fastest first:
 In CI, the **Security** workflow also runs on every PR, on `main` and weekly:
 `pnpm audit --audit-level high` for known vulnerabilities in the dependency
 tree, and CodeQL (`security-extended` queries) over the JavaScript and
-TypeScript. CodeQL findings go to the Security tab, which only maintainers
-see; run `pnpm audit` locally before a dependency change.
+TypeScript. Its alerts on `main` are in the Security tab, for maintainers; a
+finding your PR introduces is annotated on the PR itself. Run `pnpm audit`
+locally before a dependency change.
 
 Each `scripts/check-*.mjs` starts with a comment saying what it guards and
 why; run one on its own with `pnpm check:<name>`. `check:prod-guard` and

@@ -79,8 +79,10 @@ captured, what reaches disk, what is redacted, and how to purge.
 Every pull request, every push to `main` and a weekly run go through
 `pnpm audit` (known vulnerabilities in the dependency tree; Blix itself ships
 no runtime dependencies) and GitHub's CodeQL analysis of the JavaScript and
-TypeScript. CodeQL's findings land in the repository's Security tab, which only
-maintainers can see, so nothing it finds is public before it is fixed. They
+TypeScript. Alerts on `main` are listed in the repository's Security tab, which
+needs write access to see. A finding that a pull request introduces is also
+annotated on that pull request, which is as public as the repository: report
+anything sensitive privately, as below, rather than as a PR. These checks
 complement a report; they do not replace one.
 
 ## Reporting a vulnerability
