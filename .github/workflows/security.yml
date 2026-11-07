@@ -1,0 +1,65 @@
+name: Security
+
+# Two checks that look outside Blix's own logic:
+#
+# - pnpm audit: known vulnerabilities in the dependency tree. Blix ships no
+#   runtime dependencies, so this is the toolchain a contributor installs and
+#   CI runs. Only `high` and `critical` fail it; lower ones are listed in the
+#   log, where a dependabot PR usually follows.
+# - CodeQL: GitHub's static analysis for JavaScript and TypeScript (XSS, code
+#   injection, prototype pollution, unsafe regular expressions…). Findings go
+#   to the repository's Security tab, which only maintainers see, never to a
+#   public issue (see SECURITY.md).
+#
+# Weekly as well as on every change: an advisory published on Tuesday is news
+# to code that has not changed since Monday.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # The version comes from "packageManager" in package.json. Nothing is
+      # installed: the audit reads pnpm-lock.yaml.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Known vulnerabilities in dependencies
+        run: pnpm audit --audit-level high
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # JavaScript and TypeScript are analyzed from source; nothing to build.
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"

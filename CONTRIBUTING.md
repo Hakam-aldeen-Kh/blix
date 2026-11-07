@@ -70,6 +70,12 @@ It is these layers, fastest first:
 | Package | `pnpm check:package` | The tarball npm would publish, installed into a fresh project: contents, `import` and `require`, a consumer's types, the size budget. Reads `dist/`, so build first. |
 | Browser | `pnpm check:browser` | In Chrome (or `--browser msedge`): every request compared with the browser's own record (`check:official`), hard cases built to break the linking (`check:adversarial`), a host render that Blix must not hold back (`check:host`), and the panel driven by mouse and keyboard (`check:e2e`). |
 
+In CI, the **Security** workflow also runs on every PR, on `main` and weekly:
+`pnpm audit --audit-level high` for known vulnerabilities in the dependency
+tree, and CodeQL (`security-extended` queries) over the JavaScript and
+TypeScript. CodeQL findings go to the Security tab, which only maintainers
+see; run `pnpm audit` locally before a dependency change.
+
 Each `scripts/check-*.mjs` starts with a comment saying what it guards and
 why; run one on its own with `pnpm check:<name>`. `check:prod-guard` and
 `check:package` read `dist/`, so build first. The browser checks use the
